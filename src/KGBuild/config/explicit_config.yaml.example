@@ -1,0 +1,19 @@
+# KGBuild/config/explicit_config.yaml.example
+# 复制为 explicit_config.yaml 并填写实际 API 密钥
+
+APIConfig:
+  API_BASE: "https://api.siliconflow.cn/v1"
+  API_KEY: "<YOUR_API_KEY>"
+  MODEL_NAME: "Qwen/Qwen3-8B"
+  # 公共 LLM 调用参数（所有 step 共享，step config 不再重复）
+  TIMEOUT_SECS: 120
+  RETRIES: 3
+  WORKERS: 10
+  CHAT_COMPLETIONS_PATH: "/chat/completions"
+  RATE_LIMIT_QPS: 0
+  EXTRA_THROTTLE_SEC: 0.0
+  RETRY_BACKOFF_BASE: 1.8
+
+include_files:
+  - "extraction.yaml"
+  - "text.yaml"

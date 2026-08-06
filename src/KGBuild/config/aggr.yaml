@@ -1,0 +1,90 @@
+AggrConfig:
+  # —— I/O（名字即可；实际路径由代码拼：KGBuild/output 或 KGBuild/logs）—— #
+  CONV_IN_NAME: "conv_entities.json"
+  OUT_NAME: "aggr_entities.json"
+  LOG_NAME: "aggr.log"
+
+  # —— LLM 调用参数（step 专属；公共参数在 explicit_config.yaml APIConfig）—— #
+  TEMPERATURE: 0.0
+  MAX_TOKENS: 1000
+  DRY_RUN: 0
+
+  # —— 调试/运行控制 —— #
+  LIMIT: 0            # 0 表示不限制；>0 仅处理前 N 个实体
+  TREE_ENFORCE: 1     # 是否强制每个 non-core 只有一个父节点
+  PROGRESS_NCOLS: 80  # 进度条宽度
+
+  # —— 关系判定与横改纵 —— #
+  VERTICAL_REL_TYPES:     # 视为"纵向"的关系前缀（不区分大小写）
+    - "has_subordinate"
+    - "has_parent"
+    - "has_entity"
+    - "has_subsection"
+  RELATION_TAGS:          # 横改纵时写回去的关系名
+    child_of: "has_parent|in"        # non-core -> core（回指）
+    parent_of: "has_subordinate|out" # core -> non-core
+
+  # —— 兜底启发式（LLM 失败时）—— #
+  FALLBACK:
+    threshold: 4          # >= threshold 视为 core
+    neighbor_weight: 0.5  # 评分 = 出现次数 + neighbor_weight * 邻居数
+
+  # —— 概念/实体分拣阈值（规则兜底用）—— #
+  LAYER_RULES:
+    concept_min_occurrences: 2   # 跨章节出现 ≥2 次 + layer_hint=concept → 直接判 concept
+
+  # —— 提示词（可按需修改语气/规则）—— #
+PROMPTS:
+  system: |-
+    你是知识图谱构建专家。任务：判断给定实体属于"概念层（concept）"还是"实体层（entity）"。
+    只基于提供的文本线索做判断，不引入外部常识或猜测。
+
+    判定信号（重要性从高到低）：
+    1) 抽象层级：是否为抽象术语/方法论/范式，而非具体实例/工具/参数。
+    2) 跨文档复用性：是否被多处引用、跨多个小节/章节出现；能否作为通用概念。
+    3) 标题/纲要出现：是否出现在章/节标题、综述/定义性段落。
+    4) 可实例化性：能否被具体实例代表（能被实例化 → 概念；本身就是实例 → 实体）。
+    5) 粒度与可替代性：能否统摄同级多项；若可被上位词替代则倾向实体。
+
+    快速决策（满足即停）：
+    A. 明显是具体工具/系统/模型/人员/参数/文件名 ⇒ entity
+    B. 抽象术语/关键概念/通用方法/理论/范式 ⇒ concept
+    C. 同时满足 ≥3 个判定信号 ⇒ concept；否则 ⇒ entity
+
+    输出格式（严格遵守）：
+    - 第一行：concept 或 entity（小写、无标点、无多余文字）
+    - 第二行（可选）：≤30字，给出最关键的判定理由（中文）
+
+  relation_system: |-
+    你是知识图谱关系抽取专家。现在给出一对节点：一个概念（concept，上位/抽象）与一个实体（entity，从属/实例/相关）。
+    只基于提供的文本与上下文，判断它们之间在以下七类关系中最贴切的一类：
+    - prerequisite：先修/前置；掌握 A 是理解 B 的必要条件。
+    - part-of：A 是 B 的组成或子概念（层级包含）。
+    - applies-to：A（方法/函数/算法）用于 B（对象/任务/场景）。
+    - example-of：A 是 B 的实例或典型代表（方向 A→B）。
+    - synonym：严格同义或别名（几乎等价）。
+    - contrasts-with：概念/方法在用途、性质上形成对比。
+    - related：相关但不满足以上更强语义（兜底）。
+
+    规则：
+    1) 只输出一行，且只能是上述七个英文小写标签之一。
+    2) 不要加解释、标点、编号或其它任何文字。
+    3) 如果信息不足或两者关系难以归类，输出 related。
+
+  relation_user_template: |-
+    【概念】
+    名称：{core_name}
+    类型：{core_type}
+    描述：{core_desc}
+    近邻（截取）：
+    {core_neighbors}
+
+    【实体】
+    名称：{child_name}
+    类型：{child_type}
+    描述：{child_desc}
+    近邻（截取）：
+    {child_neighbors}
+
+    请在 {{prerequisite|part-of|applies-to|example-of|synonym|contrasts-with|related}} 中选择一个最贴切的关系类型。
+    只输出该英文标签。

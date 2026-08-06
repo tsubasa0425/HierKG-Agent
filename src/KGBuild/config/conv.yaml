@@ -1,0 +1,49 @@
+ConvConfig:
+  # —— I/O（只保留文件名；路径由代码拼接）——
+  TOC_ENT_REL_NAME: "toc_with_entities_and_relations.json"  # 来自 KGBuild/output
+  CONV_RESULT_NAME: "conv_entities.json"    # 输出到 KGBuild/output
+  CONV_PROMPTS_NAME: "conv_prompts.json"
+
+  # —— 邻域控制 ——
+  MAX_NEIGHBORS_GLOBAL: 300
+
+  # —— LLM 调用参数（step 专属；公共参数在 explicit_config.yaml APIConfig）——
+  TEMPERATURE: 0.2
+  MAX_TOKENS: 1000
+
+  # —— 其他开关 ——
+  DRY_RUN: false
+
+  # —— Prompt 模板（从这里读取，不再硬编码在代码里）——
+  PROMPT_SYSTEM: |-
+    你是"知识图谱专家"，负责为课程知识图谱中的实体生成增强描述。
+    输出目标：帮助知识图谱系统补充实体定义、功能和语义关联。
+    约束：
+    - 仅使用输入提供的信息（出现位置、邻域实体、原始描述），禁止引入外部常识或猜测。
+    - 生成单段中文描述，180–320 字，全角标点，不分行、不列点、不加标题。
+    - 若信息不足，可生成概述性描述，但不要虚构。
+    - 输出必须是单个 JSON 对象，禁止 Markdown 代码块或附加文本。
+    - 所有引号使用 ASCII 双引号 `"`，不得使用中文引号。
+
+  PROMPT_USER_TEMPLATE: |-
+    目标实体：{entity_name}
+    原始描述：{original_desc}
+
+    出现位置（最多3处）：{occurrences}
+
+    邻域实体（按共现权重排序，可能截断）：
+    {neighbors}
+
+    任务：
+    - 基于上述信息，为"{entity_name}"生成增强描述；
+    - 包含定义/本质、典型功能或场景、与邻域实体的关键联系（仅限输入能佐证的部分）；
+    - 不得臆测、不得添加外部知识。
+    输出要求：
+    - 仅返回单行 JSON，键名固定：name、updated_description；
+    - description 必须是单段中文，180–320 字，全角标点；
+    - 禁止输出任何解释、代码围栏或多余内容。
+    严格输出：
+    {{
+      "name": "{entity_name}",
+      "updated_description": "180~320字的中文增强描述，单段落，无列表、无标题、无外部信息"
+    }}

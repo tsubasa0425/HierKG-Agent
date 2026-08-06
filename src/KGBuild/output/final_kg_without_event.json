@@ -1,0 +1,5430 @@
+{
+  "nodes": [
+    {
+      "name": "AI原生编辑器",
+      "type": "功能",
+      "description": "AI原生编辑器",
+      "level": "core"
+    },
+    {
+      "name": "API_KEY",
+      "type": "参数",
+      "description": "提供API_KEY、BASE_URL和MODEL_ID三个参数",
+      "level": "noncore"
+    },
+    {
+      "name": "AgentGPT",
+      "type": "系统",
+      "description": "单智能体模式如AgentGPT",
+      "level": "core"
+    },
+    {
+      "name": "AlphaGo",
+      "type": "实例/系统",
+      "description": "如AlphaGo所示",
+      "level": "core"
+    },
+    {
+      "name": "Azure",
+      "type": "组织或实体",
+      "description": "Azure",
+      "level": "noncore"
+    },
+    {
+      "name": "BASE_URL",
+      "type": "参数",
+      "description": "提供API_KEY、BASE_URL和MODEL_ID三个参数",
+      "level": "noncore"
+    },
+    {
+      "name": "Claude Code",
+      "type": "AI编程辅助工具",
+      "description": "Claude Code",
+      "level": "noncore"
+    },
+    {
+      "name": "CrewAI",
+      "type": "系统",
+      "description": "多智能体模式如CrewAI",
+      "level": "core"
+    },
+    {
+      "name": "Cursor",
+      "type": "AI编程辅助工具",
+      "description": "Cursor",
+      "level": "core"
+    },
+    {
+      "name": "DOCTOR",
+      "type": "脚本",
+      "description": "其中最著名的‘DOCTOR’脚本模仿罗杰斯学派的非指导性心理治疗师",
+      "level": "core"
+    },
+    {
+      "name": "ELIZA",
+      "type": "程序",
+      "description": "ELIZA是由约瑟夫·魏泽鲍姆于1966年开发的早期自然语言处理程序，它并非单一程序，而是一个支持不同‘脚本’的框架",
+      "level": "core"
+    },
+    {
+      "name": "GitHub Copilot",
+      "type": "AI编程辅助工具",
+      "description": "GitHub Copilot",
+      "level": "core"
+    },
+    {
+      "name": "LLM",
+      "type": "技术",
+      "description": "引导LLM进行决策",
+      "level": "core"
+    },
+    {
+      "name": "LLM服务提供商",
+      "type": "组织或实体",
+      "description": "许多LLM服务提供商",
+      "level": "noncore"
+    },
+    {
+      "name": "智能体",
+      "type": "数学概念",
+      "description": "智能体",
+      "level": "core"
+    },
+    {
+      "name": "LangChain",
+      "type": "框架",
+      "description": "主流智能体框架（如LangChain、Llamalndex等）",
+      "level": "core"
+    },
+    {
+      "name": "LangGraph",
+      "type": "系统",
+      "description": "LangGraph等则通过状态图建模实现更灵活的控制流",
+      "level": "core"
+    },
+    {
+      "name": "Llamalndex",
+      "type": "框架",
+      "description": "主流智能体框架（如LangChain、Llamalndex等）",
+      "level": "core"
+    },
+    {
+      "name": "MODEL_ID",
+      "type": "参数",
+      "description": "提供API_KEY、BASE_URL和MODEL_ID三个参数",
+      "level": "noncore"
+    },
+    {
+      "name": "MYCIN系统",
+      "type": "系统/技术",
+      "description": "MYCIN系统",
+      "level": "core"
+    },
+    {
+      "name": "MetaGPT",
+      "type": "系统",
+      "description": "多智能体模式如MetaGPT",
+      "level": "core"
+    },
+    {
+      "name": "N-gram",
+      "type": "算法",
+      "description": "早期的统计语言模型如N-gram，基于链式法则和最大似然估计（MLE）计算条件概率，但存在数据稀疏性和泛化能力差的问题，难以处理未出现词序列和语义关系。",
+      "level": "core"
+    },
+    {
+      "name": "Ollama",
+      "type": "开源框架",
+      "description": "开源框架如Ollama",
+      "level": "noncore"
+    },
+    {
+      "name": "OpenAI",
+      "type": "API客户端",
+      "description": "结合特定API客户端如Tavily-Dvthon和OpenAI",
+      "level": "noncore"
+    },
+    {
+      "name": "PEAS模型",
+      "type": "模型",
+      "description": "通常采用PEAS模型进行描述，即性能度量、环境、执行器和传感器",
+      "level": "core"
+    },
+    {
+      "name": "Prompt",
+      "type": "技术",
+      "description": "借助格式化后的Prompt引导LLM进行决策",
+      "level": "core"
+    },
+    {
+      "name": "SHRDLU",
+      "type": "系统",
+      "description": "SHRDLU 是由特里·威诺格拉德于1968-1970年开发的首个综合性智能体系统",
+      "level": "core"
+    },
+    {
+      "name": "Tavily-Dvthon",
+      "type": "API客户端",
+      "description": "结合特定API客户端如Tavily-Dvthon和OpenAI",
+      "level": "noncore"
+    },
+    {
+      "name": "Trae",
+      "type": "AI编程辅助工具",
+      "description": "Trae",
+      "level": "noncore"
+    },
+    {
+      "name": "Transformer模型",
+      "type": "模型",
+      "description": "Transformer模型的基本结构及其核心机制",
+      "level": "core"
+    },
+    {
+      "name": "VLLM",
+      "type": "开源框架",
+      "description": "开源框架如VLLM",
+      "level": "noncore"
+    },
+    {
+      "name": "formatted_results列表",
+      "type": "数据结构",
+      "description": "程序对搜索结果进行格式化处理，将每个景点的标题与内容以“-标题:内容”的形式组织到formatted_results列表中",
+      "level": "noncore"
+    },
+    {
+      "name": "generate方法",
+      "type": "方法",
+      "description": "调用generate方法",
+      "level": "noncore"
+    },
+    {
+      "name": "get_attraction函数",
+      "type": "函数",
+      "description": "get_attraction函数根据城市和天气推荐旅游景点",
+      "level": "noncore"
+    },
+    {
+      "name": "get_weather函数",
+      "type": "函数",
+      "description": "get_weather函数用于查询天气信息",
+      "level": "noncore"
+    },
+    {
+      "name": "openAICompatibleClient",
+      "type": "客户端",
+      "description": "实现一个通用的客户端openAICompatibleClient",
+      "level": "core"
+    },
+    {
+      "name": "requests库",
+      "type": "库",
+      "description": "为实现Python程序对网络API的访问，需使用requests库发起请求",
+      "level": "core"
+    },
+    {
+      "name": "上下文学习",
+      "type": "能力",
+      "description": "参数量等指标达到一定阈值时展现出上下文学习",
+      "level": "core"
+    },
+    {
+      "name": "上下文记忆",
+      "type": "功能",
+      "description": "能够处理复杂指令，如指代消解和上下文记忆",
+      "level": "core"
+    },
+    {
+      "name": "不确定性",
+      "type": "环境特征",
+      "description": "环境具有部分可观察性、不确定性、多智能体交互及序贯动态等特征",
+      "level": "core"
+    },
+    {
+      "name": "专家系统",
+      "type": "系统",
+      "description": "专家系统",
+      "level": "core"
+    },
+    {
+      "name": "专用工具",
+      "type": "数学概念",
+      "description": "智能系统从专用工具向通用问题解决者演进",
+      "level": "core"
+    },
+    {
+      "name": "世界知识隐式模型",
+      "type": "模型结构",
+      "description": "大型语言模型在预训练后形成高度压缩的世界知识隐式模型",
+      "level": "core"
+    },
+    {
+      "name": "主循环",
+      "type": "组件",
+      "description": "通过主循环整合各类组件",
+      "level": "core"
+    },
+    {
+      "name": "亚符号主义",
+      "type": "范式",
+      "description": "亚符号主义",
+      "level": "core"
+    },
+    {
+      "name": "交互设计",
+      "type": "设计领域",
+      "description": "凸显了早期人工智能在交互设计上的独特挑战与影响",
+      "level": "core"
+    },
+    {
+      "name": "产生式规则",
+      "type": "知识表示方法",
+      "description": "产生式规则（IF-THEN）",
+      "level": "core"
+    },
+    {
+      "name": "人工智能",
+      "type": "技术领域",
+      "description": "凸显了早期人工智能在交互设计上的独特挑战与影响",
+      "level": "core"
+    },
+    {
+      "name": "人工编码",
+      "type": "语法结构",
+      "description": "而非依赖人工编码",
+      "level": "noncore"
+    },
+    {
+      "name": "人机协同编程",
+      "type": "概念",
+      "description": "人机协同编程",
+      "level": "core"
+    },
+    {
+      "name": "代码生成",
+      "type": "任务",
+      "description": "代码生成",
+      "level": "noncore"
+    },
+    {
+      "name": "代码补全",
+      "type": "功能",
+      "description": "代码补全",
+      "level": "core"
+    },
+    {
+      "name": "代词转换",
+      "type": "算法步骤",
+      "description": "最后进行代词转换（如 I→you, my→your）",
+      "level": "core"
+    },
+    {
+      "name": "任务分解",
+      "type": "算法",
+      "description": "它可自主分解任务",
+      "level": "core"
+    },
+    {
+      "name": "任务执行",
+      "type": "能力",
+      "description": "使智能体能够实现自主决策与任务执行",
+      "level": "core"
+    },
+    {
+      "name": "值向量",
+      "type": "向量类型",
+      "description": "通过查询、键、值三个向量",
+      "level": "core"
+    },
+    {
+      "name": "全局依赖关系",
+      "type": "语言特征",
+      "description": "对序列数据中全局依赖关系的高效捕捉",
+      "level": "core"
+    },
+    {
+      "name": "关键词识别",
+      "type": "技术方法",
+      "description": "ELIZA通过识别用户输入中的关键词并应用预设的转换规则",
+      "level": "core"
+    },
+    {
+      "name": "动作序列规划",
+      "type": "功能",
+      "description": "自主规划动作序列以完成任务",
+      "level": "core"
+    },
+    {
+      "name": "单一整体智能模型",
+      "type": "模型类型",
+      "description": "单一整体智能模型",
+      "level": "core"
+    },
+    {
+      "name": "单智能体自主循环",
+      "type": "框架",
+      "description": "单智能体模式如AgentGPT，通过闭环流程完成高层目标",
+      "level": "core"
+    },
+    {
+      "name": "单智能体闭环",
+      "type": "架构",
+      "description": "单智能体闭环",
+      "level": "noncore"
+    },
+    {
+      "name": "反向传播",
+      "type": "算法",
+      "description": "学习算法（如反向传播）",
+      "level": "core"
+    },
+    {
+      "name": "反向链",
+      "type": "推理方式",
+      "description": "反向链（目标驱动）",
+      "level": "core"
+    },
+    {
+      "name": "回报",
+      "type": "数学概念",
+      "description": "最大化从当前时刻到未来的累积奖励（回报）",
+      "level": "core"
+    },
+    {
+      "name": "基于效用的智能体",
+      "type": "智能体类型",
+      "description": "基于效用的智能体进一步考虑多个目标的权衡，通过效用函数最大化期望满意度",
+      "level": "core"
+    },
+    {
+      "name": "基于模型的智能体",
+      "type": "智能体类型",
+      "description": "基于模型的智能体引入内部世界模型，以追踪环境状态，实现初级记忆",
+      "level": "core"
+    },
+    {
+      "name": "基于目标的智能体",
+      "type": "智能体类型",
+      "description": "基于目标的智能体则主动规划行动以达成特定目标",
+      "level": "core"
+    },
+    {
+      "name": "复杂任务",
+      "type": "任务",
+      "description": "完成复杂任务",
+      "level": "core"
+    },
+    {
+      "name": "外部工具",
+      "type": "语法结构",
+      "description": "调用外部工具补全信息",
+      "level": "core"
+    },
+    {
+      "name": "多头注意力机制",
+      "type": "机制",
+      "description": "多头注意力则通过将Q、K、V向量分头处理，使模型能够从多个角度关注不同的语义关系",
+      "level": "core"
+    },
+    {
+      "name": "多智能体交互",
+      "type": "环境特征",
+      "description": "环境具有部分可观察性、不确定性、多智能体交互及序贯动态等特征",
+      "level": "core"
+    },
+    {
+      "name": "多智能体协作",
+      "type": "框架",
+      "description": "多智能体模式如MetaGPT和CrewAI，模拟分工明确的虚拟团队进行协作",
+      "level": "core"
+    },
+    {
+      "name": "多智能体系统",
+      "type": "系统",
+      "description": "推动了多智能体系统（MAS）的发展",
+      "level": "core"
+    },
+    {
+      "name": "多样化的心智活动",
+      "type": "心智活动",
+      "description": "多样化的心智活动",
+      "level": "core"
+    },
+    {
+      "name": "多维度问答",
+      "type": "功能",
+      "description": "支持用户进行多维度的问答",
+      "level": "core"
+    },
+    {
+      "name": "大型语言模型",
+      "type": "模型类型",
+      "description": "大型语言模型在预训练后形成高度压缩的世界知识隐式模型",
+      "level": "core"
+    },
+    {
+      "name": "大规模通用语料库",
+      "type": "数据集",
+      "description": "在大规模通用语料库上进行自监督学习",
+      "level": "core"
+    },
+    {
+      "name": "大语言模型",
+      "type": "数学概念",
+      "description": "大语言模型（LLM）驱动的智能体",
+      "level": "core"
+    },
+    {
+      "name": "奖励",
+      "type": "实体",
+      "description": "强化学习的基本框架包括智能体、环境、状态、行动和奖励五个核心要素",
+      "level": "core"
+    },
+    {
+      "name": "学习",
+      "type": "算法",
+      "description": "引导模型自主规划、行动与学习",
+      "level": "core"
+    },
+    {
+      "name": "学习型智能体",
+      "type": "智能体类型",
+      "description": "学习型智能体则突破了依赖先验知识的限制，通过强化学习机制，利用环境反馈自主优化决策策略",
+      "level": "core"
+    },
+    {
+      "name": "学习过程",
+      "type": "过程",
+      "description": "系统智能来源于学习过程，即通过大量样本和学习算法（如反向传播）自动调整连接权重",
+      "level": "core"
+    },
+    {
+      "name": "局部交互",
+      "type": "数学概念",
+      "description": "复杂智能行为如搭塔并非由单一智能体规划，而是通过大量简单智能体的局部交互自发涌现。",
+      "level": "core"
+    },
+    {
+      "name": "层级分明的整体结构",
+      "type": "结构",
+      "description": "层级分明的整体结构",
+      "level": "core"
+    },
+    {
+      "name": "工具",
+      "type": "组件",
+      "description": "工具用于执行具体任务",
+      "level": "core"
+    },
+    {
+      "name": "工具调用",
+      "type": "技术",
+      "description": "工具调用",
+      "level": "core"
+    },
+    {
+      "name": "工具选择",
+      "type": "子过程",
+      "description": "工具选择用于确定执行工具及参数",
+      "level": "core"
+    },
+    {
+      "name": "带通配符的分解规则",
+      "type": "算法技术",
+      "description": "利用带通配符的分解规则提取句子剩余部分",
+      "level": "noncore"
+    },
+    {
+      "name": "并行计算",
+      "type": "计算方式",
+      "description": "支持并行计算，从而提升了模型的训练效率和表达能力",
+      "level": "core"
+    },
+    {
+      "name": "序列数据",
+      "type": "数据类型",
+      "description": "对序列数据中全局依赖关系的高效捕捉",
+      "level": "core"
+    },
+    {
+      "name": "序贯决策问题",
+      "type": "问题类型",
+      "description": "面对动态环境中的序贯决策问题",
+      "level": "core"
+    },
+    {
+      "name": "序贯动态",
+      "type": "环境特征",
+      "description": "环境具有部分可观察性、不确定性、多智能体交互及序贯动态等特征",
+      "level": "core"
+    },
+    {
+      "name": "开发者工具",
+      "type": "应用",
+      "description": "开发者工具",
+      "level": "core"
+    },
+    {
+      "name": "开放式问题",
+      "type": "对话策略",
+      "description": "将用户的陈述转化为开放式问题",
+      "level": "core"
+    },
+    {
+      "name": "强化学习",
+      "type": "算法/方法",
+      "description": "通过强化学习机制，利用环境反馈自主优化决策策略",
+      "level": "core"
+    },
+    {
+      "name": "循环神经网络",
+      "type": "算法",
+      "description": "循环神经网络（RNN）通过隐藏状态扩展上下文范围，但存在长期依赖问题，导致梯度消失或爆炸。",
+      "level": "core"
+    },
+    {
+      "name": "微调",
+      "type": "技术阶段",
+      "description": "微调阶段则利用少量标注数据使模型适应特定下游任务",
+      "level": "core"
+    },
+    {
+      "name": "心智社会",
+      "type": "理论",
+      "description": "明斯基提出“心智社会”理论",
+      "level": "core"
+    },
+    {
+      "name": "思维链推理",
+      "type": "能力",
+      "description": "参数量等指标达到一定阈值时展现出上下文学习和思维链推理等涌现能力",
+      "level": "core"
+    },
+    {
+      "name": "思考阶段",
+      "type": "系统阶段",
+      "description": "思考阶段由规划模块与LLM协同完成，包括目标分解与深度推理，最终生成具体操作指令",
+      "level": "core"
+    },
+    {
+      "name": "情感依赖",
+      "type": "现象",
+      "description": "引发了用户对其情感依赖的现象",
+      "level": "core"
+    },
+    {
+      "name": "感知",
+      "type": "阶段",
+      "description": "感知阶段，智能体通过传感器获取环境输入，形成观察",
+      "level": "core"
+    },
+    {
+      "name": "感知-思考-行动",
+      "type": "系统特性",
+      "description": "体现了“感知-思考-行动”的闭环",
+      "level": "core"
+    },
+    {
+      "name": "感知-思考-行动-观察",
+      "type": "机制",
+      "description": "“感知-思考-行动-观察”的循环机制",
+      "level": "core"
+    },
+    {
+      "name": "感知-思考-行动-观察循环",
+      "type": "交互机制",
+      "description": "通过‘感知-思考-行动-观察’的循环实现有效交互与响应",
+      "level": "core"
+    },
+    {
+      "name": "感知-思考-行动闭环",
+      "type": "设计模式",
+      "description": "“感知-思考-行动”闭环设计",
+      "level": "core"
+    },
+    {
+      "name": "感知-行动闭环",
+      "type": "语法结构",
+      "description": "智能体通过感知-行动的闭环持续学习",
+      "level": "core"
+    },
+    {
+      "name": "执行模块",
+      "type": "系统模块",
+      "description": "行动阶段由执行模块调用工具完成任务执行",
+      "level": "core"
+    },
+    {
+      "name": "持续迭代",
+      "type": "架构特性",
+      "description": "该架构通过模块化协作与持续迭代，使智能体具备自主感知、规划、决策和执行的能力",
+      "level": "core"
+    },
+    {
+      "name": "指代消解",
+      "type": "功能",
+      "description": "能够处理复杂指令，如指代消解和上下文记忆",
+      "level": "core"
+    },
+    {
+      "name": "推理机",
+      "type": "模块/组件",
+      "description": "推理机",
+      "level": "core"
+    },
+    {
+      "name": "提示工程",
+      "type": "技术方法",
+      "description": "提示工程通过设计指令模板明确LLM的输出格式与角色",
+      "level": "core"
+    },
+    {
+      "name": "搭塔",
+      "type": "数学概念",
+      "description": "复杂智能行为如搭塔并非由单一智能体规划，而是通过大量简单智能体的局部交互自发涌现。",
+      "level": "core"
+    },
+    {
+      "name": "效用函数",
+      "type": "数学概念",
+      "description": "通过效用函数最大化期望满意度",
+      "level": "core"
+    },
+    {
+      "name": "文本替换",
+      "type": "算法技术",
+      "description": "基于模式匹配与文本替换",
+      "level": "core"
+    },
+    {
+      "name": "无约束智能体",
+      "type": "概念",
+      "description": "无约束智能体",
+      "level": "core"
+    },
+    {
+      "name": "明斯基",
+      "type": "人物",
+      "description": "明斯基开始质疑单一整体智能模型的弊端",
+      "level": "core"
+    },
+    {
+      "name": "智能体循环",
+      "type": "机制",
+      "description": "本文介绍了智能体在任务环境中的核心运行机制——智能体循环（Agent Loop）",
+      "level": "core"
+    },
+    {
+      "name": "智能化",
+      "type": "属性",
+      "description": "更智能化",
+      "level": "core"
+    },
+    {
+      "name": "智能旅行助手",
+      "type": "函数",
+      "description": "以“智能旅行助手”为例",
+      "level": "core"
+    },
+    {
+      "name": "智能系统",
+      "type": "系统",
+      "description": "形成一个完整的、由真实LLM驱动的智能系统",
+      "level": "core"
+    },
+    {
+      "name": "最大似然估计",
+      "type": "数学概念",
+      "description": "早期的统计语言模型如N-gram，基于链式法则和最大似然估计（MLE）计算条件概率，但存在数据稀疏性和泛化能力差的问题，难以处理未出现词序列和语义关系。",
+      "level": "core"
+    },
+    {
+      "name": "机构",
+      "type": "数学概念",
+      "description": "这些智能体通过去中心化的激活与抑制机制协同工作，形成更复杂的机构（Agency），如BUILD-TOWER。",
+      "level": "core"
+    },
+    {
+      "name": "查询向量",
+      "type": "向量类型",
+      "description": "通过查询、键、值三个向量",
+      "level": "core"
+    },
+    {
+      "name": "梯度消失",
+      "type": "问题",
+      "description": "循环神经网络（RNN）通过隐藏状态扩展上下文范围，但存在长期依赖问题，导致梯度消失或爆炸。",
+      "level": "core"
+    },
+    {
+      "name": "梯度爆炸",
+      "type": "问题",
+      "description": "循环神经网络（RNN）通过隐藏状态扩展上下文范围，但存在长期依赖问题，导致梯度消失或爆炸。",
+      "level": "core"
+    },
+    {
+      "name": "模块化协作",
+      "type": "架构特性",
+      "description": "该架构通过模块化协作与持续迭代，使智能体具备自主感知、规划、决策和执行的能力",
+      "level": "core"
+    },
+    {
+      "name": "模式匹配",
+      "type": "算法技术",
+      "description": "基于模式匹配与文本替换",
+      "level": "core"
+    },
+    {
+      "name": "正向链",
+      "type": "推理方式",
+      "description": "正向链（数据驱动）",
+      "level": "core"
+    },
+    {
+      "name": "自注意力机制",
+      "type": "机制",
+      "description": "自注意力机制通过查询、键、值三个向量对序列中每个词元进行上下文信息融合",
+      "level": "core"
+    },
+    {
+      "name": "消息格式",
+      "type": "数据格式",
+      "description": "将用户输入和系统提示封装为消息格式",
+      "level": "noncore"
+    },
+    {
+      "name": "涌现能力",
+      "type": "数学概念",
+      "description": "LLM 智能体通过海量数据训练，具备隐式世界模型和强大的涌现能力",
+      "level": "core"
+    },
+    {
+      "name": "深度学习分析",
+      "type": "功能",
+      "description": "深度学习分析",
+      "level": "core"
+    },
+    {
+      "name": "物理符号系统假说",
+      "type": "理论",
+      "description": "物理符号系统假说（PSSH）",
+      "level": "core"
+    },
+    {
+      "name": "特里·威诺格拉德",
+      "type": "人物",
+      "description": "特里·威诺格拉德",
+      "level": "noncore"
+    },
+    {
+      "name": "状态",
+      "type": "实体",
+      "description": "强化学习的基本框架包括智能体、环境、状态、行动和奖励五个核心要素",
+      "level": "core"
+    },
+    {
+      "name": "状态图建模",
+      "type": "方法",
+      "description": "通过状态图建模实现更灵活的控制流",
+      "level": "core"
+    },
+    {
+      "name": "环境",
+      "type": "实体",
+      "description": "智能体与环境的交互，在试错中学习最大化长期收益",
+      "level": "core"
+    },
+    {
+      "name": "环境状态变化",
+      "type": "结果",
+      "description": "引发环境状态变化",
+      "level": "noncore"
+    },
+    {
+      "name": "环境状态记忆",
+      "type": "功能",
+      "description": "具备对环境状态和行为历史的记忆能力",
+      "level": "core"
+    },
+    {
+      "name": "用户反馈",
+      "type": "语法结构",
+      "description": "根据用户反馈动态修正行动方案",
+      "level": "core"
+    },
+    {
+      "name": "目标委托",
+      "type": "概念",
+      "description": "在目标委托下的独立规划、推理、执行与反思能力",
+      "level": "core"
+    },
+    {
+      "name": "知识库",
+      "type": "模块/组件",
+      "description": "知识库",
+      "level": "core"
+    },
+    {
+      "name": "社会",
+      "type": "理论模型",
+      "description": "智能应被视为由多种功能各异、可能相互冲突的简单机制构成的“社会”",
+      "level": "core"
+    },
+    {
+      "name": "神经符号主义AI",
+      "type": "范式",
+      "description": "神经符号主义AI",
+      "level": "core"
+    },
+    {
+      "name": "神经网络结构",
+      "type": "结构",
+      "description": "通过模仿生物大脑神经网络结构",
+      "level": "core"
+    },
+    {
+      "name": "神经网络语言模型",
+      "type": "算法",
+      "description": "为克服这些缺陷，研究者转向神经网络语言模型，引入词嵌入技术，将词映射到高维向量空间，提升语义表达能力。",
+      "level": "core"
+    },
+    {
+      "name": "积木世界",
+      "type": "环境",
+      "description": "在一个名为“积木世界”的三维虚拟环境中",
+      "level": "core"
+    },
+    {
+      "name": "端到端行程规划",
+      "type": "算法",
+      "description": "实现端到端的行程规划与执行",
+      "level": "core"
+    },
+    {
+      "name": "符号主义",
+      "type": "范式",
+      "description": "符号主义",
+      "level": "core"
+    },
+    {
+      "name": "符号处理",
+      "type": "概念",
+      "description": "对符号处理与真正理解之间差异的深刻反思",
+      "level": "core"
+    },
+    {
+      "name": "简单反射智能体",
+      "type": "智能体类型",
+      "description": "简单反射智能体依赖明确的条件动作规则，仅根据当前感知做出反应，缺乏记忆与预测能力",
+      "level": "core"
+    },
+    {
+      "name": "简单机制",
+      "type": "机制",
+      "description": "由多种功能各异、可能相互冲突的简单机制构成",
+      "level": "core"
+    },
+    {
+      "name": "约瑟夫·魏泽鲍姆",
+      "type": "人物",
+      "description": "ELIZA是由约瑟夫·魏泽鲍姆于1966年开发的早期自然语言处理程序",
+      "level": "core"
+    },
+    {
+      "name": "线性变换",
+      "type": "数学操作",
+      "description": "通过拼接与线性变换整合信息",
+      "level": "core"
+    },
+    {
+      "name": "细胞状态",
+      "type": "技术",
+      "description": "为此，长短时记忆网络（LSTM）被提出，通过细胞状态和门控机制（遗忘门、输入门、输出门）有效解决长序列信息处理难题，增强模型对上下文的捕捉能力。",
+      "level": "core"
+    },
+    {
+      "name": "统一逻辑框架",
+      "type": "框架/结构",
+      "description": "强行纳入统一逻辑框架",
+      "level": "core"
+    },
+    {
+      "name": "综合评估体系",
+      "type": "体系",
+      "description": "综合评估体系",
+      "level": "core"
+    },
+    {
+      "name": "罗杰斯学派",
+      "type": "心理学派",
+      "description": "‘DOCTOR’脚本模仿罗杰斯学派的非指导性心理治疗师",
+      "level": "core"
+    },
+    {
+      "name": "置信因子",
+      "type": "评估指标",
+      "description": "置信因子（CF）",
+      "level": "core"
+    },
+    {
+      "name": "联结主义",
+      "type": "理论范式",
+      "description": "联结主义作为对符号主义局限性的回应，在20世纪80年代兴起",
+      "level": "core"
+    },
+    {
+      "name": "自上而下处理",
+      "type": "处理方法",
+      "description": "采用自上而下的统一逻辑规则处理信息",
+      "level": "core"
+    },
+    {
+      "name": "自主决策",
+      "type": "能力",
+      "description": "使智能体能够实现自主决策与任务执行",
+      "level": "core"
+    },
+    {
+      "name": "自主协作者",
+      "type": "概念",
+      "description": "智能体从工具性辅助提升为自主协作者",
+      "level": "core"
+    },
+    {
+      "name": "自主执行",
+      "type": "能力",
+      "description": "该架构通过模块化协作与持续迭代，使智能体具备自主感知、规划、决策和执行的能力",
+      "level": "core"
+    },
+    {
+      "name": "自主行为",
+      "type": "能力",
+      "description": "智能体实现自主行为和任务推进的基础",
+      "level": "core"
+    },
+    {
+      "name": "自主规划",
+      "type": "算法",
+      "description": "引导模型自主规划、行动与学习",
+      "level": "core"
+    },
+    {
+      "name": "自动规划",
+      "type": "技术",
+      "description": "自动规划",
+      "level": "core"
+    },
+    {
+      "name": "自然语言交互",
+      "type": "功能",
+      "description": "实现自然语言与人类的交互",
+      "level": "core"
+    },
+    {
+      "name": "自然语言处理",
+      "type": "技术领域",
+      "description": "整个流程通过规则匹配与替换实现对自然语言的处理",
+      "level": "core"
+    },
+    {
+      "name": "自然语言指令",
+      "type": "语法结构",
+      "description": "能够灵活处理模糊、高层级的自然语言指令",
+      "level": "core"
+    },
+    {
+      "name": "自监督学习",
+      "type": "学习范式",
+      "description": "通过在大规模通用语料库上进行自监督学习",
+      "level": "core"
+    },
+    {
+      "name": "自组织特性",
+      "type": "数学概念",
+      "description": "复杂智能行为如搭塔并非由单一智能体规划，而是通过大量简单智能体的局部交互自发涌现，体现了系统整体行为的非线性与自组织特性。",
+      "level": "core"
+    },
+    {
+      "name": "血液感染诊断",
+      "type": "应用场景",
+      "description": "血液感染诊断",
+      "level": "core"
+    },
+    {
+      "name": "行为调整",
+      "type": "能力",
+      "description": "行为调整能力",
+      "level": "noncore"
+    },
+    {
+      "name": "行动",
+      "type": "算法",
+      "description": "引导模型自主规划、行动与学习",
+      "level": "core"
+    },
+    {
+      "name": "行动记忆",
+      "type": "模块",
+      "description": "集成了语言理解、规划与行动记忆等多个AI模块",
+      "level": "core"
+    },
+    {
+      "name": "观察",
+      "type": "结果",
+      "description": "形成观察；...产生新的观察",
+      "level": "core"
+    },
+    {
+      "name": "规划模块",
+      "type": "系统模块",
+      "description": "思考阶段由规划模块与LLM协同完成",
+      "level": "core"
+    },
+    {
+      "name": "规则匹配",
+      "type": "算法技术",
+      "description": "整个流程通过规则匹配与替换实现对自然语言的处理",
+      "level": "core"
+    },
+    {
+      "name": "规则选择",
+      "type": "算法步骤",
+      "description": "根据优先级选择对应的规则",
+      "level": "core"
+    },
+    {
+      "name": "规则驱动方法",
+      "type": "方法",
+      "description": "魏泽鲍姆的设计初衷并非实现真正的理解，而是揭示规则驱动方法在模拟人类对话中的局限性与欺骗性",
+      "level": "core"
+    },
+    {
+      "name": "词元",
+      "type": "语言单元",
+      "description": "对序列中每个词元进行上下文信息融合",
+      "level": "core"
+    },
+    {
+      "name": "词嵌入",
+      "type": "技术",
+      "description": "为克服这些缺陷，研究者转向神经网络语言模型，引入词嵌入技术，将词映射到高维向量空间，提升语义表达能力。",
+      "level": "core"
+    },
+    {
+      "name": "语义理解",
+      "type": "能力",
+      "description": "缺乏语义理解与上下文记忆",
+      "level": "core"
+    },
+    {
+      "name": "语言模型",
+      "type": "数学概念",
+      "description": "语言模型（LM）是自然语言处理的核心，用于计算词序列的概率，以评估句子的通顺性与自然性。",
+      "level": "core"
+    },
+    {
+      "name": "语言理解",
+      "type": "模块",
+      "description": "集成了语言理解、规划与行动记忆等多个AI模块",
+      "level": "core"
+    },
+    {
+      "name": "转换规则",
+      "type": "技术方法",
+      "description": "ELIZA通过识别用户输入中的关键词并应用预设的转换规则",
+      "level": "core"
+    },
+    {
+      "name": "软件开发",
+      "type": "领域",
+      "description": "软件开发",
+      "level": "core"
+    },
+    {
+      "name": "连接权重",
+      "type": "技术概念",
+      "description": "知识以分布式形式存储于神经元之间的连接权重中",
+      "level": "core"
+    },
+    {
+      "name": "通用人工智能",
+      "type": "概念",
+      "description": "揭示了实现通用人工智能的挑战",
+      "level": "core"
+    },
+    {
+      "name": "通用推理功能",
+      "type": "能力",
+      "description": "标志着其已具备通用推理功能",
+      "level": "core"
+    },
+    {
+      "name": "通用问题解决者",
+      "type": "数学概念",
+      "description": "智能系统从专用工具向通用问题解决者演进",
+      "level": "core"
+    },
+    {
+      "name": "部分可观察性",
+      "type": "环境特征",
+      "description": "环境具有部分可观察性、不确定性、多智能体交互及序贯动态等特征",
+      "level": "core"
+    },
+    {
+      "name": "重组规则",
+      "type": "算法技术",
+      "description": "从关联的重组规则中随机选择一条生成回应",
+      "level": "core"
+    },
+    {
+      "name": "链式法则",
+      "type": "数学概念",
+      "description": "早期的统计语言模型如N-gram，基于链式法则和最大似然估计（MLE）计算条件概率，但存在数据稀疏性和泛化能力差的问题，难以处理未出现词序列和语义关系。",
+      "level": "core"
+    },
+    {
+      "name": "错误信息",
+      "type": "反馈信息",
+      "description": "返回错误信息",
+      "level": "noncore"
+    },
+    {
+      "name": "键向量",
+      "type": "向量类型",
+      "description": "通过查询、键、值三个向量",
+      "level": "core"
+    },
+    {
+      "name": "长短时记忆网络",
+      "type": "算法",
+      "description": "为此，长短时记忆网络（LSTM）被提出，通过细胞状态和门控机制（遗忘门、输入门、输出门）有效解决长序列信息处理难题，增强模型对上下文的捕捉能力。",
+      "level": "core"
+    },
+    {
+      "name": "门控机制",
+      "type": "技术",
+      "description": "为此，长短时记忆网络（LSTM）被提出，通过细胞状态和门控机制（遗忘门、输入门、输出门）有效解决长序列信息处理难题，增强模型对上下文的捕捉能力。",
+      "level": "core"
+    },
+    {
+      "name": "闭环流程",
+      "type": "方法",
+      "description": "通过闭环流程完成高层目标",
+      "level": "core"
+    },
+    {
+      "name": "非线性",
+      "type": "数学概念",
+      "description": "复杂智能行为如搭塔并非由单一智能体规划，而是通过大量简单智能体的局部交互自发涌现，体现了系统整体行为的非线性与自组织特性。",
+      "level": "core"
+    },
+    {
+      "name": "预训练",
+      "type": "技术阶段",
+      "description": "预训练阶段不针对具体任务",
+      "level": "core"
+    },
+    {
+      "name": "预训练与微调范式",
+      "type": "技术范式",
+      "description": "预训练与微调范式使大语言模型（LLM）成为智能体的核心组件",
+      "level": "core"
+    },
+    {
+      "name": "高效",
+      "type": "属性",
+      "description": "更高效",
+      "level": "noncore"
+    },
+    {
+      "name": "高级控制流",
+      "type": "架构",
+      "description": "高级控制流",
+      "level": "noncore"
+    },
+    {
+      "name": "高级控制流架构",
+      "type": "框架",
+      "description": "高级控制流架构",
+      "level": "core"
+    },
+    {
+      "name": "初识智能体",
+      "type": "toc",
+      "description": "初识智能体",
+      "level": "toc"
+    },
+    {
+      "name": "什么是智能体?",
+      "type": "toc",
+      "description": "什么是智能体?",
+      "level": "toc"
+    },
+    {
+      "name": "传统视角下的智能体",
+      "type": "toc",
+      "description": "传统视角下的智能体",
+      "level": "toc"
+    },
+    {
+      "name": "大语言模型驱动的新范式",
+      "type": "toc",
+      "description": "大语言模型驱动的新范式",
+      "level": "toc"
+    },
+    {
+      "name": "智能体的类型",
+      "type": "toc",
+      "description": "智能体的类型",
+      "level": "toc"
+    },
+    {
+      "name": "智能体的构成与运行原理",
+      "type": "toc",
+      "description": "智能体的构成与运行原理",
+      "level": "toc"
+    },
+    {
+      "name": "任务环境定义",
+      "type": "toc",
+      "description": "任务环境定义",
+      "level": "toc"
+    },
+    {
+      "name": "智能体的运行机制",
+      "type": "toc",
+      "description": "智能体的运行机制",
+      "level": "toc"
+    },
+    {
+      "name": "智能体的感知与行动",
+      "type": "toc",
+      "description": "智能体的感知与行动",
+      "level": "toc"
+    },
+    {
+      "name": "动手体验：5分钟实现第一个智能体",
+      "type": "toc",
+      "description": "动手体验：5分钟实现第一个智能体",
+      "level": "toc"
+    },
+    {
+      "name": "准备工作",
+      "type": "toc",
+      "description": "准备工作",
+      "level": "toc"
+    },
+    {
+      "name": "接入大语言模型",
+      "type": "toc",
+      "description": "接入大语言模型",
+      "level": "toc"
+    },
+    {
+      "name": "执行行动循环",
+      "type": "toc",
+      "description": "执行行动循环",
+      "level": "toc"
+    },
+    {
+      "name": "运行案例分析",
+      "type": "toc",
+      "description": "运行案例分析",
+      "level": "toc"
+    },
+    {
+      "name": "智能体应用的协作模式",
+      "type": "toc",
+      "description": "智能体应用的协作模式",
+      "level": "toc"
+    },
+    {
+      "name": "作为开发者工具的智能体",
+      "type": "toc",
+      "description": "作为开发者工具的智能体",
+      "level": "toc"
+    },
+    {
+      "name": "作为自主协作者的智能体",
+      "type": "toc",
+      "description": "作为自主协作者的智能体",
+      "level": "toc"
+    },
+    {
+      "name": "Workflow和Agent的差异",
+      "type": "toc",
+      "description": "Workflow和Agent的差异",
+      "level": "toc"
+    },
+    {
+      "name": "智能体发展史",
+      "type": "toc",
+      "description": "智能体发展史",
+      "level": "toc"
+    },
+    {
+      "name": "基于符号与逻辑的早期智能体",
+      "type": "toc",
+      "description": "基于符号与逻辑的早期智能体",
+      "level": "toc"
+    },
+    {
+      "name": "物理符号系统假说",
+      "type": "toc",
+      "description": "物理符号系统假说",
+      "level": "toc"
+    },
+    {
+      "name": "专家系统",
+      "type": "toc",
+      "description": "专家系统",
+      "level": "toc"
+    },
+    {
+      "name": "SHRDLU",
+      "type": "toc",
+      "description": "SHRDLU",
+      "level": "toc"
+    },
+    {
+      "name": "符号主义面临的根本性挑战",
+      "type": "toc",
+      "description": "符号主义面临的根本性挑战",
+      "level": "toc"
+    },
+    {
+      "name": "构建基于规则的聊天机器人",
+      "type": "toc",
+      "description": "构建基于规则的聊天机器人",
+      "level": "toc"
+    },
+    {
+      "name": "ELIZA的设计思想",
+      "type": "toc",
+      "description": "ELIZA的设计思想",
+      "level": "toc"
+    },
+    {
+      "name": "模式匹配与文本替换",
+      "type": "toc",
+      "description": "模式匹配与文本替换",
+      "level": "toc"
+    },
+    {
+      "name": "核心逻辑的实现",
+      "type": "toc",
+      "description": "核心逻辑的实现",
+      "level": "toc"
+    },
+    {
+      "name": "马文·明斯基的心智社会",
+      "type": "toc",
+      "description": "马文·明斯基的心智社会",
+      "level": "toc"
+    },
+    {
+      "name": "对单一整体智能模型的反思",
+      "type": "toc",
+      "description": "对单一整体智能模型的反思",
+      "level": "toc"
+    },
+    {
+      "name": "作为协作体的智能",
+      "type": "toc",
+      "description": "作为协作体的智能",
+      "level": "toc"
+    },
+    {
+      "name": "对多智能体系统的理论启发",
+      "type": "toc",
+      "description": "对多智能体系统的理论启发",
+      "level": "toc"
+    },
+    {
+      "name": "学习范式的演进与现代智能体",
+      "type": "toc",
+      "description": "学习范式的演进与现代智能体",
+      "level": "toc"
+    },
+    {
+      "name": "从符号到联结",
+      "type": "toc",
+      "description": "从符号到联结",
+      "level": "toc"
+    },
+    {
+      "name": "基于强化学习的智能体",
+      "type": "toc",
+      "description": "基于强化学习的智能体",
+      "level": "toc"
+    },
+    {
+      "name": "基于大规模数据的预训练",
+      "type": "toc",
+      "description": "基于大规模数据的预训练",
+      "level": "toc"
+    },
+    {
+      "name": "基于大语言模型的智能体",
+      "type": "toc",
+      "description": "基于大语言模型的智能体",
+      "level": "toc"
+    },
+    {
+      "name": "智能体发展关键节点概览",
+      "type": "toc",
+      "description": "智能体发展关键节点概览",
+      "level": "toc"
+    },
+    {
+      "name": "本章小结",
+      "type": "toc",
+      "description": "本章小结",
+      "level": "toc"
+    },
+    {
+      "name": "大语言模型基础",
+      "type": "toc",
+      "description": "大语言模型基础",
+      "level": "toc"
+    },
+    {
+      "name": "语言模型与Transformer架构",
+      "type": "toc",
+      "description": "语言模型与Transformer架构",
+      "level": "toc"
+    },
+    {
+      "name": "从N-gram到RNN",
+      "type": "toc",
+      "description": "从N-gram到RNN",
+      "level": "toc"
+    },
+    {
+      "name": "Transformer架构解析",
+      "type": "toc",
+      "description": "Transformer架构解析",
+      "level": "toc"
+    }
+  ],
+  "edges": [
+    {
+      "source": "初识智能体",
+      "target": "什么是智能体?",
+      "type": "toc->toc"
+    },
+    {
+      "source": "什么是智能体?",
+      "target": "传统视角下的智能体",
+      "type": "toc->toc"
+    },
+    {
+      "source": "什么是智能体?",
+      "target": "大语言模型驱动的新范式",
+      "type": "toc->toc"
+    },
+    {
+      "source": "什么是智能体?",
+      "target": "智能体的类型",
+      "type": "toc->toc"
+    },
+    {
+      "source": "初识智能体",
+      "target": "智能体的构成与运行原理",
+      "type": "toc->toc"
+    },
+    {
+      "source": "智能体的构成与运行原理",
+      "target": "任务环境定义",
+      "type": "toc->toc"
+    },
+    {
+      "source": "智能体的构成与运行原理",
+      "target": "智能体的运行机制",
+      "type": "toc->toc"
+    },
+    {
+      "source": "智能体的构成与运行原理",
+      "target": "智能体的感知与行动",
+      "type": "toc->toc"
+    },
+    {
+      "source": "初识智能体",
+      "target": "动手体验：5分钟实现第一个智能体",
+      "type": "toc->toc"
+    },
+    {
+      "source": "动手体验：5分钟实现第一个智能体",
+      "target": "准备工作",
+      "type": "toc->toc"
+    },
+    {
+      "source": "动手体验：5分钟实现第一个智能体",
+      "target": "接入大语言模型",
+      "type": "toc->toc"
+    },
+    {
+      "source": "动手体验：5分钟实现第一个智能体",
+      "target": "执行行动循环",
+      "type": "toc->toc"
+    },
+    {
+      "source": "动手体验：5分钟实现第一个智能体",
+      "target": "运行案例分析",
+      "type": "toc->toc"
+    },
+    {
+      "source": "初识智能体",
+      "target": "智能体应用的协作模式",
+      "type": "toc->toc"
+    },
+    {
+      "source": "智能体应用的协作模式",
+      "target": "作为开发者工具的智能体",
+      "type": "toc->toc"
+    },
+    {
+      "source": "智能体应用的协作模式",
+      "target": "作为自主协作者的智能体",
+      "type": "toc->toc"
+    },
+    {
+      "source": "智能体应用的协作模式",
+      "target": "Workflow和Agent的差异",
+      "type": "toc->toc"
+    },
+    {
+      "source": "智能体发展史",
+      "target": "基于符号与逻辑的早期智能体",
+      "type": "toc->toc"
+    },
+    {
+      "source": "基于符号与逻辑的早期智能体",
+      "target": "物理符号系统假说",
+      "type": "toc->toc"
+    },
+    {
+      "source": "基于符号与逻辑的早期智能体",
+      "target": "专家系统",
+      "type": "toc->toc"
+    },
+    {
+      "source": "基于符号与逻辑的早期智能体",
+      "target": "SHRDLU",
+      "type": "toc->toc"
+    },
+    {
+      "source": "基于符号与逻辑的早期智能体",
+      "target": "符号主义面临的根本性挑战",
+      "type": "toc->toc"
+    },
+    {
+      "source": "智能体发展史",
+      "target": "构建基于规则的聊天机器人",
+      "type": "toc->toc"
+    },
+    {
+      "source": "构建基于规则的聊天机器人",
+      "target": "ELIZA的设计思想",
+      "type": "toc->toc"
+    },
+    {
+      "source": "构建基于规则的聊天机器人",
+      "target": "模式匹配与文本替换",
+      "type": "toc->toc"
+    },
+    {
+      "source": "构建基于规则的聊天机器人",
+      "target": "核心逻辑的实现",
+      "type": "toc->toc"
+    },
+    {
+      "source": "智能体发展史",
+      "target": "马文·明斯基的心智社会",
+      "type": "toc->toc"
+    },
+    {
+      "source": "马文·明斯基的心智社会",
+      "target": "对单一整体智能模型的反思",
+      "type": "toc->toc"
+    },
+    {
+      "source": "马文·明斯基的心智社会",
+      "target": "作为协作体的智能",
+      "type": "toc->toc"
+    },
+    {
+      "source": "马文·明斯基的心智社会",
+      "target": "对多智能体系统的理论启发",
+      "type": "toc->toc"
+    },
+    {
+      "source": "智能体发展史",
+      "target": "学习范式的演进与现代智能体",
+      "type": "toc->toc"
+    },
+    {
+      "source": "学习范式的演进与现代智能体",
+      "target": "从符号到联结",
+      "type": "toc->toc"
+    },
+    {
+      "source": "学习范式的演进与现代智能体",
+      "target": "基于强化学习的智能体",
+      "type": "toc->toc"
+    },
+    {
+      "source": "学习范式的演进与现代智能体",
+      "target": "基于大规模数据的预训练",
+      "type": "toc->toc"
+    },
+    {
+      "source": "学习范式的演进与现代智能体",
+      "target": "基于大语言模型的智能体",
+      "type": "toc->toc"
+    },
+    {
+      "source": "学习范式的演进与现代智能体",
+      "target": "智能体发展关键节点概览",
+      "type": "toc->toc"
+    },
+    {
+      "source": "智能体发展史",
+      "target": "本章小结",
+      "type": "toc->toc"
+    },
+    {
+      "source": "大语言模型基础",
+      "target": "语言模型与Transformer架构",
+      "type": "toc->toc"
+    },
+    {
+      "source": "语言模型与Transformer架构",
+      "target": "从N-gram到RNN",
+      "type": "toc->toc"
+    },
+    {
+      "source": "语言模型与Transformer架构",
+      "target": "Transformer架构解析",
+      "type": "toc->toc"
+    },
+    {
+      "source": "作为开发者工具的智能体",
+      "target": "AI原生编辑器",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为自主协作者的智能体",
+      "target": "AgentGPT",
+      "type": "toc->core"
+    },
+    {
+      "source": "传统视角下的智能体",
+      "target": "AlphaGo",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于强化学习的智能体",
+      "target": "AlphaGo",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为自主协作者的智能体",
+      "target": "CrewAI",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为开发者工具的智能体",
+      "target": "Cursor",
+      "type": "toc->core"
+    },
+    {
+      "source": "ELIZA的设计思想",
+      "target": "DOCTOR",
+      "type": "toc->core"
+    },
+    {
+      "source": "ELIZA的设计思想",
+      "target": "ELIZA",
+      "type": "toc->core"
+    },
+    {
+      "source": "模式匹配与文本替换",
+      "target": "ELIZA",
+      "type": "toc->core"
+    },
+    {
+      "source": "对单一整体智能模型的反思",
+      "target": "ELIZA",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "ELIZA",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为开发者工具的智能体",
+      "target": "GitHub Copilot",
+      "type": "toc->core"
+    },
+    {
+      "source": "执行行动循环",
+      "target": "LLM",
+      "type": "toc->core"
+    },
+    {
+      "source": "大语言模型驱动的新范式",
+      "target": "智能体",
+      "type": "toc->core"
+    },
+    {
+      "source": "执行行动循环",
+      "target": "智能体",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "智能体",
+      "type": "toc->core"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "智能体",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为协作体的智能",
+      "target": "智能体",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于强化学习的智能体",
+      "target": "智能体",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大规模数据的预训练",
+      "target": "智能体",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大语言模型的智能体",
+      "target": "智能体",
+      "type": "toc->core"
+    },
+    {
+      "source": "执行行动循环",
+      "target": "LangChain",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为自主协作者的智能体",
+      "target": "LangGraph",
+      "type": "toc->core"
+    },
+    {
+      "source": "执行行动循环",
+      "target": "Llamalndex",
+      "type": "toc->core"
+    },
+    {
+      "source": "专家系统",
+      "target": "MYCIN系统",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为自主协作者的智能体",
+      "target": "MetaGPT",
+      "type": "toc->core"
+    },
+    {
+      "source": "从N-gram到RNN",
+      "target": "N-gram",
+      "type": "toc->core"
+    },
+    {
+      "source": "任务环境定义",
+      "target": "PEAS模型",
+      "type": "toc->core"
+    },
+    {
+      "source": "执行行动循环",
+      "target": "Prompt",
+      "type": "toc->core"
+    },
+    {
+      "source": "对单一整体智能模型的反思",
+      "target": "SHRDLU",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "SHRDLU",
+      "type": "toc->core"
+    },
+    {
+      "source": "Transformer架构解析",
+      "target": "Transformer模型",
+      "type": "toc->core"
+    },
+    {
+      "source": "接入大语言模型",
+      "target": "openAICompatibleClient",
+      "type": "toc->core"
+    },
+    {
+      "source": "准备工作",
+      "target": "requests库",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大规模数据的预训练",
+      "target": "上下文学习",
+      "type": "toc->core"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "上下文记忆",
+      "type": "toc->core"
+    },
+    {
+      "source": "任务环境定义",
+      "target": "不确定性",
+      "type": "toc->core"
+    },
+    {
+      "source": "专家系统",
+      "target": "不确定性",
+      "type": "toc->core"
+    },
+    {
+      "source": "物理符号系统假说",
+      "target": "专家系统",
+      "type": "toc->core"
+    },
+    {
+      "source": "对单一整体智能模型的反思",
+      "target": "专家系统",
+      "type": "toc->core"
+    },
+    {
+      "source": "大语言模型驱动的新范式",
+      "target": "专用工具",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大规模数据的预训练",
+      "target": "世界知识隐式模型",
+      "type": "toc->core"
+    },
+    {
+      "source": "大语言模型驱动的新范式",
+      "target": "世界知识隐式模型",
+      "type": "toc->core"
+    },
+    {
+      "source": "执行行动循环",
+      "target": "主循环",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "亚符号主义",
+      "type": "toc->core"
+    },
+    {
+      "source": "ELIZA的设计思想",
+      "target": "交互设计",
+      "type": "toc->core"
+    },
+    {
+      "source": "专家系统",
+      "target": "产生式规则",
+      "type": "toc->core"
+    },
+    {
+      "source": "ELIZA的设计思想",
+      "target": "人工智能",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为开发者工具的智能体",
+      "target": "人机协同编程",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为开发者工具的智能体",
+      "target": "代码补全",
+      "type": "toc->core"
+    },
+    {
+      "source": "模式匹配与文本替换",
+      "target": "代词转换",
+      "type": "toc->core"
+    },
+    {
+      "source": "大语言模型驱动的新范式",
+      "target": "任务分解",
+      "type": "toc->core"
+    },
+    {
+      "source": "执行行动循环",
+      "target": "任务执行",
+      "type": "toc->core"
+    },
+    {
+      "source": "Transformer架构解析",
+      "target": "值向量",
+      "type": "toc->core"
+    },
+    {
+      "source": "Transformer架构解析",
+      "target": "全局依赖关系",
+      "type": "toc->core"
+    },
+    {
+      "source": "ELIZA的设计思想",
+      "target": "关键词识别",
+      "type": "toc->core"
+    },
+    {
+      "source": "模式匹配与文本替换",
+      "target": "关键词识别",
+      "type": "toc->core"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "动作序列规划",
+      "type": "toc->core"
+    },
+    {
+      "source": "对单一整体智能模型的反思",
+      "target": "单一整体智能模型",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为自主协作者的智能体",
+      "target": "单智能体自主循环",
+      "type": "toc->core"
+    },
+    {
+      "source": "从符号到联结",
+      "target": "反向传播",
+      "type": "toc->core"
+    },
+    {
+      "source": "专家系统",
+      "target": "反向链",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于强化学习的智能体",
+      "target": "回报",
+      "type": "toc->core"
+    },
+    {
+      "source": "传统视角下的智能体",
+      "target": "基于效用的智能体",
+      "type": "toc->core"
+    },
+    {
+      "source": "传统视角下的智能体",
+      "target": "基于模型的智能体",
+      "type": "toc->core"
+    },
+    {
+      "source": "传统视角下的智能体",
+      "target": "基于目标的智能体",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "复杂任务",
+      "type": "toc->core"
+    },
+    {
+      "source": "大语言模型驱动的新范式",
+      "target": "外部工具",
+      "type": "toc->core"
+    },
+    {
+      "source": "Transformer架构解析",
+      "target": "多头注意力机制",
+      "type": "toc->core"
+    },
+    {
+      "source": "任务环境定义",
+      "target": "多智能体交互",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为自主协作者的智能体",
+      "target": "多智能体协作",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "多智能体协作",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "多智能体系统",
+      "type": "toc->core"
+    },
+    {
+      "source": "对单一整体智能模型的反思",
+      "target": "多样化的心智活动",
+      "type": "toc->core"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "多维度问答",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大规模数据的预训练",
+      "target": "大型语言模型",
+      "type": "toc->core"
+    },
+    {
+      "source": "大语言模型驱动的新范式",
+      "target": "大型语言模型",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大规模数据的预训练",
+      "target": "大规模通用语料库",
+      "type": "toc->core"
+    },
+    {
+      "source": "大语言模型驱动的新范式",
+      "target": "大语言模型",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "大语言模型",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于强化学习的智能体",
+      "target": "奖励",
+      "type": "toc->core"
+    },
+    {
+      "source": "大语言模型驱动的新范式",
+      "target": "学习",
+      "type": "toc->core"
+    },
+    {
+      "source": "传统视角下的智能体",
+      "target": "学习型智能体",
+      "type": "toc->core"
+    },
+    {
+      "source": "从符号到联结",
+      "target": "学习过程",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为协作体的智能",
+      "target": "局部交互",
+      "type": "toc->core"
+    },
+    {
+      "source": "对单一整体智能模型的反思",
+      "target": "层级分明的整体结构",
+      "type": "toc->core"
+    },
+    {
+      "source": "执行行动循环",
+      "target": "工具",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大语言模型的智能体",
+      "target": "工具",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "工具调用",
+      "type": "toc->core"
+    },
+    {
+      "source": "智能体的运行机制",
+      "target": "工具选择",
+      "type": "toc->core"
+    },
+    {
+      "source": "Transformer架构解析",
+      "target": "并行计算",
+      "type": "toc->core"
+    },
+    {
+      "source": "Transformer架构解析",
+      "target": "序列数据",
+      "type": "toc->core"
+    },
+    {
+      "source": "从符号到联结",
+      "target": "序贯决策问题",
+      "type": "toc->core"
+    },
+    {
+      "source": "任务环境定义",
+      "target": "序贯动态",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "开发者工具",
+      "type": "toc->core"
+    },
+    {
+      "source": "ELIZA的设计思想",
+      "target": "开放式问题",
+      "type": "toc->core"
+    },
+    {
+      "source": "传统视角下的智能体",
+      "target": "强化学习",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于强化学习的智能体",
+      "target": "强化学习",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大规模数据的预训练",
+      "target": "强化学习",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "强化学习",
+      "type": "toc->core"
+    },
+    {
+      "source": "从N-gram到RNN",
+      "target": "循环神经网络",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大规模数据的预训练",
+      "target": "微调",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "心智社会",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大规模数据的预训练",
+      "target": "思维链推理",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大语言模型的智能体",
+      "target": "思考阶段",
+      "type": "toc->core"
+    },
+    {
+      "source": "智能体的运行机制",
+      "target": "思考阶段",
+      "type": "toc->core"
+    },
+    {
+      "source": "ELIZA的设计思想",
+      "target": "情感依赖",
+      "type": "toc->core"
+    },
+    {
+      "source": "智能体的运行机制",
+      "target": "感知",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大语言模型的智能体",
+      "target": "感知",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "感知-思考-行动",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "感知-思考-行动-观察",
+      "type": "toc->core"
+    },
+    {
+      "source": "任务环境定义",
+      "target": "感知-思考-行动-观察循环",
+      "type": "toc->core"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "感知-思考-行动闭环",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于强化学习的智能体",
+      "target": "感知-行动闭环",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大语言模型的智能体",
+      "target": "执行模块",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大语言模型的智能体",
+      "target": "持续迭代",
+      "type": "toc->core"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "指代消解",
+      "type": "toc->core"
+    },
+    {
+      "source": "专家系统",
+      "target": "推理机",
+      "type": "toc->core"
+    },
+    {
+      "source": "准备工作",
+      "target": "提示工程",
+      "type": "toc->core"
+    },
+    {
+      "source": "执行行动循环",
+      "target": "提示工程",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "提示工程",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为协作体的智能",
+      "target": "搭塔",
+      "type": "toc->core"
+    },
+    {
+      "source": "传统视角下的智能体",
+      "target": "效用函数",
+      "type": "toc->core"
+    },
+    {
+      "source": "模式匹配与文本替换",
+      "target": "文本替换",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "无约束智能体",
+      "type": "toc->core"
+    },
+    {
+      "source": "对单一整体智能模型的反思",
+      "target": "明斯基",
+      "type": "toc->core"
+    },
+    {
+      "source": "智能体的运行机制",
+      "target": "智能体循环",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为开发者工具的智能体",
+      "target": "智能化",
+      "type": "toc->core"
+    },
+    {
+      "source": "大语言模型驱动的新范式",
+      "target": "智能旅行助手",
+      "type": "toc->core"
+    },
+    {
+      "source": "任务环境定义",
+      "target": "智能旅行助手",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "智能旅行助手",
+      "type": "toc->core"
+    },
+    {
+      "source": "执行行动循环",
+      "target": "智能系统",
+      "type": "toc->core"
+    },
+    {
+      "source": "从N-gram到RNN",
+      "target": "最大似然估计",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为协作体的智能",
+      "target": "机构",
+      "type": "toc->core"
+    },
+    {
+      "source": "Transformer架构解析",
+      "target": "查询向量",
+      "type": "toc->core"
+    },
+    {
+      "source": "从N-gram到RNN",
+      "target": "梯度消失",
+      "type": "toc->core"
+    },
+    {
+      "source": "从N-gram到RNN",
+      "target": "梯度爆炸",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大语言模型的智能体",
+      "target": "模块化协作",
+      "type": "toc->core"
+    },
+    {
+      "source": "模式匹配与文本替换",
+      "target": "模式匹配",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "模式匹配",
+      "type": "toc->core"
+    },
+    {
+      "source": "专家系统",
+      "target": "正向链",
+      "type": "toc->core"
+    },
+    {
+      "source": "Transformer架构解析",
+      "target": "自注意力机制",
+      "type": "toc->core"
+    },
+    {
+      "source": "大语言模型驱动的新范式",
+      "target": "涌现能力",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大规模数据的预训练",
+      "target": "涌现能力",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为开发者工具的智能体",
+      "target": "深度学习分析",
+      "type": "toc->core"
+    },
+    {
+      "source": "专家系统",
+      "target": "物理符号系统假说",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于强化学习的智能体",
+      "target": "状态",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为自主协作者的智能体",
+      "target": "状态图建模",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于强化学习的智能体",
+      "target": "环境",
+      "type": "toc->core"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "环境状态记忆",
+      "type": "toc->core"
+    },
+    {
+      "source": "大语言模型驱动的新范式",
+      "target": "用户反馈",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为自主协作者的智能体",
+      "target": "目标委托",
+      "type": "toc->core"
+    },
+    {
+      "source": "专家系统",
+      "target": "知识库",
+      "type": "toc->core"
+    },
+    {
+      "source": "对单一整体智能模型的反思",
+      "target": "社会",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "神经符号主义AI",
+      "type": "toc->core"
+    },
+    {
+      "source": "从符号到联结",
+      "target": "神经网络结构",
+      "type": "toc->core"
+    },
+    {
+      "source": "从N-gram到RNN",
+      "target": "神经网络语言模型",
+      "type": "toc->core"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "积木世界",
+      "type": "toc->core"
+    },
+    {
+      "source": "大语言模型驱动的新范式",
+      "target": "端到端行程规划",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "符号主义",
+      "type": "toc->core"
+    },
+    {
+      "source": "专家系统",
+      "target": "符号主义",
+      "type": "toc->core"
+    },
+    {
+      "source": "对单一整体智能模型的反思",
+      "target": "符号主义",
+      "type": "toc->core"
+    },
+    {
+      "source": "从符号到联结",
+      "target": "符号主义",
+      "type": "toc->core"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "符号处理",
+      "type": "toc->core"
+    },
+    {
+      "source": "传统视角下的智能体",
+      "target": "简单反射智能体",
+      "type": "toc->core"
+    },
+    {
+      "source": "对单一整体智能模型的反思",
+      "target": "简单机制",
+      "type": "toc->core"
+    },
+    {
+      "source": "ELIZA的设计思想",
+      "target": "约瑟夫·魏泽鲍姆",
+      "type": "toc->core"
+    },
+    {
+      "source": "Transformer架构解析",
+      "target": "线性变换",
+      "type": "toc->core"
+    },
+    {
+      "source": "从N-gram到RNN",
+      "target": "细胞状态",
+      "type": "toc->core"
+    },
+    {
+      "source": "对单一整体智能模型的反思",
+      "target": "统一逻辑框架",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "综合评估体系",
+      "type": "toc->core"
+    },
+    {
+      "source": "ELIZA的设计思想",
+      "target": "罗杰斯学派",
+      "type": "toc->core"
+    },
+    {
+      "source": "专家系统",
+      "target": "置信因子",
+      "type": "toc->core"
+    },
+    {
+      "source": "从符号到联结",
+      "target": "联结主义",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于强化学习的智能体",
+      "target": "联结主义",
+      "type": "toc->core"
+    },
+    {
+      "source": "对单一整体智能模型的反思",
+      "target": "自上而下处理",
+      "type": "toc->core"
+    },
+    {
+      "source": "执行行动循环",
+      "target": "自主决策",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "自主决策",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大语言模型的智能体",
+      "target": "自主决策",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为自主协作者的智能体",
+      "target": "自主协作者",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "自主协作者",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大语言模型的智能体",
+      "target": "自主执行",
+      "type": "toc->core"
+    },
+    {
+      "source": "智能体的运行机制",
+      "target": "自主行为",
+      "type": "toc->core"
+    },
+    {
+      "source": "大语言模型驱动的新范式",
+      "target": "自主规划",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大语言模型的智能体",
+      "target": "自主规划",
+      "type": "toc->core"
+    },
+    {
+      "source": "智能体的运行机制",
+      "target": "自主规划",
+      "type": "toc->core"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "自主规划",
+      "type": "toc->core"
+    },
+    {
+      "source": "物理符号系统假说",
+      "target": "自动规划",
+      "type": "toc->core"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "自然语言交互",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "自然语言交互",
+      "type": "toc->core"
+    },
+    {
+      "source": "模式匹配与文本替换",
+      "target": "自然语言处理",
+      "type": "toc->core"
+    },
+    {
+      "source": "从N-gram到RNN",
+      "target": "自然语言处理",
+      "type": "toc->core"
+    },
+    {
+      "source": "大语言模型驱动的新范式",
+      "target": "自然语言指令",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为开发者工具的智能体",
+      "target": "自然语言指令",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大规模数据的预训练",
+      "target": "自监督学习",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为协作体的智能",
+      "target": "自组织特性",
+      "type": "toc->core"
+    },
+    {
+      "source": "专家系统",
+      "target": "血液感染诊断",
+      "type": "toc->core"
+    },
+    {
+      "source": "大语言模型驱动的新范式",
+      "target": "行动",
+      "type": "toc->core"
+    },
+    {
+      "source": "智能体的运行机制",
+      "target": "行动",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于强化学习的智能体",
+      "target": "行动",
+      "type": "toc->core"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "行动记忆",
+      "type": "toc->core"
+    },
+    {
+      "source": "智能体的运行机制",
+      "target": "观察",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大语言模型的智能体",
+      "target": "观察",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大语言模型的智能体",
+      "target": "规划模块",
+      "type": "toc->core"
+    },
+    {
+      "source": "模式匹配与文本替换",
+      "target": "规则匹配",
+      "type": "toc->core"
+    },
+    {
+      "source": "模式匹配与文本替换",
+      "target": "规则选择",
+      "type": "toc->core"
+    },
+    {
+      "source": "ELIZA的设计思想",
+      "target": "规则驱动方法",
+      "type": "toc->core"
+    },
+    {
+      "source": "Transformer架构解析",
+      "target": "词元",
+      "type": "toc->core"
+    },
+    {
+      "source": "从N-gram到RNN",
+      "target": "词嵌入",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "语义理解",
+      "type": "toc->core"
+    },
+    {
+      "source": "从N-gram到RNN",
+      "target": "语言模型",
+      "type": "toc->core"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "语言理解",
+      "type": "toc->core"
+    },
+    {
+      "source": "ELIZA的设计思想",
+      "target": "转换规则",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为开发者工具的智能体",
+      "target": "软件开发",
+      "type": "toc->core"
+    },
+    {
+      "source": "从符号到联结",
+      "target": "连接权重",
+      "type": "toc->core"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "通用人工智能",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大规模数据的预训练",
+      "target": "通用推理功能",
+      "type": "toc->core"
+    },
+    {
+      "source": "大语言模型驱动的新范式",
+      "target": "通用问题解决者",
+      "type": "toc->core"
+    },
+    {
+      "source": "任务环境定义",
+      "target": "部分可观察性",
+      "type": "toc->core"
+    },
+    {
+      "source": "模式匹配与文本替换",
+      "target": "重组规则",
+      "type": "toc->core"
+    },
+    {
+      "source": "从N-gram到RNN",
+      "target": "链式法则",
+      "type": "toc->core"
+    },
+    {
+      "source": "Transformer架构解析",
+      "target": "键向量",
+      "type": "toc->core"
+    },
+    {
+      "source": "从N-gram到RNN",
+      "target": "长短时记忆网络",
+      "type": "toc->core"
+    },
+    {
+      "source": "从N-gram到RNN",
+      "target": "门控机制",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为自主协作者的智能体",
+      "target": "闭环流程",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大语言模型的智能体",
+      "target": "闭环流程",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为协作体的智能",
+      "target": "非线性",
+      "type": "toc->core"
+    },
+    {
+      "source": "基于大规模数据的预训练",
+      "target": "预训练",
+      "type": "toc->core"
+    },
+    {
+      "source": "本章小结",
+      "target": "预训练与微调范式",
+      "type": "toc->core"
+    },
+    {
+      "source": "作为自主协作者的智能体",
+      "target": "高级控制流架构",
+      "type": "toc->core"
+    },
+    {
+      "source": "智能体",
+      "target": "行为调整",
+      "type": "related",
+      "description": "core→non-core"
+    },
+    {
+      "source": "智能体",
+      "target": "单智能体闭环",
+      "type": "related",
+      "description": "core→non-core"
+    },
+    {
+      "source": "智能体",
+      "target": "代码生成",
+      "type": "related",
+      "description": "core→non-core"
+    },
+    {
+      "source": "智能体",
+      "target": "高级控制流",
+      "type": "related",
+      "description": "core→non-core"
+    },
+    {
+      "source": "智能体",
+      "target": "特里·威诺格拉德",
+      "type": "related",
+      "description": "core→non-core"
+    },
+    {
+      "source": "openAICompatibleClient",
+      "target": "BASE_URL",
+      "type": "applies-to",
+      "description": "core→non-core"
+    },
+    {
+      "source": "openAICompatibleClient",
+      "target": "Azure",
+      "type": "applies-to",
+      "description": "core→non-core"
+    },
+    {
+      "source": "openAICompatibleClient",
+      "target": "MODEL_ID",
+      "type": "related",
+      "description": "core→non-core"
+    },
+    {
+      "source": "openAICompatibleClient",
+      "target": "Ollama",
+      "type": "related",
+      "description": "core→non-core"
+    },
+    {
+      "source": "openAICompatibleClient",
+      "target": "generate方法",
+      "type": "applies-to",
+      "description": "core→non-core"
+    },
+    {
+      "source": "openAICompatibleClient",
+      "target": "LLM服务提供商",
+      "type": "related",
+      "description": "core→non-core"
+    },
+    {
+      "source": "openAICompatibleClient",
+      "target": "VLLM",
+      "type": "related",
+      "description": "core→non-core"
+    },
+    {
+      "source": "openAICompatibleClient",
+      "target": "消息格式",
+      "type": "related",
+      "description": "core→non-core"
+    },
+    {
+      "source": "openAICompatibleClient",
+      "target": "错误信息",
+      "type": "related",
+      "description": "core→non-core"
+    },
+    {
+      "source": "openAICompatibleClient",
+      "target": "API_KEY",
+      "type": "applies-to",
+      "description": "core→non-core"
+    },
+    {
+      "source": "requests库",
+      "target": "OpenAI",
+      "type": "related",
+      "description": "core→non-core"
+    },
+    {
+      "source": "requests库",
+      "target": "get_attraction函数",
+      "type": "applies-to",
+      "description": "core→non-core"
+    },
+    {
+      "source": "requests库",
+      "target": "get_weather函数",
+      "type": "applies-to",
+      "description": "core→non-core"
+    },
+    {
+      "source": "requests库",
+      "target": "formatted_results列表",
+      "type": "applies-to",
+      "description": "core→non-core"
+    },
+    {
+      "source": "requests库",
+      "target": "Tavily-Dvthon",
+      "type": "related",
+      "description": "core→non-core"
+    },
+    {
+      "source": "关键词识别",
+      "target": "带通配符的分解规则",
+      "type": "applies-to",
+      "description": "core→non-core"
+    },
+    {
+      "source": "大语言模型",
+      "target": "人工编码",
+      "type": "applies-to",
+      "description": "core→non-core"
+    },
+    {
+      "source": "自然语言指令",
+      "target": "高效",
+      "type": "related",
+      "description": "core→non-core"
+    },
+    {
+      "source": "自然语言指令",
+      "target": "Trae",
+      "type": "related",
+      "description": "core→non-core"
+    },
+    {
+      "source": "自然语言指令",
+      "target": "Claude Code",
+      "type": "applies-to",
+      "description": "core→non-core"
+    },
+    {
+      "source": "行动",
+      "target": "环境状态变化",
+      "type": "applies-to",
+      "description": "core→non-core"
+    },
+    {
+      "source": "任务分解",
+      "target": "强化学习",
+      "type": "related",
+      "description": "任务分解与强化学习在智能体设计中存在功能和方法上的关联，但并非直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "强化学习",
+      "target": "自主规划",
+      "type": "applies-to",
+      "description": "强化学习用于实现智能体的自主规划能力"
+    },
+    {
+      "source": "智能体",
+      "target": "智能体循环",
+      "type": "part-of",
+      "description": "智能体循环是智能体运行机制的组成部分"
+    },
+    {
+      "source": "强化学习",
+      "target": "智能旅行助手",
+      "type": "applies-to",
+      "description": "强化学习是智能旅行助手实现自主决策和任务规划的核心技术基础"
+    },
+    {
+      "source": "学习",
+      "target": "强化学习",
+      "type": "prerequisite",
+      "description": "学习是强化学习的基础，强化学习依赖于学习机制来优化决策策略"
+    },
+    {
+      "source": "符号主义",
+      "target": "自主规划",
+      "type": "related",
+      "description": "符号主义与自主规划在智能体设计中存在关联，但并非直接的先修、包含或用途关系。"
+    },
+    {
+      "source": "自主决策",
+      "target": "行动",
+      "type": "applies-to",
+      "description": "自主决策通过生成具体操作指令来执行行动，二者在智能体架构中存在明确的用途关系"
+    },
+    {
+      "source": "强化学习",
+      "target": "用户反馈",
+      "type": "related",
+      "description": "强化学习与用户反馈在智能体优化过程中存在关联，但并非直接的先修、包含或用途关系。"
+    },
+    {
+      "source": "智能体",
+      "target": "自主行为",
+      "type": "part-of",
+      "description": "智能体包含自主行为作为其核心组成部分"
+    },
+    {
+      "source": "工具",
+      "target": "行动",
+      "type": "applies-to",
+      "description": "工具用于执行行动，是智能体完成任务的具体操作手段"
+    },
+    {
+      "source": "行动",
+      "target": "闭环流程",
+      "type": "part-of",
+      "description": "行动是闭环流程中的核心组成部分，属于感知-行动循环机制的一部分"
+    },
+    {
+      "source": "强化学习",
+      "target": "通用问题解决者",
+      "type": "related",
+      "description": "强化学习与通用问题解决者在智能体发展中有一定关联，但不构成直接的先修、包含或用途关系。"
+    },
+    {
+      "source": "提示工程",
+      "target": "闭环流程",
+      "type": "applies-to",
+      "description": "提示工程用于闭环流程中的感知-思考-行动-观察循环机制"
+    },
+    {
+      "source": "大规模通用语料库",
+      "target": "大语言模型",
+      "type": "prerequisite",
+      "description": "大规模通用语料库是训练大语言模型的必要基础"
+    },
+    {
+      "source": "工具选择",
+      "target": "智能体",
+      "type": "part-of",
+      "description": "工具选择是智能体运行机制中的关键环节，属于智能体的组成部分"
+    },
+    {
+      "source": "持续迭代",
+      "target": "行动",
+      "type": "related",
+      "description": "持续迭代与行动在智能体的感知-行动闭环中密切相关，共同促进智能体的学习与适应能力。"
+    },
+    {
+      "source": "自主执行",
+      "target": "行动",
+      "type": "part-of",
+      "description": "自主执行是行动的一种具体表现形式，属于智能体执行过程的组成部分"
+    },
+    {
+      "source": "模块化协作",
+      "target": "行动",
+      "type": "applies-to",
+      "description": "模块化协作中的执行模块调用工具完成任务执行，涉及行动的实施"
+    },
+    {
+      "source": "上下文学习",
+      "target": "大语言模型",
+      "type": "part-of",
+      "description": "上下文学习是大语言模型在微调阶段展现的一种能力，属于其组成部分"
+    },
+    {
+      "source": "大语言模型",
+      "target": "预训练",
+      "type": "prerequisite",
+      "description": "预训练是大语言模型的基础步骤，为其提供广泛的知识基础"
+    },
+    {
+      "source": "大语言模型",
+      "target": "自监督学习",
+      "type": "prerequisite",
+      "description": "自监督学习是大语言模型预训练的基础，为其提供语言表示能力"
+    },
+    {
+      "source": "智能旅行助手",
+      "target": "闭环流程",
+      "type": "part-of",
+      "description": "智能旅行助手包含闭环流程作为其核心循环机制"
+    },
+    {
+      "source": "持续迭代",
+      "target": "智能体循环",
+      "type": "part-of",
+      "description": "持续迭代是智能体循环中的一个关键阶段，属于其组成部分"
+    },
+    {
+      "source": "持续迭代",
+      "target": "自主行为",
+      "type": "applies-to",
+      "description": "持续迭代是实现自主行为的机制，用于优化智能体的自主行为策略"
+    },
+    {
+      "source": "大语言模型",
+      "target": "思维链推理",
+      "type": "prerequisite",
+      "description": "思维链推理是大语言模型在参数量达到一定阈值后展现的涌现能力，属于其训练和能力发展的必要条件"
+    },
+    {
+      "source": "智能体循环",
+      "target": "模块化协作",
+      "type": "part-of",
+      "description": "智能体循环包含模块化协作的各个模块，如感知、规划和执行模块"
+    },
+    {
+      "source": "自主决策",
+      "target": "自主行为",
+      "type": "part-of",
+      "description": "自主决策是自主行为的一个组成部分，属于智能体实现自主行为的关键模块"
+    },
+    {
+      "source": "工具",
+      "target": "工具选择",
+      "type": "part-of",
+      "description": "工具选择是工具在智能体运行机制中的一个组成部分"
+    },
+    {
+      "source": "模块化协作",
+      "target": "自主行为",
+      "type": "part-of",
+      "description": "模块化协作是自主行为的一个组成部分，构成智能体实现自主行为的结构基础"
+    },
+    {
+      "source": "大语言模型",
+      "target": "通用推理功能",
+      "type": "prerequisite",
+      "description": "掌握大语言模型是理解通用推理功能的基础"
+    },
+    {
+      "source": "智能体循环",
+      "target": "自主决策",
+      "type": "part-of",
+      "description": "智能体循环包含自主决策作为其核心组成部分"
+    },
+    {
+      "source": "工具",
+      "target": "智能体循环",
+      "type": "part-of",
+      "description": "工具是智能体循环中的执行阶段核心组件"
+    },
+    {
+      "source": "自主执行",
+      "target": "自主行为",
+      "type": "synonym",
+      "description": "自主执行与自主行为在语义上几乎等价，均指智能体独立完成任务的能力"
+    },
+    {
+      "source": "自主行为",
+      "target": "规划模块",
+      "type": "part-of",
+      "description": "自主行为包含规划模块，规划模块是自主行为实现过程中的关键组成部分"
+    },
+    {
+      "source": "执行模块",
+      "target": "智能体循环",
+      "type": "part-of",
+      "description": "执行模块是智能体循环中的核心组成部分，负责行动阶段的具体执行。"
+    },
+    {
+      "source": "工具选择",
+      "target": "自主决策",
+      "type": "part-of",
+      "description": "工具选择是自主决策过程中的一个组成部分"
+    },
+    {
+      "source": "模块化协作",
+      "target": "环境状态变化",
+      "type": "related",
+      "description": "模块化协作与环境状态变化在智能体运行中相互作用，前者影响后者，后者触发前者的更新，存在较强关联性"
+    },
+    {
+      "source": "环境状态变化",
+      "target": "规划模块",
+      "type": "applies-to",
+      "description": "环境状态变化是规划模块进行任务规划和策略制定的基础输入"
+    },
+    {
+      "source": "工具",
+      "target": "环境状态变化",
+      "type": "related",
+      "description": "工具与环境状态变化在智能体运行中存在交互作用，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "工具选择",
+      "target": "持续迭代",
+      "type": "related",
+      "description": "工具选择与持续迭代在智能体运行机制中密切相关，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "任务分解",
+      "target": "通用推理功能",
+      "type": "related",
+      "description": "任务分解与通用推理功能在智能体能力体系中密切相关，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "执行模块",
+      "target": "环境状态变化",
+      "type": "applies-to",
+      "description": "执行模块通过调用工具引发环境状态变化，具有明确的用途关联"
+    },
+    {
+      "source": "学习",
+      "target": "通用推理功能",
+      "type": "related",
+      "description": "学习与通用推理功能在智能体的知识获取和任务处理中存在紧密联系，但不构成明确的前置、包含或用途关系。"
+    },
+    {
+      "source": "环境状态变化",
+      "target": "自主决策",
+      "type": "related",
+      "description": "环境状态变化是自主决策的基础输入，两者在智能体运行中紧密相关"
+    },
+    {
+      "source": "上下文学习",
+      "target": "专用工具",
+      "type": "contrasts-with",
+      "description": "上下文学习与专用工具在决策机制和适应性上形成对比"
+    },
+    {
+      "source": "任务分解",
+      "target": "思维链推理",
+      "type": "related",
+      "description": "任务分解与思维链推理在智能体能力上有一定关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "外部工具",
+      "target": "通用推理功能",
+      "type": "related",
+      "description": "外部工具和通用推理功能在智能体系统中存在功能互补和协同作用，但不具备明确的前置、包含或用途关系。"
+    },
+    {
+      "source": "大规模通用语料库",
+      "target": "通用问题解决者",
+      "type": "applies-to",
+      "description": "大规模通用语料库用于训练通用问题解决者"
+    },
+    {
+      "source": "上下文学习",
+      "target": "通用问题解决者",
+      "type": "related",
+      "description": "上下文学习是通用问题解决者实现复杂决策的重要基础，两者在智能系统演进和任务处理能力上有强关联"
+    },
+    {
+      "source": "思维链推理",
+      "target": "自主规划",
+      "type": "related",
+      "description": "思维链推理与自主规划在智能体任务处理中紧密关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "上下文学习",
+      "target": "学习",
+      "type": "related",
+      "description": "上下文学习是学习的一种具体形式，与学习在智能体中的广义概念密切相关。"
+    },
+    {
+      "source": "工具选择",
+      "target": "模块化协作",
+      "type": "part-of",
+      "description": "工具选择是模块化协作中的一个子模块，属于其组成部分"
+    },
+    {
+      "source": "工具选择",
+      "target": "规划模块",
+      "type": "part-of",
+      "description": "工具选择是规划模块在思考阶段的一部分，属于其组成或子概念"
+    },
+    {
+      "source": "上下文学习",
+      "target": "外部工具",
+      "type": "related",
+      "description": "上下文学习和外部工具在智能体任务处理中存在协同关系，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "持续迭代",
+      "target": "环境状态变化",
+      "type": "applies-to",
+      "description": "持续迭代通过环境状态变化触发新的迭代循环，二者在智能体运行机制中存在直接作用关系"
+    },
+    {
+      "source": "通用推理功能",
+      "target": "通用问题解决者",
+      "type": "related",
+      "description": "通用推理功能与通用问题解决者在能力和应用场景上有高度关联，均涉及智能体的自主推理和复杂任务处理。"
+    },
+    {
+      "source": "上下文学习",
+      "target": "自然语言指令",
+      "type": "related",
+      "description": "上下文学习和自然语言指令在智能系统中存在功能上的关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "大规模通用语料库",
+      "target": "自然语言指令",
+      "type": "related",
+      "description": "两者在智能体训练和应用中存在关联，但不构成直接的前置、包含或用途关系"
+    },
+    {
+      "source": "大规模通用语料库",
+      "target": "学习",
+      "type": "related",
+      "description": "大规模通用语料库为学习提供数据基础，二者在智能体训练中密切相关"
+    },
+    {
+      "source": "任务分解",
+      "target": "大规模通用语料库",
+      "type": "related",
+      "description": "任务分解与大规模通用语料库在智能体能力构建中存在间接关联，但无明确的前置、包含或用途关系。"
+    },
+    {
+      "source": "外部工具",
+      "target": "思维链推理",
+      "type": "related",
+      "description": "外部工具和思维链推理在智能体系统中均涉及增强任务处理能力，但无明确的前置、包含或用途关系"
+    },
+    {
+      "source": "自主规划",
+      "target": "通用推理功能",
+      "type": "related",
+      "description": "自主规划与通用推理功能在智能体任务处理中紧密关联，均属于智能体核心能力范畴"
+    },
+    {
+      "source": "学习",
+      "target": "思维链推理",
+      "type": "related",
+      "description": "学习与思维链推理在智能体能力提升和任务处理上有联系，但不构成直接的先修、包含或用途关系。"
+    },
+    {
+      "source": "思维链推理",
+      "target": "自然语言指令",
+      "type": "related",
+      "description": "两者均涉及大语言模型的高级能力，但无明确的前置、包含或用途关系。"
+    },
+    {
+      "source": "外部工具",
+      "target": "微调",
+      "type": "related",
+      "description": "外部工具和微调都涉及模型能力的增强，但不属于直接的前置、包含、用途或同义关系。"
+    },
+    {
+      "source": "任务分解",
+      "target": "预训练",
+      "type": "applies-to",
+      "description": "预训练为任务分解提供了必要的知识基础和推理能力"
+    },
+    {
+      "source": "自主规划",
+      "target": "预训练",
+      "type": "related",
+      "description": "自主规划依赖预训练模型提供的通用知识基础，二者在智能体系统中紧密关联"
+    },
+    {
+      "source": "外部工具",
+      "target": "预训练",
+      "type": "related",
+      "description": "外部工具依赖预训练语言模型构建隐式世界模型，二者在智能体能力构建中存在关联"
+    },
+    {
+      "source": "专用工具",
+      "target": "大规模通用语料库",
+      "type": "related",
+      "description": "专用工具与大规模通用语料库在智能系统中存在功能和实现方式上的关联，但不满足更强关系的明确依据。"
+    },
+    {
+      "source": "学习",
+      "target": "预训练",
+      "type": "prerequisite",
+      "description": "预训练是学习的基础阶段，为模型提供通用知识以支持后续学习过程"
+    },
+    {
+      "source": "专用工具",
+      "target": "微调",
+      "type": "related",
+      "description": "专用工具和微调在智能系统中都涉及特定任务的优化，但不具备直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "专用工具",
+      "target": "自监督学习",
+      "type": "related",
+      "description": "专用工具与自监督学习在智能系统中都涉及预训练和任务适应，但无直接包含或用途关系"
+    },
+    {
+      "source": "专用工具",
+      "target": "预训练",
+      "type": "contrasts-with",
+      "description": "专用工具依赖人工编码和预设规则，而预训练是基于大规模数据的自监督学习过程，两者在实现方式和能力范围上有明显对比"
+    },
+    {
+      "source": "外部工具",
+      "target": "自监督学习",
+      "type": "related",
+      "description": "外部工具与自监督学习在智能系统中存在功能协同关系，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "任务分解",
+      "target": "微调",
+      "type": "related",
+      "description": "任务分解与微调在智能体能力构建中存在关联，但并非直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "人工编码",
+      "target": "自监督学习",
+      "type": "related",
+      "description": "人工编码与自监督学习在智能体开发中存在技术关联，但并非直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "多智能体协作",
+      "target": "工具",
+      "type": "related",
+      "description": "多智能体协作与工具在智能体架构中存在功能关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "人工编码",
+      "target": "微调",
+      "type": "related",
+      "description": "人工编码与微调在智能体开发中属于不同阶段和方法，但都涉及模型训练和优化过程，存在一定的关联性。"
+    },
+    {
+      "source": "感知-思考-行动-观察",
+      "target": "闭环流程",
+      "type": "part-of",
+      "description": "感知-思考-行动-观察是闭环流程的核心组成部分"
+    },
+    {
+      "source": "工具",
+      "target": "自主协作者",
+      "type": "related",
+      "description": "工具与自主协作者在智能体架构中存在协同关系，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "自然语言指令",
+      "target": "自监督学习",
+      "type": "related",
+      "description": "自然语言指令和自监督学习在大语言模型中存在技术关联，但并非直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "无约束智能体",
+      "target": "闭环流程",
+      "type": "part-of",
+      "description": "无约束智能体包含闭环流程作为其核心循环机制"
+    },
+    {
+      "source": "开发者工具",
+      "target": "闭环流程",
+      "type": "applies-to",
+      "description": "开发者工具用于支持闭环流程中的感知-思考-行动-观察循环机制"
+    },
+    {
+      "source": "大型语言模型",
+      "target": "自然语言交互",
+      "type": "related",
+      "description": "大型语言模型与自然语言交互在智能体发展中有技术关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "思考阶段",
+      "target": "智能旅行助手",
+      "type": "part-of",
+      "description": "思考阶段是智能旅行助手闭环流程中的核心组成部分"
+    },
+    {
+      "source": "用户反馈",
+      "target": "自监督学习",
+      "type": "related",
+      "description": "用户反馈与自监督学习在智能体学习和优化过程中有间接关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "大型语言模型",
+      "target": "符号主义",
+      "type": "contrasts-with",
+      "description": "大型语言模型基于数据驱动和自监督学习，而符号主义依赖符号规则和知识表示，二者在方法和实现上有显著差异。"
+    },
+    {
+      "source": "涌现能力",
+      "target": "自然语言交互",
+      "type": "related",
+      "description": "涌现能力与自然语言交互在智能体功能上有密切联系，但不构成直接的先修、包含或用途关系。"
+    },
+    {
+      "source": "世界知识隐式模型",
+      "target": "自然语言交互",
+      "type": "related",
+      "description": "两者在智能体技术中存在关联，但不满足更强关系的明确条件。"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "大型语言模型",
+      "type": "related",
+      "description": "两者均涉及智能体的发展，但无明确的前置、包含、用途或同义关系"
+    },
+    {
+      "source": "世界知识隐式模型",
+      "target": "符号主义",
+      "type": "contrasts-with",
+      "description": "世界知识隐式模型基于数据学习，而符号主义依赖显式规则和知识表示，二者在实现智能的方式上形成对比"
+    },
+    {
+      "source": "涌现能力",
+      "target": "符号主义",
+      "type": "contrasts-with",
+      "description": "涌现能力强调模型通过训练自主学习和适应，而符号主义依赖人工编码和规则，二者在实现智能的方式上形成对比"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "涌现能力",
+      "type": "contrasts-with",
+      "description": "SHRDLU作为早期智能体系统，与现代LLM智能体的涌现能力在实现方式和自主性上形成对比"
+    },
+    {
+      "source": "目标委托",
+      "target": "自主决策",
+      "type": "prerequisite",
+      "description": "目标委托需要自主决策作为其核心能力基础"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "智能旅行助手",
+      "type": "contrasts-with",
+      "description": "SHRDLU与智能旅行助手在智能体设计和应用场景上形成对比"
+    },
+    {
+      "source": "智能体",
+      "target": "目标委托",
+      "type": "part-of",
+      "description": "目标委托是智能体实现自主规划与执行任务的一种机制或能力，属于智能体的组成部分"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "世界知识隐式模型",
+      "type": "contrasts-with",
+      "description": "SHRDLU作为早期符号主义AI系统，与世界知识隐式模型（基于深度学习的隐式知识表示）在实现方式和知识获取机制上形成对比"
+    },
+    {
+      "source": "智能旅行助手",
+      "target": "观察",
+      "type": "part-of",
+      "description": "观察是智能旅行助手感知阶段的关键组成部分"
+    },
+    {
+      "source": "感知",
+      "target": "智能旅行助手",
+      "type": "applies-to",
+      "description": "感知是智能旅行助手运行机制中的关键阶段，用于获取环境信息以支持后续决策和行动"
+    },
+    {
+      "source": "任务执行",
+      "target": "自主执行",
+      "type": "part-of",
+      "description": "任务执行是自主执行的核心组成部分，体现其闭环流程中的执行环节"
+    },
+    {
+      "source": "任务执行",
+      "target": "思考阶段",
+      "type": "part-of",
+      "description": "任务执行是智能体闭环流程中的核心组成部分，与思考阶段紧密关联。"
+    },
+    {
+      "source": "任务执行",
+      "target": "执行模块",
+      "type": "part-of",
+      "description": "任务执行是执行模块的功能体现，执行模块是任务执行的实现载体"
+    },
+    {
+      "source": "主循环",
+      "target": "思考阶段",
+      "type": "part-of",
+      "description": "主循环包含思考阶段作为其核心组成部分"
+    },
+    {
+      "source": "LLM",
+      "target": "思考阶段",
+      "type": "applies-to",
+      "description": "LLM用于智能体的思考阶段以实现自主决策与任务执行"
+    },
+    {
+      "source": "思考阶段",
+      "target": "提示工程",
+      "type": "related",
+      "description": "思考阶段与提示工程在智能体任务执行中紧密关联，均涉及LLM的使用和任务流程的优化"
+    },
+    {
+      "source": "智能系统",
+      "target": "自主执行",
+      "type": "part-of",
+      "description": "自主执行是智能系统实现任务执行能力的重要组成部分"
+    },
+    {
+      "source": "任务执行",
+      "target": "规划模块",
+      "type": "applies-to",
+      "description": "任务执行依赖于规划模块生成的操作指令来完成具体目标"
+    },
+    {
+      "source": "AlphaGo",
+      "target": "符号主义",
+      "type": "related",
+      "description": "AlphaGo 和符号主义在智能体设计上有联系，但AlphaGo基于强化学习，而符号主义强调符号处理和逻辑推理，属于不同范式"
+    },
+    {
+      "source": "主循环",
+      "target": "执行模块",
+      "type": "part-of",
+      "description": "主循环包含执行模块，执行模块是主循环实现任务执行的核心部分"
+    },
+    {
+      "source": "任务执行",
+      "target": "模块化协作",
+      "type": "part-of",
+      "description": "任务执行是模块化协作中的执行模块，属于其组成部分"
+    },
+    {
+      "source": "执行模块",
+      "target": "智能系统",
+      "type": "part-of",
+      "description": "执行模块是智能系统架构中的关键组成部分"
+    },
+    {
+      "source": "主循环",
+      "target": "自主执行",
+      "type": "applies-to",
+      "description": "主循环用于实现自主执行，通过持续处理信息和调用工具完成任务执行"
+    },
+    {
+      "source": "LLM",
+      "target": "自主执行",
+      "type": "applies-to",
+      "description": "LLM被用来实现智能体的自主执行能力"
+    },
+    {
+      "source": "智能体",
+      "target": "高级控制流架构",
+      "type": "applies-to",
+      "description": "高级控制流架构是智能体执行任务时所采用的复杂流程设计"
+    },
+    {
+      "source": "CrewAI",
+      "target": "智能体",
+      "type": "part-of",
+      "description": "CrewAI是智能体的一种协作形式，属于多智能体系统的组成部分"
+    },
+    {
+      "source": "环境",
+      "target": "符号主义",
+      "type": "contrasts-with",
+      "description": "环境强调与外部世界的交互和动态系统，而符号主义侧重符号处理和逻辑推理，二者在智能体实现方式上形成对比"
+    },
+    {
+      "source": "LLM",
+      "target": "执行模块",
+      "type": "part-of",
+      "description": "LLM是智能体架构中的核心构建机制，执行模块是其关键组成部分之一"
+    },
+    {
+      "source": "思考阶段",
+      "target": "智能系统",
+      "type": "part-of",
+      "description": "思考阶段是智能系统执行任务过程中的关键组成部分"
+    },
+    {
+      "source": "主循环",
+      "target": "规划模块",
+      "type": "part-of",
+      "description": "主循环包含规划模块作为其核心组成部分之一"
+    },
+    {
+      "source": "LLM",
+      "target": "规划模块",
+      "type": "part-of",
+      "description": "规划模块是智能体架构中基于LLM的关键组成部分"
+    },
+    {
+      "source": "任务执行",
+      "target": "观察",
+      "type": "related",
+      "description": "任务执行与观察在智能体的闭环流程中相互关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "主循环",
+      "target": "持续迭代",
+      "type": "related",
+      "description": "主循环与持续迭代在智能体运行中存在紧密关联，但不构成前置、包含或用途等明确关系。"
+    },
+    {
+      "source": "感知",
+      "target": "提示工程",
+      "type": "related",
+      "description": "感知与提示工程在智能体运行机制中均起到信息输入的作用，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "多智能体系统",
+      "target": "通用人工智能",
+      "type": "related",
+      "description": "多智能体系统与通用人工智能在智能体发展和认知能力方面存在紧密联系"
+    },
+    {
+      "source": "提示工程",
+      "target": "观察",
+      "type": "related",
+      "description": "提示工程与观察在智能体循环中相互关联，提示工程引导智能体行动，观察为行动提供依据。"
+    },
+    {
+      "source": "LLM",
+      "target": "观察",
+      "type": "related",
+      "description": "LLM与观察在智能体系统中存在功能关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "符号处理",
+      "target": "语义理解",
+      "type": "contrasts-with",
+      "description": "符号处理强调逻辑运算和结构化分析，而语义理解关注深层含义和实际意义，二者在处理信息的方式上形成对比"
+    },
+    {
+      "source": "语义理解",
+      "target": "语言理解",
+      "type": "synonym",
+      "description": "语义理解与语言理解在智能体中均指对语言信息的深层处理，且描述高度重合，可视为严格同义"
+    },
+    {
+      "source": "感知-思考-行动",
+      "target": "环境状态记忆",
+      "type": "part-of",
+      "description": "环境状态记忆是感知-思考-行动闭环中的一个组成部分"
+    },
+    {
+      "source": "主循环",
+      "target": "观察",
+      "type": "related",
+      "description": "主循环与观察在智能体运行流程中紧密关联，但不构成先修、包含、用途或同义关系。"
+    },
+    {
+      "source": "感知-思考-行动",
+      "target": "感知-思考-行动闭环",
+      "type": "synonym",
+      "description": "感知-思考-行动与感知-思考-行动闭环是几乎等价的概念，均指智能体的闭环决策过程"
+    },
+    {
+      "source": "感知-思考-行动",
+      "target": "行动记忆",
+      "type": "part-of",
+      "description": "行动记忆是感知-思考-行动闭环中的组成部分，用于存储行为序列和环境交互信息"
+    },
+    {
+      "source": "动作序列规划",
+      "target": "预训练与微调范式",
+      "type": "related",
+      "description": "两者均涉及智能体的‘感知-思考-行动’闭环，但无明确的前置、包含、用途或同义关系"
+    },
+    {
+      "source": "语言理解",
+      "target": "预训练与微调范式",
+      "type": "related",
+      "description": "语言理解与预训练与微调范式在智能体系统中均涉及自然语言处理，但无明确的前置、包含或用途关系。"
+    },
+    {
+      "source": "感知-思考-行动",
+      "target": "语言理解",
+      "type": "part-of",
+      "description": "语言理解是感知-思考-行动闭环中的关键组成部分"
+    },
+    {
+      "source": "动作序列规划",
+      "target": "感知-思考-行动",
+      "type": "part-of",
+      "description": "动作序列规划是感知-思考-行动闭环中的一个核心组成部分"
+    },
+    {
+      "source": "多维度问答",
+      "target": "预训练与微调范式",
+      "type": "related",
+      "description": "两者均涉及智能体的语言处理能力，但无明确的前置、包含、用途或同义关系。"
+    },
+    {
+      "source": "通用人工智能",
+      "target": "预训练与微调范式",
+      "type": "related",
+      "description": "两者在智能体发展和语言处理能力提升方面有交集，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "Llamalndex",
+      "target": "观察",
+      "type": "part-of",
+      "description": "观察是Llamalndex智能体循环中的一个组成部分，是其感知和决策流程的关键环节。"
+    },
+    {
+      "source": "多智能体系统",
+      "target": "行动记忆",
+      "type": "part-of",
+      "description": "行动记忆是多智能体系统中的一个组成部分，用于存储和管理行为序列和环境交互信息"
+    },
+    {
+      "source": "语义理解",
+      "target": "通用人工智能",
+      "type": "related",
+      "description": "语义理解是通用人工智能实现感知-思考-行动闭环的重要组成部分，二者在智能体发展中有密切联系。"
+    },
+    {
+      "source": "指代消解",
+      "target": "语义理解",
+      "type": "related",
+      "description": "指代消解和语义理解均属于智能体语言处理能力的不同方面，且在感知-思考-行动闭环中相互关联。"
+    },
+    {
+      "source": "符号处理",
+      "target": "预训练与微调范式",
+      "type": "contrasts-with",
+      "description": "符号处理强调逻辑运算和结构化分析，而预训练与微调范式侧重模式匹配和文本处理，二者在方法和应用场景上形成对比"
+    },
+    {
+      "source": "多智能体系统",
+      "target": "多维度问答",
+      "type": "related",
+      "description": "多智能体系统与多维度问答在智能体交互和任务处理方面存在关联，但未明确构成前置、包含或用途关系。"
+    },
+    {
+      "source": "行动记忆",
+      "target": "预训练与微调范式",
+      "type": "related",
+      "description": "两者在智能体系统中均涉及上下文理解和行为闭环，但无明确的前置、包含或用途关系。"
+    },
+    {
+      "source": "多智能体系统",
+      "target": "语言理解",
+      "type": "applies-to",
+      "description": "语言理解是多智能体系统中用于处理自然语言输入的核心模块"
+    },
+    {
+      "source": "多维度问答",
+      "target": "语义理解",
+      "type": "prerequisite",
+      "description": "多维度问答需要语义理解作为基础来实现对复杂指令的解析和上下文记忆"
+    },
+    {
+      "source": "行动记忆",
+      "target": "语义理解",
+      "type": "related",
+      "description": "行动记忆与语义理解均是智能体系统中的关键模块，共同支持感知-思考-行动闭环，存在协同工作关系。"
+    },
+    {
+      "source": "LLM",
+      "target": "感知",
+      "type": "related",
+      "description": "LLM与感知在智能体运行机制中紧密关联，但不属于直接的前置、组成、用途或同义关系。"
+    },
+    {
+      "source": "多智能体系统",
+      "target": "多样化的心智活动",
+      "type": "contrasts-with",
+      "description": "多智能体系统强调多个智能体的协同，而多样化的心智活动强调多个机制的协作，二者在结构和实现方式上形成对比"
+    },
+    {
+      "source": "动作序列规划",
+      "target": "多智能体系统",
+      "type": "related",
+      "description": "动作序列规划是多智能体系统实现目标导向行为的重要组成部分，两者在智能体设计和交互中有密切联系。"
+    },
+    {
+      "source": "心智社会",
+      "target": "语言理解",
+      "type": "related",
+      "description": "心智社会与语言理解在智能体系统中紧密相关，共同构成感知-思考-行动闭环"
+    },
+    {
+      "source": "感知-思考-行动",
+      "target": "指代消解",
+      "type": "part-of",
+      "description": "指代消解是感知-思考-行动闭环中的重要组成部分"
+    },
+    {
+      "source": "心智社会",
+      "target": "通用人工智能",
+      "type": "related",
+      "description": "心智社会与通用人工智能在智能体发展和认知机制上有密切联系，但不构成直接的先修、包含或用途关系。"
+    },
+    {
+      "source": "多样化的心智活动",
+      "target": "心智社会",
+      "type": "part-of",
+      "description": "多样化的心智活动是心智社会理论中的核心概念，体现其组成结构"
+    },
+    {
+      "source": "心智社会",
+      "target": "社会",
+      "type": "part-of",
+      "description": "心智社会是社会的一种具体表现形式，强调智能体间的协作与社会属性。"
+    },
+    {
+      "source": "Llamalndex",
+      "target": "感知",
+      "type": "part-of",
+      "description": "Llamalndex 是智能体框架，感知是其运行机制中的关键阶段，属于其组成部分。"
+    },
+    {
+      "source": "心智社会",
+      "target": "行动记忆",
+      "type": "related",
+      "description": "心智社会与行动记忆在智能体系统中均涉及感知-思考-行动闭环，且行动记忆是实现该闭环的重要模块，二者存在功能上的关联。"
+    },
+    {
+      "source": "动作序列规划",
+      "target": "心智社会",
+      "type": "related",
+      "description": "两者均涉及智能体的‘感知-思考-行动’闭环，且在智能体系统发展中有联系，但不构成明确的前置、包含或用途关系。"
+    },
+    {
+      "source": "多样化的心智活动",
+      "target": "自然语言交互",
+      "type": "related",
+      "description": "多样化的心智活动与自然语言交互在智能体设计中存在关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "ELIZA",
+      "target": "符号处理",
+      "type": "contrasts-with",
+      "description": "ELIZA基于规则驱动的模式匹配，而符号处理强调逻辑运算和结构化分析，两者在方法和目标上形成对比"
+    },
+    {
+      "source": "Prompt",
+      "target": "感知",
+      "type": "related",
+      "description": "Prompt和感知在智能体运行机制中均起到信息输入的作用，但不属于同一层级或直接用途关系"
+    },
+    {
+      "source": "Llamalndex",
+      "target": "工具调用",
+      "type": "applies-to",
+      "description": "Llamalndex通过工具调用来实现智能体的任务执行"
+    },
+    {
+      "source": "LangChain",
+      "target": "感知",
+      "type": "related",
+      "description": "LangChain与感知在智能体运行机制中存在功能关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "ELIZA",
+      "target": "动作序列规划",
+      "type": "related",
+      "description": "ELIZA和动作序列规划均涉及自然语言处理与智能体交互，但无明确的前置、包含、用途或同义关系。"
+    },
+    {
+      "source": "简单机制",
+      "target": "自然语言交互",
+      "type": "related",
+      "description": "简单机制与自然语言交互在智能体发展中有一定的关联，但并非直接的前置、组成或用途关系。"
+    },
+    {
+      "source": "模式匹配",
+      "target": "符号处理",
+      "type": "related",
+      "description": "模式匹配与符号处理在智能体中均涉及结构化分析和规则操作，但侧重点不同，属于相关但非直接包含或同义的关系。"
+    },
+    {
+      "source": "LangChain",
+      "target": "开发者工具",
+      "type": "applies-to",
+      "description": "LangChain作为开发者工具用于构建和运行智能体系统"
+    },
+    {
+      "source": "Prompt",
+      "target": "工具调用",
+      "type": "related",
+      "description": "Prompt与工具调用在智能体任务执行中存在紧密联系，共同构成技术基础"
+    },
+    {
+      "source": "自上而下处理",
+      "target": "自然语言交互",
+      "type": "contrasts-with",
+      "description": "自上而下处理强调统一逻辑规则，而自然语言交互涉及多模块协作与上下文记忆，二者在方法论上形成对比"
+    },
+    {
+      "source": "LangChain",
+      "target": "感知-思考-行动-观察",
+      "type": "applies-to",
+      "description": "LangChain通过感知-思考-行动-观察循环机制实现智能体的行为控制与任务执行"
+    },
+    {
+      "source": "Llamalndex",
+      "target": "感知-思考-行动-观察",
+      "type": "part-of",
+      "description": "Llamalndex通过感知-思考-行动-观察循环机制实现智能体的自主决策与任务执行，该机制是其核心组成部分。"
+    },
+    {
+      "source": "Llamalndex",
+      "target": "开发者工具",
+      "type": "related",
+      "description": "Llamalndex与开发者工具在构建智能体过程中有功能上的交集，但不构成明确的前置、包含或用途关系。"
+    },
+    {
+      "source": "模式匹配",
+      "target": "语言理解",
+      "type": "related",
+      "description": "模式匹配与语言理解均属于自然语言处理的基础技术，但前者侧重规则匹配，后者侧重语义解析，存在相关但非直接包含或同义关系。"
+    },
+    {
+      "source": "ELIZA",
+      "target": "多维度问答",
+      "type": "related",
+      "description": "ELIZA和多维度问答都涉及自然语言处理与智能体交互，但无明确的前置、包含或用途关系。"
+    },
+    {
+      "source": "AlphaGo",
+      "target": "涌现能力",
+      "type": "related",
+      "description": "AlphaGo 和涌现能力均涉及智能体的学习与适应能力，但不属于直接的先修、包含、用途或同义关系。"
+    },
+    {
+      "source": "指代消解",
+      "target": "模式匹配",
+      "type": "related",
+      "description": "指代消解和模式匹配在自然语言处理中均涉及对输入信息的解析，但语义和应用场景存在差异，属于相关但非强关联的概念"
+    },
+    {
+      "source": "Llamalndex",
+      "target": "多智能体协作",
+      "type": "related",
+      "description": "Llamalndex与多智能体协作在智能体系统构建中存在技术关联，但并非直接包含或前置关系。"
+    },
+    {
+      "source": "动作序列规划",
+      "target": "模式匹配",
+      "type": "related",
+      "description": "两者均涉及智能体处理用户输入和执行任务，但无明确的前置、包含或用途关系"
+    },
+    {
+      "source": "LangChain",
+      "target": "多智能体协作",
+      "type": "related",
+      "description": "LangChain与多智能体协作在智能体开发领域有技术关联，但并非直接的前置、组成或用途关系。"
+    },
+    {
+      "source": "Prompt",
+      "target": "感知-思考-行动-观察",
+      "type": "applies-to",
+      "description": "Prompt用于感知-思考-行动-观察循环中的信息引导与任务上下文构建"
+    },
+    {
+      "source": "LangChain",
+      "target": "工具调用",
+      "type": "applies-to",
+      "description": "LangChain支持工具调用，使其能够完成具体任务"
+    },
+    {
+      "source": "模式匹配",
+      "target": "行动记忆",
+      "type": "contrasts-with",
+      "description": "模式匹配侧重规则匹配与响应生成，而行动记忆侧重存储行为序列和上下文信息，二者在功能上有明显差异。"
+    },
+    {
+      "source": "多智能体协作",
+      "target": "智能系统",
+      "type": "part-of",
+      "description": "多智能体协作是智能系统的一种组成或实现方式"
+    },
+    {
+      "source": "ELIZA",
+      "target": "通用人工智能",
+      "type": "contrasts-with",
+      "description": "ELIZA是规则驱动的早期AI系统，而通用人工智能强调自主和跨领域认知能力，二者在设计目标和能力上形成对比"
+    },
+    {
+      "source": "ELIZA",
+      "target": "积木世界",
+      "type": "related",
+      "description": "两者均涉及早期自然语言处理与人工智能系统，但无明确的前置、包含、用途或同义关系。"
+    },
+    {
+      "source": "多维度问答",
+      "target": "模式匹配",
+      "type": "contrasts-with",
+      "description": "多维度问答强调语义理解和上下文记忆，而模式匹配依赖规则和关键词，二者在处理自然语言交互的方式上形成对比"
+    },
+    {
+      "source": "开发者工具",
+      "target": "智能系统",
+      "type": "applies-to",
+      "description": "开发者工具用于支持智能系统的构建与运行"
+    },
+    {
+      "source": "感知-思考-行动-观察",
+      "target": "智能系统",
+      "type": "part-of",
+      "description": "感知-思考-行动-观察是智能系统执行任务的核心循环机制，属于其组成部分"
+    },
+    {
+      "source": "LangChain",
+      "target": "自主协作者",
+      "type": "related",
+      "description": "LangChain 是实现自主协作者的技术框架，两者在智能体开发中存在关联但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "Prompt",
+      "target": "开发者工具",
+      "type": "related",
+      "description": "Prompt与开发者工具在智能体构建中存在功能关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "Prompt",
+      "target": "多智能体协作",
+      "type": "related",
+      "description": "Prompt与多智能体协作在智能系统中均涉及智能体的决策和交互，存在技术关联性"
+    },
+    {
+      "source": "Prompt",
+      "target": "自主协作者",
+      "type": "related",
+      "description": "Prompt与自主协作者在智能体系统中存在功能和实现上的关联，但并非直接的前置、包含或同义关系。"
+    },
+    {
+      "source": "世界知识隐式模型",
+      "target": "联结主义",
+      "type": "related",
+      "description": "世界知识隐式模型与联结主义在智能体学习机制上有一定关联，但不构成明确的前置、包含或用途关系。"
+    },
+    {
+      "source": "AlphaGo",
+      "target": "世界知识隐式模型",
+      "type": "related",
+      "description": "两者均涉及智能体的学习与决策机制，但无明确的前置、包含或用途关系"
+    },
+    {
+      "source": "世界知识隐式模型",
+      "target": "环境",
+      "type": "related",
+      "description": "世界知识隐式模型与环境在智能体学习和决策中存在紧密联系，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "AlphaGo",
+      "target": "大型语言模型",
+      "type": "related",
+      "description": "两者均属于智能体范畴，但学习机制和应用场景存在差异，属于相关但非直接包含或同义关系"
+    },
+    {
+      "source": "大型语言模型",
+      "target": "环境",
+      "type": "related",
+      "description": "大型语言模型与环境在智能体发展史中均涉及学习和决策，但无明确的前置、包含、用途或同义关系。"
+    },
+    {
+      "source": "推理机",
+      "target": "自动规划",
+      "type": "related",
+      "description": "推理机与自动规划同属早期智能体阶段基于符号与逻辑的技术，存在理论和应用上的关联"
+    },
+    {
+      "source": "大型语言模型",
+      "target": "联结主义",
+      "type": "related",
+      "description": "大型语言模型和联结主义在智能体学习范式上有一定的关联，但并非直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "自然语言指令",
+      "type": "related",
+      "description": "SHRDLU 和自然语言指令在智能体交互和任务执行方面有相关性，但未明确构成先修、包含或用途关系。"
+    },
+    {
+      "source": "涌现能力",
+      "target": "环境",
+      "type": "related",
+      "description": "涌现能力与环境在智能体学习和决策过程中存在交互关系，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "MYCIN系统",
+      "target": "自动规划",
+      "type": "related",
+      "description": "两者均属于早期智能体阶段，与物理符号系统假说相关，但无直接包含或用途关系"
+    },
+    {
+      "source": "置信因子",
+      "target": "自动规划",
+      "type": "related",
+      "description": "置信因子与自动规划在早期智能体阶段均涉及符号逻辑和知识表示，存在一定的关联性"
+    },
+    {
+      "source": "知识库",
+      "target": "自动规划",
+      "type": "related",
+      "description": "知识库与自动规划在专家系统中均涉及符号处理和逻辑推理，但无明确的前置、包含或用途关系。"
+    },
+    {
+      "source": "不确定性",
+      "target": "自动规划",
+      "type": "related",
+      "description": "不确定性与自动规划在智能体的决策和推理过程中存在关联，但并非直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "SHRDLU",
+      "target": "通用问题解决者",
+      "type": "contrasts-with",
+      "description": "SHRDLU与符号主义AI的局限形成对比，而通用问题解决者体现了向更自主、通用智能体的演进，二者在AI发展路径上形成对比"
+    },
+    {
+      "source": "基于模型的智能体",
+      "target": "环境",
+      "type": "related",
+      "description": "基于模型的智能体依赖环境状态进行决策，与环境存在功能性关联"
+    },
+    {
+      "source": "奖励",
+      "target": "效用函数",
+      "type": "related",
+      "description": "奖励和效用函数在强化学习中均涉及价值评估，但并非直接同义或包含关系"
+    },
+    {
+      "source": "回报",
+      "target": "效用函数",
+      "type": "related",
+      "description": "回报和效用函数在强化学习中都用于价值评估，但并非严格同义或包含关系，属于相关概念。"
+    },
+    {
+      "source": "效用函数",
+      "target": "状态",
+      "type": "related",
+      "description": "效用函数和状态在强化学习中紧密关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "基于目标的智能体",
+      "target": "奖励",
+      "type": "related",
+      "description": "基于目标的智能体与奖励在强化学习中存在关联，但并非直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "反向链",
+      "target": "自动规划",
+      "type": "contrasts-with",
+      "description": "反向链和自动规划都基于符号主义理论，但反向链是目标驱动的推理机制，而自动规划是任务序列化与执行的方法，二者在应用场景和实现方式上形成对比"
+    },
+    {
+      "source": "基于模型的智能体",
+      "target": "状态",
+      "type": "part-of",
+      "description": "基于模型的智能体通过内部状态追踪实现认知，状态是其决策的基础组成部分"
+    },
+    {
+      "source": "感知-行动闭环",
+      "target": "效用函数",
+      "type": "related",
+      "description": "感知-行动闭环与效用函数在强化学习中密切相关，但并非直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "学习型智能体",
+      "target": "感知-行动闭环",
+      "type": "contrasts-with",
+      "description": "学习型智能体强调自我学习和适应能力，而感知-行动闭环是其实现学习的机制，二者在功能上形成对比"
+    },
+    {
+      "source": "基于模型的智能体",
+      "target": "奖励",
+      "type": "related",
+      "description": "奖励是强化学习中的核心要素，而基于模型的智能体与学习型智能体存在关联，因此两者在智能体学习框架中具有相关性。"
+    },
+    {
+      "source": "效用函数",
+      "target": "环境",
+      "type": "related",
+      "description": "效用函数和环境在智能体决策中相互作用，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "基于目标的智能体",
+      "target": "感知-行动闭环",
+      "type": "related",
+      "description": "基于目标的智能体与感知-行动闭环在智能体行为机制上有联系，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "回报",
+      "target": "基于效用的智能体",
+      "type": "related",
+      "description": "回报是强化学习中用于评估智能体决策效果的核心指标，而基于效用的智能体是考虑多目标权衡的智能体类型，两者在强化学习框架中存在关联但非直接包含或用途关系。"
+    },
+    {
+      "source": "基于效用的智能体",
+      "target": "奖励",
+      "type": "related",
+      "description": "基于效用的智能体与奖励在强化学习中存在功能关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "基于目标的智能体",
+      "target": "联结主义",
+      "type": "related",
+      "description": "基于目标的智能体与联结主义在智能体研究中存在关联，但无明确的前置、包含或用途关系"
+    },
+    {
+      "source": "基于模型的智能体",
+      "target": "感知-行动闭环",
+      "type": "related",
+      "description": "基于模型的智能体与感知-行动闭环在智能体行为机制上有联系，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "基于目标的智能体",
+      "target": "状态",
+      "type": "related",
+      "description": "基于目标的智能体与状态在强化学习中相关联，但无明确的前置、包含或用途关系"
+    },
+    {
+      "source": "学习型智能体",
+      "target": "联结主义",
+      "type": "contrasts-with",
+      "description": "学习型智能体强调自我学习和适应能力，而联结主义关注神经网络结构和分布式知识存储，二者在实现智能的方式上形成对比"
+    },
+    {
+      "source": "基于效用的智能体",
+      "target": "感知-行动闭环",
+      "type": "related",
+      "description": "两者均涉及智能体的决策机制，但侧重点不同，不构成更强关系"
+    },
+    {
+      "source": "回报",
+      "target": "基于模型的智能体",
+      "type": "related",
+      "description": "回报是强化学习中影响智能体决策的关键因素，而基于模型的智能体是强化学习中的一种类型，二者在强化学习框架下存在功能上的关联。"
+    },
+    {
+      "source": "基于效用的智能体",
+      "target": "状态",
+      "type": "related",
+      "description": "基于效用的智能体与状态在强化学习框架中存在关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "回报",
+      "target": "学习型智能体",
+      "type": "related",
+      "description": "回报是学习型智能体优化决策策略的核心指标，二者在强化学习框架中密切相关。"
+    },
+    {
+      "source": "基于效用的智能体",
+      "target": "联结主义",
+      "type": "related",
+      "description": "基于效用的智能体与联结主义在智能体分类和学习机制上有一定交集，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "目标委托",
+      "target": "高级控制流",
+      "type": "applies-to",
+      "description": "目标委托使用高级控制流实现更灵活的控制流架构"
+    },
+    {
+      "source": "学习型智能体",
+      "target": "状态",
+      "type": "related",
+      "description": "学习型智能体与状态在强化学习中紧密相关，但不构成前置、包含、用途或同义关系"
+    },
+    {
+      "source": "奖励",
+      "target": "学习型智能体",
+      "type": "related",
+      "description": "奖励是学习型智能体通过强化学习机制优化决策策略的重要反馈信号"
+    },
+    {
+      "source": "规则匹配",
+      "target": "转换规则",
+      "type": "synonym",
+      "description": "规则匹配与转换规则在语义上几乎等价，均指基于预设规则的文本处理机制"
+    },
+    {
+      "source": "回报",
+      "target": "基于目标的智能体",
+      "type": "related",
+      "description": "回报是强化学习中的核心概念，而基于目标的智能体是智能体的一种类型，两者在强化学习框架中存在关联但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "状态",
+      "target": "简单反射智能体",
+      "type": "related",
+      "description": "状态是智能体感知环境的基础，而简单反射智能体依赖于直接感知触发动作，二者在强化学习框架中存在功能关联。"
+    },
+    {
+      "source": "基于模型的智能体",
+      "target": "联结主义",
+      "type": "related",
+      "description": "基于模型的智能体与联结主义在智能体实现方式和学习机制上有一定关联，但不构成直接的先修、包含或用途关系。"
+    },
+    {
+      "source": "感知-行动闭环",
+      "target": "简单反射智能体",
+      "type": "contrasts-with",
+      "description": "感知-行动闭环强调学习和优化，而简单反射智能体仅基于条件触发动作，二者在智能体行为机制上有明显对比"
+    },
+    {
+      "source": "规则选择",
+      "target": "转换规则",
+      "type": "applies-to",
+      "description": "规则选择是转换规则应用的前提，用于确定合适的规则执行"
+    },
+    {
+      "source": "感知-思考-行动-观察",
+      "target": "目标委托",
+      "type": "related",
+      "description": "感知-思考-行动-观察机制与目标委托在智能体任务执行中存在紧密联系，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "单智能体闭环",
+      "target": "目标委托",
+      "type": "applies-to",
+      "description": "单智能体闭环是实现目标委托的一种机制"
+    },
+    {
+      "source": "规则选择",
+      "target": "规则驱动方法",
+      "type": "part-of",
+      "description": "规则选择是规则驱动方法中的一个关键步骤，属于其组成部分"
+    },
+    {
+      "source": "转换规则",
+      "target": "重组规则",
+      "type": "part-of",
+      "description": "转换规则是ELIZA系统中用于生成回应的核心机制，重组规则是其构建过程中的重要组成部分"
+    },
+    {
+      "source": "高级控制流",
+      "target": "高级控制流架构",
+      "type": "part-of",
+      "description": "高级控制流是高级控制流架构的组成部分"
+    },
+    {
+      "source": "单智能体自主循环",
+      "target": "单智能体闭环",
+      "type": "prerequisite",
+      "description": "单智能体闭环是单智能体自主循环实现的基础机制"
+    },
+    {
+      "source": "状态图建模",
+      "target": "高级控制流",
+      "type": "applies-to",
+      "description": "状态图建模用于实现高级控制流，支持智能体在复杂任务中进行自主决策和行为调整"
+    },
+    {
+      "source": "回报",
+      "target": "简单反射智能体",
+      "type": "related",
+      "description": "回报是强化学习中的核心概念，而简单反射智能体是智能体的一种类型，两者在强化学习框架中存在关联但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "自然语言处理",
+      "target": "规则驱动方法",
+      "type": "part-of",
+      "description": "规则驱动方法是自然语言处理中的一种具体技术手段"
+    },
+    {
+      "source": "无约束智能体",
+      "target": "目标委托",
+      "type": "applies-to",
+      "description": "无约束智能体可以应用目标委托实现自主规划与执行"
+    },
+    {
+      "source": "规则匹配",
+      "target": "规则驱动方法",
+      "type": "synonym",
+      "description": "规则匹配与规则驱动方法在描述中高度重合，均指基于预设规则和模式匹配的NLP技术，且语义几乎等价。"
+    },
+    {
+      "source": "无约束智能体",
+      "target": "状态图建模",
+      "type": "applies-to",
+      "description": "状态图建模用于实现无约束智能体的灵活控制流和自主决策"
+    },
+    {
+      "source": "AgentGPT",
+      "target": "高级控制流",
+      "type": "contrasts-with",
+      "description": "AgentGPT强调单智能体自主性，而高级控制流涉及更复杂的多智能体协作与动态调整，二者在控制流设计上形成对比"
+    },
+    {
+      "source": "单智能体自主循环",
+      "target": "高级控制流",
+      "type": "applies-to",
+      "description": "单智能体自主循环使用高级控制流实现闭环流程管理"
+    },
+    {
+      "source": "自然语言处理",
+      "target": "转换规则",
+      "type": "part-of",
+      "description": "转换规则是自然语言处理中用于实现特定语言处理任务的一种方法"
+    },
+    {
+      "source": "工具调用",
+      "target": "状态图建模",
+      "type": "related",
+      "description": "工具调用与状态图建模在智能体控制流和任务执行中存在紧密联系，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "LangGraph",
+      "target": "提示工程",
+      "type": "related",
+      "description": "两者在智能体系统中均涉及控制流和任务执行，但无明确的前置、包含或用途关系。"
+    },
+    {
+      "source": "提示工程",
+      "target": "状态图建模",
+      "type": "related",
+      "description": "两者在智能体设计中均涉及控制流和行为调整，存在教学常识层面的关联"
+    },
+    {
+      "source": "LangGraph",
+      "target": "高级控制流",
+      "type": "part-of",
+      "description": "LangGraph是高级控制流的一种具体实现形式"
+    },
+    {
+      "source": "规则驱动方法",
+      "target": "重组规则",
+      "type": "part-of",
+      "description": "重组规则是规则驱动方法在构建聊天机器人时的具体实现机制之一"
+    },
+    {
+      "source": "开发者工具",
+      "target": "状态图建模",
+      "type": "applies-to",
+      "description": "开发者工具用于状态图建模，如LangGraph等工具实现状态转换和控制流"
+    },
+    {
+      "source": "DOCTOR",
+      "target": "文本替换",
+      "type": "applies-to",
+      "description": "DOCTOR使用文本替换技术实现对话交互"
+    },
+    {
+      "source": "约瑟夫·魏泽鲍姆",
+      "target": "自然语言处理",
+      "type": "prerequisite",
+      "description": "魏泽鲍姆的ELIZA是自然语言处理领域的早期重要成果，其开发为后续研究奠定了基础"
+    },
+    {
+      "source": "复杂任务",
+      "target": "高级控制流架构",
+      "type": "applies-to",
+      "description": "高级控制流架构用于执行复杂任务，体现其在任务处理中的应用"
+    },
+    {
+      "source": "MetaGPT",
+      "target": "单智能体闭环",
+      "type": "contrasts-with",
+      "description": "MetaGPT强调多智能体协作，而单智能体闭环强调单个智能体的自主闭环机制，二者在协作模式上形成对比"
+    },
+    {
+      "source": "CrewAI",
+      "target": "单智能体闭环",
+      "type": "contrasts-with",
+      "description": "CrewAI强调多智能体协作，而单智能体闭环强调单个智能体的自主性，二者在协作模式上形成对比"
+    },
+    {
+      "source": "CrewAI",
+      "target": "复杂任务",
+      "type": "applies-to",
+      "description": "CrewAI 适用于复杂任务的执行，强调多智能体协作完成此类任务"
+    },
+    {
+      "source": "交互设计",
+      "target": "重组规则",
+      "type": "part-of",
+      "description": "重组规则是ELIZA交互设计中的核心组成部分"
+    },
+    {
+      "source": "单智能体自主循环",
+      "target": "行为调整",
+      "type": "related",
+      "description": "两者均涉及智能体的自主性与动态行为调整，但不构成直接的先修、包含或用途关系。"
+    },
+    {
+      "source": "AgentGPT",
+      "target": "复杂任务",
+      "type": "applies-to",
+      "description": "AgentGPT适用于复杂任务的自主执行与处理"
+    },
+    {
+      "source": "人工智能",
+      "target": "自然语言处理",
+      "type": "part-of",
+      "description": "自然语言处理是人工智能的一个分支，属于其组成或子概念"
+    },
+    {
+      "source": "DOCTOR",
+      "target": "重组规则",
+      "type": "part-of",
+      "description": "DOCTOR是ELIZA框架中的一个脚本，重组规则是其核心机制之一"
+    },
+    {
+      "source": "DOCTOR",
+      "target": "规则匹配",
+      "type": "applies-to",
+      "description": "DOCTOR使用规则匹配技术实现对话转换，属于其核心机制"
+    },
+    {
+      "source": "人工智能",
+      "target": "规则匹配",
+      "type": "example-of",
+      "description": "ELIZA是规则匹配在自然语言处理中的典型应用实例"
+    },
+    {
+      "source": "单智能体自主循环",
+      "target": "复杂任务",
+      "type": "related",
+      "description": "单智能体自主循环与复杂任务在智能体执行和优化能力上有密切联系，但不构成直接的先修、包含或用途关系。"
+    },
+    {
+      "source": "DOCTOR",
+      "target": "自然语言处理",
+      "type": "applies-to",
+      "description": "DOCTOR是自然语言处理中基于规则的对话模拟工具的一个典型应用"
+    },
+    {
+      "source": "约瑟夫·魏泽鲍姆",
+      "target": "规则匹配",
+      "type": "prerequisite",
+      "description": "约瑟夫·魏泽鲍姆的ELIZA系统基于规则匹配技术，掌握规则匹配是理解其工作原理的必要条件。"
+    },
+    {
+      "source": "约瑟夫·魏泽鲍姆",
+      "target": "重组规则",
+      "type": "part-of",
+      "description": "重组规则是ELIZA框架中用于生成回应的核心机制，属于其组成部分"
+    },
+    {
+      "source": "人工智能",
+      "target": "重组规则",
+      "type": "part-of",
+      "description": "重组规则是ELIZA实现对话交互的重要组成部分，属于人工智能技术中的具体应用方法。"
+    },
+    {
+      "source": "交互设计",
+      "target": "文本替换",
+      "type": "part-of",
+      "description": "文本替换是交互设计中用于构建对话流程的一种具体技术手段"
+    },
+    {
+      "source": "AgentGPT",
+      "target": "综合评估体系",
+      "type": "related",
+      "description": "综合评估体系与AgentGPT在智能体性能评估方面存在关联，但未明确构成前置、包含、用途或同义关系。"
+    },
+    {
+      "source": "AgentGPT",
+      "target": "行为调整",
+      "type": "related",
+      "description": "AgentGPT和行为调整在智能体自主决策和任务执行中存在关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "人工智能",
+      "target": "文本替换",
+      "type": "part-of",
+      "description": "文本替换是人工智能在自然语言处理中的一个组成部分"
+    },
+    {
+      "source": "CrewAI",
+      "target": "神经符号主义AI",
+      "type": "related",
+      "description": "两者在智能体设计与功能实现中存在关联，但无明确的前置、包含、用途或同义关系。"
+    },
+    {
+      "source": "CrewAI",
+      "target": "综合评估体系",
+      "type": "related",
+      "description": "CrewAI与综合评估体系在智能体协作和性能评估方面存在关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "MetaGPT",
+      "target": "综合评估体系",
+      "type": "related",
+      "description": "MetaGPT与综合评估体系在智能体研究领域有交叉关联，但不构成直接的先修、包含或用途关系。"
+    },
+    {
+      "source": "CrewAI",
+      "target": "行为调整",
+      "type": "related",
+      "description": "CrewAI与行为调整在多智能体协作和任务执行中存在相关机制，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "MetaGPT",
+      "target": "行为调整",
+      "type": "related",
+      "description": "MetaGPT和行为调整在多智能体协作和动态适应方面有联系，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "多样化的心智活动",
+      "target": "物理符号系统假说",
+      "type": "contrasts-with",
+      "description": "多样化的心智活动挑战了物理符号系统假说的单一符号处理理念"
+    },
+    {
+      "source": "物理符号系统假说",
+      "target": "社会",
+      "type": "contrasts-with",
+      "description": "物理符号系统假说强调统一符号处理，而社会模型主张分布式协同，二者在智能实现方式上形成对比"
+    },
+    {
+      "source": "推理机",
+      "target": "统一逻辑框架",
+      "type": "contrasts-with",
+      "description": "推理机基于符号主义和单一逻辑规则，而统一逻辑框架强调多样性和冲突机制，二者在智能系统设计理念上形成对比"
+    },
+    {
+      "source": "明斯基",
+      "target": "物理符号系统假说",
+      "type": "contrasts-with",
+      "description": "明斯基质疑单一整体智能模型，而物理符号系统假说支持这种模型，二者在智能本质理解上形成对比"
+    },
+    {
+      "source": "代词转换",
+      "target": "约瑟夫·魏泽鲍姆",
+      "type": "related",
+      "description": "代词转换是自然语言处理中的技术，而约瑟夫·魏泽鲍姆是该领域的先驱人物，两者在领域上有关联但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "交互设计",
+      "target": "代词转换",
+      "type": "prerequisite",
+      "description": "掌握代词转换是实现交互设计中自然语言处理功能的必要条件"
+    },
+    {
+      "source": "代词转换",
+      "target": "开放式问题",
+      "type": "related",
+      "description": "两者均涉及自然语言处理中的规则应用，但无明确的前置、包含或用途关系。"
+    },
+    {
+      "source": "推理机",
+      "target": "自上而下处理",
+      "type": "contrasts-with",
+      "description": "推理机基于符号主义和统一逻辑规则，与自上而下处理所强调的统一逻辑框架形成对比，而明斯基对智能的多元机制观点则与之相冲突。"
+    },
+    {
+      "source": "MYCIN系统",
+      "target": "自上而下处理",
+      "type": "contrasts-with",
+      "description": "MYCIN系统采用符号主义和产生式规则，而自上而下处理强调统一逻辑规则，两者在智能体设计思想上形成对比"
+    },
+    {
+      "source": "推理机",
+      "target": "简单机制",
+      "type": "related",
+      "description": "推理机与简单机制在智能体发展史中均涉及符号主义模型，但无明确的前置、包含或用途关系。"
+    },
+    {
+      "source": "统一逻辑框架",
+      "target": "置信因子",
+      "type": "related",
+      "description": "两者均涉及智能系统中的知识表示与推理机制，但无明确的前置、包含或用途关系"
+    },
+    {
+      "source": "多样化的心智活动",
+      "target": "置信因子",
+      "type": "contrasts-with",
+      "description": "多样化的心智活动强调分布式机制，而置信因子是符号主义中用于量化可信度的工具，二者在智能结构理念上形成对比"
+    },
+    {
+      "source": "MYCIN系统",
+      "target": "统一逻辑框架",
+      "type": "contrasts-with",
+      "description": "MYCIN系统基于符号主义和产生式规则，而统一逻辑框架强调自上而下的统一规则，两者在智能系统构建理念上形成对比"
+    },
+    {
+      "source": "置信因子",
+      "target": "自上而下处理",
+      "type": "contrasts-with",
+      "description": "置信因子用于量化不确定性，而自上而下处理强调统一逻辑，二者在处理方式上形成对比"
+    },
+    {
+      "source": "简单机制",
+      "target": "置信因子",
+      "type": "related",
+      "description": "简单机制与置信因子在专家系统中存在关联，但并非直接的前置、组成或用途关系。"
+    },
+    {
+      "source": "不确定性",
+      "target": "社会",
+      "type": "contrasts-with",
+      "description": "不确定性强调环境的不可预测性，而社会强调智能的分布式和协同性，二者在智能体设计理念上形成对比"
+    },
+    {
+      "source": "单一整体智能模型",
+      "target": "知识库",
+      "type": "contrasts-with",
+      "description": "单一整体智能模型与知识库在智能体构建理念上形成对比，前者强调统一逻辑结构，后者侧重多组件协同"
+    },
+    {
+      "source": "知识库",
+      "target": "社会",
+      "type": "contrasts-with",
+      "description": "知识库强调结构化存储和符号处理，而社会模型强调分布式、协同运作的机制，二者在智能实现方式上形成对比"
+    },
+    {
+      "source": "单一整体智能模型",
+      "target": "正向链",
+      "type": "contrasts-with",
+      "description": "单一整体智能模型强调统一逻辑结构，而正向链是数据驱动的推理机制，二者在智能结构和推理方式上形成对比"
+    },
+    {
+      "source": "明斯基",
+      "target": "正向链",
+      "type": "contrasts-with",
+      "description": "明斯基强调智能的多样性和复杂性，而正向链作为单一逻辑推理方式，与之形成对比"
+    },
+    {
+      "source": "反向链",
+      "target": "社会",
+      "type": "contrasts-with",
+      "description": "反向链强调目标驱动和逻辑推理，而社会模型强调分布式和协同运作，二者在智能实现方式上形成对比"
+    },
+    {
+      "source": "层级分明的整体结构",
+      "target": "正向链",
+      "type": "contrasts-with",
+      "description": "层级分明的整体结构强调自上而下的统一逻辑，而正向链是数据驱动的推理机制，二者在推理方式上形成对比"
+    },
+    {
+      "source": "明斯基",
+      "target": "知识库",
+      "type": "contrasts-with",
+      "description": "明斯基强调智能的多样性和复杂性，而知识库作为专家系统的核心组件，体现的是单一符号规则的结构，二者在智能模型的哲学立场上形成对比。"
+    },
+    {
+      "source": "正向链",
+      "target": "社会",
+      "type": "contrasts-with",
+      "description": "正向链与反向链形成对比，而社会与符号主义系统形成对比，两者在推理机制和智能结构上有明显差异"
+    },
+    {
+      "source": "不确定性",
+      "target": "明斯基",
+      "type": "related",
+      "description": "明斯基对智能模型的反思涉及不确定性处理，但未明确指出两者为先修、包含或同义关系。"
+    },
+    {
+      "source": "反向链",
+      "target": "明斯基",
+      "type": "contrasts-with",
+      "description": "反向链与明斯基提出的多样化心智活动理念形成对比"
+    },
+    {
+      "source": "产生式规则",
+      "target": "层级分明的整体结构",
+      "type": "contrasts-with",
+      "description": "产生式规则强调条件与行动的逻辑关系，而层级分明的整体结构强调分工与协作的组织形式，二者在系统设计思想上形成对比"
+    },
+    {
+      "source": "单一整体智能模型",
+      "target": "反向链",
+      "type": "contrasts-with",
+      "description": "单一整体智能模型强调统一逻辑结构，而反向链是目标驱动的推理机制，二者在智能结构和推理方式上形成对比"
+    },
+    {
+      "source": "不确定性",
+      "target": "层级分明的整体结构",
+      "type": "contrasts-with",
+      "description": "不确定性强调环境的不可预测性，而层级分明的整体结构强调组织的明确层次，二者在概念性质上形成对比"
+    },
+    {
+      "source": "反向链",
+      "target": "层级分明的整体结构",
+      "type": "contrasts-with",
+      "description": "反向链强调从结论反推前提，而层级分明的整体结构强调自上而下的统一逻辑，二者在推理方式上形成对比"
+    },
+    {
+      "source": "人工编码",
+      "target": "神经符号主义AI",
+      "type": "related",
+      "description": "人工编码与神经符号主义AI在智能体设计中存在关联，但并非直接的先修、包含或用途关系。"
+    },
+    {
+      "source": "Ollama",
+      "target": "Tavily-Dvthon",
+      "type": "related",
+      "description": "两者均涉及与大语言模型的交互，但功能和应用场景存在差异，属于相关但非强关联"
+    },
+    {
+      "source": "Azure",
+      "target": "Tavily-Dvthon",
+      "type": "related",
+      "description": "两者均涉及与LLM服务的交互，但功能和用途存在差异，属于相关但非直接包含或前置关系"
+    },
+    {
+      "source": "人工编码",
+      "target": "符号处理",
+      "type": "contrasts-with",
+      "description": "人工编码强调手动实现逻辑，而符号处理侧重符号系统的逻辑运算与结构化分析，二者在实现方式和应用场景上形成对比"
+    },
+    {
+      "source": "环境状态记忆",
+      "target": "端到端行程规划",
+      "type": "related",
+      "description": "两者均涉及智能体对环境信息的处理，但无明确的前置、包含或用途关系"
+    },
+    {
+      "source": "指代消解",
+      "target": "端到端行程规划",
+      "type": "related",
+      "description": "两者均涉及智能体对自然语言的理解与处理，但无明确的前置、包含或用途关系"
+    },
+    {
+      "source": "人工编码",
+      "target": "指代消解",
+      "type": "related",
+      "description": "人工编码与指代消解在智能体系统中均涉及复杂逻辑处理，但无明确的前置、包含、用途或同义关系。"
+    },
+    {
+      "source": "Tavily-Dvthon",
+      "target": "openAICompatibleClient",
+      "type": "related",
+      "description": "两者均为API客户端工具，用于与大语言模型或外部服务交互，但功能和应用场景存在差异。"
+    },
+    {
+      "source": "专用工具",
+      "target": "神经符号主义AI",
+      "type": "contrasts-with",
+      "description": "专用工具依赖人工编码和预设规则，而神经符号主义AI融合神经网络与符号推理，二者在方法和能力上有明显差异"
+    },
+    {
+      "source": "Tavily-Dvthon",
+      "target": "VLLM",
+      "type": "related",
+      "description": "两者均涉及与大语言模型的交互，但功能侧重点不同，不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "人工编码",
+      "target": "通用人工智能",
+      "type": "contrasts-with",
+      "description": "人工编码强调人类主导的编程过程，而通用人工智能强调自主认知与跨领域适应能力，二者在实现方式和目标上形成对比"
+    },
+    {
+      "source": "LLM服务提供商",
+      "target": "Tavily-Dvthon",
+      "type": "applies-to",
+      "description": "Tavily-Dvthon用于与LLM服务提供商的API进行交互"
+    },
+    {
+      "source": "Tavily-Dvthon",
+      "target": "generate方法",
+      "type": "applies-to",
+      "description": "Tavily-Dvthon通过generate方法调用大语言模型进行内容生成，属于其核心功能的一部分。"
+    },
+    {
+      "source": "formatted_results列表",
+      "target": "消息格式",
+      "type": "related",
+      "description": "formatted_results列表与消息格式在数据结构化方面有相关性，但并非直接构成或用途关系。"
+    },
+    {
+      "source": "get_attraction函数",
+      "target": "openAICompatibleClient",
+      "type": "related",
+      "description": "get_attraction函数可能使用openAICompatibleClient进行提示工程，但无明确用途或包含关系"
+    },
+    {
+      "source": "专家系统",
+      "target": "部分可观察性",
+      "type": "related",
+      "description": "专家系统与部分可观察性在智能体任务处理中存在关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "get_attraction函数",
+      "target": "消息格式",
+      "type": "related",
+      "description": "get_attraction函数使用消息格式传递数据，但并非直接构成或依赖关系。"
+    },
+    {
+      "source": "专家系统",
+      "target": "多智能体交互",
+      "type": "related",
+      "description": "专家系统与多智能体交互在智能体领域有交集，但不构成直接的先修、包含或用途关系"
+    },
+    {
+      "source": "Ollama",
+      "target": "requests库",
+      "type": "related",
+      "description": "Ollama和requests库都用于与网络API交互，但Ollama专注于大语言模型的接入，requests库是通用的HTTP请求工具，属于相关但非直接依赖关系。"
+    },
+    {
+      "source": "专家系统",
+      "target": "感知-思考-行动-观察循环",
+      "type": "contrasts-with",
+      "description": "专家系统基于符号与逻辑，而感知-思考-行动-观察循环强调感知和反馈，二者在智能体实现机制上形成对比"
+    },
+    {
+      "source": "formatted_results列表",
+      "target": "generate方法",
+      "type": "applies-to",
+      "description": "formatted_results列表由generate方法生成，用于存储LLM输出的格式化结果"
+    },
+    {
+      "source": "感知-思考-行动-观察循环",
+      "target": "正向链",
+      "type": "related",
+      "description": "两者均涉及智能体的推理与决策机制，但属于不同范畴，无明确的前置、包含或用途关系"
+    },
+    {
+      "source": "产生式规则",
+      "target": "感知-思考-行动-观察循环",
+      "type": "related",
+      "description": "两者均涉及智能系统中的知识处理与决策机制，但不属于直接的前置、包含、用途或同义关系。"
+    },
+    {
+      "source": "专家系统",
+      "target": "符号处理",
+      "type": "part-of",
+      "description": "专家系统是符号处理的一种具体应用，属于符号处理的子概念"
+    },
+    {
+      "source": "PEAS模型",
+      "target": "亚符号主义",
+      "type": "related",
+      "description": "PEAS模型与亚符号主义在智能体研究中存在理论关联，但无明确的前置、包含或用途关系。"
+    },
+    {
+      "source": "代码生成",
+      "target": "感知-思考-行动-观察循环",
+      "type": "related",
+      "description": "代码生成与感知-思考-行动-观察循环在智能体系统中存在功能上的关联，但并非直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "代码生成",
+      "target": "部分可观察性",
+      "type": "related",
+      "description": "代码生成与部分可观察性在智能体系统中存在语义关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "OpenAI",
+      "target": "代码生成",
+      "type": "related",
+      "description": "OpenAI 提供 LLM 服务，代码生成是使用这些服务的一种应用场景，存在语义关联。"
+    },
+    {
+      "source": "感知-思考-行动闭环",
+      "target": "搭塔",
+      "type": "related",
+      "description": "两者均涉及智能体的行为机制，但无明确的前置、包含、用途或同义关系。"
+    },
+    {
+      "source": "局部交互",
+      "target": "环境状态记忆",
+      "type": "related",
+      "description": "两者均涉及智能体在复杂系统中的行为机制，但无明确的前置、包含或用途关系"
+    },
+    {
+      "source": "PEAS模型",
+      "target": "代码生成",
+      "type": "related",
+      "description": "PEAS模型与代码生成在智能体系统中存在应用场景和功能实现上的关联，但并非直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "上下文记忆",
+      "target": "局部交互",
+      "type": "related",
+      "description": "上下文记忆与局部交互在智能体系统中均涉及信息处理和协作机制，但无明确的前置、包含或用途关系"
+    },
+    {
+      "source": "亚符号主义",
+      "target": "序贯动态",
+      "type": "related",
+      "description": "亚符号主义与序贯动态在智能体的感知-思考-行动-观察循环中存在紧密联系，但不属于直接的前置、包含或同义关系。"
+    },
+    {
+      "source": "环境状态记忆",
+      "target": "自组织特性",
+      "type": "related",
+      "description": "两者均涉及智能体在复杂任务中的行为机制，但无明确的前置、包含或用途关系"
+    },
+    {
+      "source": "局部交互",
+      "target": "感知-思考-行动闭环",
+      "type": "related",
+      "description": "局部交互与感知-思考-行动闭环在智能体行为机制上存在关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "代码生成",
+      "target": "序贯决策问题",
+      "type": "related",
+      "description": "代码生成与序贯决策问题在智能体系统中存在方法论上的关联，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "多维度问答",
+      "target": "局部交互",
+      "type": "related",
+      "description": "两者都涉及智能体的交互机制，但不具备明确的前置、包含、用途或同义关系。"
+    },
+    {
+      "source": "搭塔",
+      "target": "环境状态记忆",
+      "type": "related",
+      "description": "搭塔涉及智能体间的交互与协作，而环境状态记忆是智能体感知与决策的基础，两者在智能体协作与环境理解上有一定关联。"
+    },
+    {
+      "source": "感知-思考-行动闭环",
+      "target": "自组织特性",
+      "type": "contrasts-with",
+      "description": "感知-思考-行动闭环强调有组织的循环过程，而自组织特性强调无中央控制的自发协作，二者在系统组织方式上形成对比"
+    },
+    {
+      "source": "机构",
+      "target": "积木世界",
+      "type": "applies-to",
+      "description": "机构在积木世界中通过智能体的交互和自组织特性实现复杂任务，如搭塔。"
+    },
+    {
+      "source": "多智能体交互",
+      "target": "局部交互",
+      "type": "part-of",
+      "description": "局部交互是多智能体交互的一种具体形式，属于其组成或子概念"
+    },
+    {
+      "source": "词元",
+      "target": "词嵌入",
+      "type": "related",
+      "description": "词元和词嵌入在自然语言处理中密切相关，但词元是基本单元，词嵌入是其向量化表示，不满足更强关系的明确依据。"
+    },
+    {
+      "source": "细胞状态",
+      "target": "词元",
+      "type": "related",
+      "description": "细胞状态和词元在语言模型中均涉及序列处理，但无直接包含、前置或用途关系"
+    },
+    {
+      "source": "基于效用的智能体",
+      "target": "序贯决策问题",
+      "type": "related",
+      "description": "基于效用的智能体与序贯决策问题在决策过程和学习机制上有一定交集，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "细胞状态",
+      "target": "自注意力机制",
+      "type": "related",
+      "description": "细胞状态和自注意力机制都是处理序列信息的关键机制，但属于不同模型架构（LSTM vs Transformer）"
+    },
+    {
+      "source": "多头注意力机制",
+      "target": "细胞状态",
+      "type": "related",
+      "description": "两者均用于处理序列数据，但属于不同模型结构中的核心机制，语义相关但无明确前置、包含或用途关系"
+    },
+    {
+      "source": "词嵌入",
+      "target": "键向量",
+      "type": "related",
+      "description": "词嵌入和键向量在自然语言处理中都用于表示词语的语义特征，但键向量是Transformer模型中的具体实现，不构成直接的先修或包含关系。"
+    },
+    {
+      "source": "自注意力机制",
+      "target": "门控机制",
+      "type": "related",
+      "description": "两者均用于序列建模，但作用机制和应用场景不同，属于相关但非强关联"
+    },
+    {
+      "source": "反向传播",
+      "target": "门控机制",
+      "type": "contrasts-with",
+      "description": "反向传播与门控机制在处理信息流的方式上形成对比，前者通过梯度反向传递优化权重，后者通过门控结构控制信息流动。"
+    },
+    {
+      "source": "序贯决策问题",
+      "target": "效用函数",
+      "type": "related",
+      "description": "效用函数与序贯决策问题在智能体决策过程中有密切联系，但不构成先修、包含或用途等更强关系。"
+    },
+    {
+      "source": "键向量",
+      "target": "长短时记忆网络",
+      "type": "related",
+      "description": "键向量和长短时记忆网络都用于处理序列数据中的语义关系，但属于不同模型结构，语义相关但不满足更强关系"
+    },
+    {
+      "source": "神经网络结构",
+      "target": "神经网络语言模型",
+      "type": "part-of",
+      "description": "神经网络语言模型是神经网络结构的一种具体应用形式"
+    },
+    {
+      "source": "多头注意力机制",
+      "target": "循环神经网络",
+      "type": "related",
+      "description": "多头注意力机制与循环神经网络均用于处理序列数据，但属于不同结构和机制，语义相关但不满足更强关系"
+    },
+    {
+      "source": "反向传播",
+      "target": "循环神经网络",
+      "type": "applies-to",
+      "description": "反向传播是循环神经网络进行参数更新的核心算法"
+    },
+    {
+      "source": "序列数据",
+      "target": "语言模型",
+      "type": "applies-to",
+      "description": "Transformer模型用于处理序列数据，如文本"
+    },
+    {
+      "source": "自注意力机制",
+      "target": "长短时记忆网络",
+      "type": "related",
+      "description": "自注意力机制与长短时记忆网络都用于处理序列数据，但属于不同类型的模型机制，语义相关但无明确包含或用途关系。"
+    },
+    {
+      "source": "多头注意力机制",
+      "target": "语言模型",
+      "type": "related",
+      "description": "多头注意力机制是语言模型中的关键技术，用于增强上下文信息融合和语义关系捕捉，但不构成直接的先修、包含或同义关系。"
+    },
+    {
+      "source": "并行计算",
+      "target": "神经网络语言模型",
+      "type": "applies-to",
+      "description": "并行计算用于优化神经网络语言模型的训练过程"
+    },
+    {
+      "source": "简单反射智能体",
+      "target": "自组织特性",
+      "type": "contrasts-with",
+      "description": "简单反射智能体缺乏自组织特性所体现的协作与动态调整能力"
+    },
+    {
+      "source": "Transformer模型",
+      "target": "循环神经网络",
+      "type": "contrasts-with",
+      "description": "Transformer模型与循环神经网络在处理序列数据时采用不同的机制，前者基于注意力机制，后者依赖隐藏状态，形成对比"
+    },
+    {
+      "source": "反向传播",
+      "target": "梯度消失",
+      "type": "contrasts-with",
+      "description": "反向传播是RNN的学习算法，而梯度消失是其训练中出现的问题，二者在应用场景和性质上形成对比"
+    },
+    {
+      "source": "Transformer模型",
+      "target": "神经网络语言模型",
+      "type": "related",
+      "description": "Transformer模型和神经网络语言模型均属于深度学习在自然语言处理中的应用，存在语义相关性。"
+    },
+    {
+      "source": "词元",
+      "target": "长短时记忆网络",
+      "type": "related",
+      "description": "词元和长短时记忆网络都涉及序列处理，但无明确的前置、包含、用途或同义关系。"
+    },
+    {
+      "source": "学习型智能体",
+      "target": "序贯决策问题",
+      "type": "related",
+      "description": "学习型智能体与序贯决策问题在解决方法和机制上有联系，但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "并行计算",
+      "target": "长短时记忆网络",
+      "type": "related",
+      "description": "并行计算与长短时记忆网络在处理序列数据时有技术上的关联，但并非直接的前置、组成或用途关系。"
+    },
+    {
+      "source": "反向传播",
+      "target": "梯度爆炸",
+      "type": "contrasts-with",
+      "description": "反向传播是RNN训练中的核心算法，而梯度爆炸是其训练中可能出现的问题，二者在应用场景和性质上形成对比"
+    },
+    {
+      "source": "交互设计",
+      "target": "特里·威诺格拉德",
+      "type": "contrasts-with",
+      "description": "交互设计关注用户体验和对话流程，而特里·威诺格拉德研究的是基于符号逻辑的智能体系统，两者在方法和目标上存在对比"
+    },
+    {
+      "source": "N-gram",
+      "target": "并行计算",
+      "type": "related",
+      "description": "N-gram和并行计算在自然语言处理中存在技术应用场景上的关联，但无明确的前置、包含、用途或同义关系。"
+    },
+    {
+      "source": "搭塔",
+      "target": "简单反射智能体",
+      "type": "related",
+      "description": "搭塔涉及多个智能体协作，而简单反射智能体是单一智能体的基础类型，二者在智能体行为层面存在关联但不构成直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "深度学习分析",
+      "target": "神经网络结构",
+      "type": "applies-to",
+      "description": "深度学习分析应用了神经网络结构来实现数据建模和预测"
+    },
+    {
+      "source": "N-gram",
+      "target": "词元",
+      "type": "related",
+      "description": "N-gram和词元都涉及序列数据的处理，但属于不同技术路径，语义相关但不满足更强关系"
+    },
+    {
+      "source": "LLM服务提供商",
+      "target": "代码补全",
+      "type": "related",
+      "description": "LLM服务提供商提供代码补全所需的语言模型接口，二者在应用场景和技术实现上有一定关联"
+    },
+    {
+      "source": "学习过程",
+      "target": "梯度爆炸",
+      "type": "contrasts-with",
+      "description": "学习过程强调参数调整和适应性，而梯度爆炸是训练中的问题，二者在机制上形成对比"
+    },
+    {
+      "source": "AI原生编辑器",
+      "target": "Transformer模型",
+      "type": "related",
+      "description": "AI原生编辑器与Transformer模型在技术实现上存在关联，但并非直接的前置、包含或用途关系。"
+    },
+    {
+      "source": "学习过程",
+      "target": "情感依赖",
+      "type": "contrasts-with",
+      "description": "学习过程强调分布式权重和自动调整，与情感依赖基于规则驱动和模仿人类情感的特性形成对比"
+    },
+    {
+      "source": "学习过程",
+      "target": "梯度消失",
+      "type": "contrasts-with",
+      "description": "学习过程强调分布式学习和适应性，而梯度消失是学习过程中的一个具体问题，与反向传播相关，形成对比"
+    },
+    {
+      "source": "序列数据",
+      "target": "深度学习分析",
+      "type": "related",
+      "description": "序列数据是深度学习分析处理的对象之一，但两者之间没有明确的前置、包含或用途关系。"
+    },
+    {
+      "source": "Trae",
+      "target": "Transformer模型",
+      "type": "related",
+      "description": "Trae 与 Transformer 模型在技术实现上存在关联，但并非直接的先修、包含或用途关系。"
+    },
+    {
+      "source": "值向量",
+      "target": "连接权重",
+      "type": "related",
+      "description": "值向量和连接权重均涉及神经网络中的信息表示与传递，但不属于直接的先修、包含、用途或同义关系。"
+    },
+    {
+      "source": "GitHub Copilot",
+      "target": "LLM服务提供商",
+      "type": "related",
+      "description": "GitHub Copilot 与 LLM 服务提供商在技术实现上有联系，但并非直接的先修、包含或用途关系。"
+    },
+    {
+      "source": "全局依赖关系",
+      "target": "梯度消失",
+      "type": "contrasts-with",
+      "description": "全局依赖关系是Transformer处理的特性，而梯度消失是RNN处理长序列时的问题，二者在应用场景和机制上形成对比"
+    },
+    {
+      "source": "值向量",
+      "target": "神经网络结构",
+      "type": "part-of",
+      "description": "值向量是神经网络结构中注意力机制的一部分"
+    },
+    {
+      "source": "机构",
+      "target": "神经网络结构",
+      "type": "related",
+      "description": "机构与神经网络结构在非线性动态和自组织特性上有一定关联，但不构成直接的前置、组成或用途关系。"
+    },
+    {
+      "source": "Claude Code",
+      "target": "OpenAI",
+      "type": "related",
+      "description": "Claude Code和OpenAI均属于智能编程工具，但无明确的前置、包含、用途或同义关系。"
+    },
+    {
+      "source": "开放式问题",
+      "target": "智能化",
+      "type": "related",
+      "description": "开放式问题与智能化在应用场景和对话策略上有一定关联，但不构成明确的前置、包含或用途关系。"
+    }
+  ]
+}

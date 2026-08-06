@@ -1,0 +1,236 @@
+# ============================================================
+# L0 本体层 (Ontology Schema)
+# ------------------------------------------------------------
+# 定义知识图谱的实体类型、关系类型和证据结构。
+# 本文件是 L1-L3 三层的"宪法"，schema 一改下面全要重挂，
+# 因此初期保持小而稳，跑通再演进。
+#
+# 设计依据：
+#   - 实体类型基于 aggr_entities.json 实际数据归纳
+#   - 关系类型基于 Extraction.py 实际抽取的边类型归纳
+#   - layer_hint 用于阶段 2 Aggr.py 的 concept/entity 分拣
+# ============================================================
+
+# ---- L0 实体类型 ----
+# layer_hint: 该类型的实体倾向归属于哪一层
+#   concept → L1 概念层（抽象术语，跨文档可合并）
+#   entity  → L2 实体层（具体实例，带属性）
+#   auto    → 模糊地带，需 LLM 判定（阶段 2 实现）
+EntityTypes:
+  概念:
+    layer_hint: concept
+    description: 抽象领域术语
+    examples: [强化学习, 先验知识, 效用函数, 世界模型]
+
+  方法:
+    layer_hint: concept
+    description: 算法/技术手段/工程方法
+    examples: [提示工程, 思维链, 感知-思考-行动循环, 梯度下降]
+
+  智能体类型:
+    layer_hint: concept
+    description: 智能体的分类范式
+    examples: [反射智能体, 基于目标的智能体, 基于效用的智能体, 学习型智能体]
+
+  学习方法:
+    layer_hint: concept
+    description: 学习范式/训练方式
+    examples: [强化学习机制, 监督学习, 自监督学习]
+
+  数学概念:
+    layer_hint: concept
+    description: 数学基础概念（抽象→概念层，具体→实体层）
+    examples: [效用函数, 梯度, 损失函数]
+
+  指标:
+    layer_hint: concept
+    description: 评估指标
+    examples: [准确率, 召回率, F1]
+
+  实例:
+    layer_hint: entity
+    description: 具体对象/系统/模型
+    examples: [AlphaGo, BERT, GPT-4, GitHub Copilot]
+
+  工具:
+    layer_hint: entity
+    description: 具体工具/框架/库
+    examples: [LangChain, LlamaIndex, Trae, Cursor]
+
+  角色:
+    layer_hint: entity
+    description: 人员/组织/团队
+    examples: [李工, 算法团队, OpenAI]
+
+  参数:
+    layer_hint: entity
+    description: 配置项/API参数/超参数
+    examples: [temperature, top_k, max_tokens]
+
+
+# ---- 类型归一化规则 ----
+# LLM 抽取的 type 可能不在 EntityTypes 里（如"算法""系统""框架"），
+# 按关键词匹配归一到最近的 schema 类型。按顺序匹配，第一个命中生效。
+# Extraction.py 和 Aggr.py 共用此规则。
+TypeMapping:
+  - keywords: [工具, 框架, 脚本, 软件]
+    schema_type: 工具
+
+  - keywords: [人物, 角色, 组织, 开发者, 团队]
+    schema_type: 角色
+
+  - keywords: [参数, 配置, 输出, 特性, 属性]
+    schema_type: 参数
+
+  - keywords: [实例, 系统, 模型, 组件, 模块, 案例, 应用, 接口, 架构, 程序, 环境, 著作, 产品, 项目]
+    schema_type: 实例
+
+  - keywords: [算法, 方法, 机制, 流程, 策略, 模式, 推理, 过程]
+    schema_type: 方法
+
+  - keywords: [范式, 学习]
+    schema_type: 学习方法
+
+  - keywords: [数学, 向量, 数据结构]
+    schema_type: 数学概念
+
+  - keywords: [指标, 评估, 标准]
+    schema_type: 指标
+
+  - keywords: [智能体]
+    schema_type: 智能体类型
+
+  - keywords: [概念, 术语, 知识, 类型, 问题, 能力, 结构, 现象, 阶段, 目标, 功能, 理论, 核心, 原则]
+    schema_type: 概念
+
+
+# ---- L0 关系类型 ----
+# 分为两类：同层关系（层内连接）和跨层关系（层间连接）
+RelationTypes:
+  # 同层关系（L1-L1 或 L2-L2）
+  # 复用现有 agentic_rag.yaml RelationConfig.entity_relation_types
+  entity_relations:
+    prerequisite:
+      direction: directed
+      description: 先修/前置；掌握 A 是理解 B 的必要条件
+      example: "强化学习 → 策略梯度方法"
+
+    part_of:
+      direction: directed
+      description: A 是 B 的组成或子概念（层级包含）
+      example: "感知-思考-行动循环 → 智能体运行机制"
+
+    applies_to:
+      direction: directed
+      description: A（方法/函数/算法）用于 B（对象/任务/场景）
+      example: "提示工程 → 大语言模型"
+
+    example_of:
+      direction: directed
+      description: A 是 B 的实例或典型代表
+      example: "AlphaGo → 强化学习"
+
+    synonym:
+      direction: undirected
+      description: 严格同义或别名
+      example: "LLM ↔ 大语言模型"
+
+    contrasts_with:
+      direction: undirected
+      description: 概念/方法在用途、性质上形成对比
+      example: "符号主义AI ↔ 连接主义AI"
+
+    related:
+      direction: undirected
+      description: 相关但不满足以上更强语义（兜底）
+      example: "先验知识 ↔ 决策策略"
+
+  # 跨层关系（新增，连接不同层级的节点）
+  cross_layer_relations:
+    instance_of:
+      direction: directed
+      description: L2 实体属于某个 L1 概念（概念外键的图化表达）
+      layers: "L2→L1"
+      example: "AlphaGo --instance_of--> 强化学习"
+
+    appears_in:
+      direction: directed
+      description: L1/L2 节点出现在某个 L3 证据中
+      layers: "L1→L3 / L2→L3"
+      example: "基于目标的智能体 --appears_in--> §1.1.1 传统视角下的智能体"
+
+    described_by:
+      direction: directed
+      description: L1 概念由某个 L3 证据定义/解释
+      layers: "L1→L3"
+      example: "效用函数 --described_by--> §1.1.1"
+
+
+# ---- L0 证据 Schema（L3 结构定义）----
+EvidenceSchema:
+  evidence_id:
+    type: string
+    description: 证据唯一标识，格式 ev_{section_id}
+    example: "ev_1.1.1"
+
+  doc_id:
+    type: string
+    description: 所属文档标识
+    example: "Hello-Agents"
+
+  section_id:
+    type: string
+    description: 章节定位编号
+    example: "1.1.1"
+
+  section_path:
+    type: string
+    description: 章节层级路径，用 > 分隔
+    example: "初识智能体 > 什么是智能体? > 传统视角下的智能体"
+
+  section_level:
+    type: string
+    enum: [chapter, section, subsection]
+    description: 章节层级
+
+  title:
+    type: string
+    description: 章节标题
+    example: "传统视角下的智能体"
+
+  summary:
+    type: string
+    description: 章节摘要（来自 Summarize.py）
+    example: "传统智能体的演进经历了从简单反射智能体到更复杂的模型..."
+
+  snippet:
+    type: string
+    description: 原文片段（可选，用于精确溯源）
+    default: ""
+
+  entities_in_section:
+    type: array
+    description: 该章节中抽取到的实体名称列表（用于 evidence→entity 反查）
+    items: string
+
+
+# ---- 层级模型总览 ----
+LayerModel:
+  L0_Ontology:
+    description: 概念类型/关系类型/属性定义（本文件）
+    storage: src/KGBuild/config/schema.yaml
+
+  L1_Concepts:
+    description: 跨文档统一的领域术语，概念天然去重
+    storage: final_kg.json → L1_concepts
+    node_id_prefix: "concept_"
+
+  L2_Entities:
+    description: 具体实例，挂载在概念节点下，带属性和证据链接
+    storage: final_kg.json → L2_entities
+    node_id_prefix: "ent_"
+
+  L3_Evidences:
+    description: 原文片段/章节/文件位置，负责溯源
+    storage: final_kg.json → L3_evidences
+    node_id_prefix: "ev_"

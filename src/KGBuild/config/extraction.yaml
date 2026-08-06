@@ -1,0 +1,81 @@
+# config/extraction.yaml
+ExtractionConfig:
+  # —— I/O —— #
+  IN_NAME: "toc_structure.json"
+  OUT_NAME: "toc_with_entities_and_relations.json"
+
+  # —— LLM 调用参数（step 专属）—— #
+  TEMPERATURE: 0.3
+
+  # —— 提示词模板 —— #
+  # 占位符说明（使用 $Template 语法，避免 JSON 示例里的大括号冲突）：
+  #   ${entity_types_with_desc}   → Extraction.py 启动时从 config/schema.yaml 的 EntityTypes 动态渲染
+  #   ${relation_types_with_desc} → Extraction.py 启动时从 config/schema.yaml 的 RelationTypes.entity_relations 动态渲染
+  #   ${section_text}             → 调用 extract_entities / extract_relations 时填入该小节的原文
+  #   ${entity_list}              → 调用 extract_relations 时填入已识别的实体列表
+  ENTITY_PROMPT: |
+    你是知识图谱专家，擅长提取高质量实体。
+    任务：从以下原文中提取实体，并以 JSON 格式输出。
+
+    【本体约束（必须严格遵守）】
+    实体的 "type" 字段只能从以下预定义类型中选择，不得输出列表之外的类型；
+    每个类型附有说明和示例，帮助你做出正确判断：
+    ${entity_types_with_desc}
+
+    要求：
+    1. 实体应为**具体名词短语或专业术语**。
+    2. 若同一概念存在不同表述或符号，请在 "alias" 中列出。
+    3. 所有实体必须能在原文中找到对应表述，避免推测或扩写。
+    4. "type" 必须严格从【本体约束】中选择，不得自造类型。
+    5. 输出必须是合法 JSON，仅包含实体内容，不得包含解释性文字。
+
+    Input Text: ${section_text}
+    输出格式严格如下（仅 JSON，无额外文字）：
+    {
+      "entities": [
+        {
+          "name": "实体名",
+          "alias": ["别名1", "别名2"],
+          "type": "必须来自本体约束的类型名",
+          "raw_content": "原文中描述该实体的片段"
+        }
+      ]
+    }
+
+  RELATION_PROMPT: |
+    你是知识图谱专家。
+    任务：基于原文与已识别实体列表，判断各实体之间是否存在语义关系，并以 JSON 格式输出。
+
+    【本体约束（必须严格遵守）】
+    关系的 "type" 字段只能从以下预定义类型中选择，不得输出列表之外的类型；
+    每个类型附有说明，帮助你做出正确判断：
+    ${relation_types_with_desc}
+
+    判断规则：
+    1. 每对实体仅选择一种最强关系类型；若无明显关系则忽略。
+    2. 关系说明应简洁明了，不超过一句话。
+    3. 输出必须是合法 JSON，不得包含多余文字或解释。
+    4. "type" 必须严格从【本体约束】中选择，不得自造类型。
+    5. 提取出的关键词需要能够抽象地体现出这段关系的核心内容和逻辑联系，而不仅仅是具体名词：
+       - 应提取能够表示关系本质的抽象概念、逻辑范畴或关系类型的核心要素
+       - 避免仅提取具体的实体名称、专有名词或通用动词
+       - 优先选择能够反映两小节之间逻辑联系的抽象术语或概念
+       - 关键词应具有概括性，能够超越具体内容，体现关系的本质特征
+
+    Input:
+      原文：${section_text}
+      实体列表：${entity_list}
+
+    输出格式严格如下（仅 JSON，无额外文字）：
+    {
+      "relations": [
+        {
+          "source": "源实体名",
+          "target": "目标实体名",
+          "type": "必须来自本体约束的关系类型名",
+          "description": "一句话说明两实体的关系",
+          "keywords": ["关键词1", "关键词2", "关键词3",...]
+        }
+      ]
+    }
+    Output must be valid JSON only, without explanation.
