@@ -11,9 +11,9 @@
 
 典型使用（给 Agent 做 tool-use）：
 
-    from KGRetrieve import KGMemory, ToolRegistry
+    from KGRetrieve import KGDBMemory, ToolRegistry
 
-    kg = KGMemory.load("final_kg.json")
+    kg = KGDBMemory()
     registry = ToolRegistry(kg)
 
     # 1. 给 Agent 看所有工具描述（function calling 的 JSON）
@@ -26,12 +26,15 @@ from __future__ import annotations
 
 import json
 import logging
+import math
+import os
+import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from .memory import KGMemory, Node
+from .models import Node
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +82,7 @@ class BaseTool(ABC):
     # 返回值的文字说明（给 Agent 读）
     output_schema: Dict[str, Any] = field(default_factory=dict)
 
-    def __init__(self, kg: KGMemory):
+    def __init__(self, kg: "KGDBMemory"):  # noqa: F821 —— 字符串注解避免 tools 层反向依赖数据库驱动
         self.kg = kg
 
     # ------------------------------------------------------------------
@@ -623,6 +626,49 @@ class SemanticSearchTool(BaseTool):
 # 具体工具：结果重排序
 # =====================================================================
 
+# —— cross-encoder 重排器（懒加载）——
+# 用 bge-reranker-v2-m3 做精排：把 query 和每个候选拼成 pair 一起过 transformer，
+# 模型能看见两者的逐词交互，比 bi-encoder（bge-m3）的向量相似度准得多。
+# 只在候选集（top 20~50）上跑，CPU 也可接受。
+# 权重默认放本地 models/bge-reranker-v2-m3（从 ModelScope 下载，见 _download_reranker.py），
+# 本地缺失时才走 HF 镜像（huggingface.co 在国内常被墙，HF_ENDPOINT 指向 hf-mirror.com）。
+os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+
+_RERANKER: Optional[Any] = None
+_RERANKER_LOCK = threading.Lock()
+_RERANKER_MODEL = str(Path(__file__).resolve().parent / "models" / "bge-reranker-v2-m3")
+
+
+def _get_reranker():
+    """懒加载 cross-encoder，线程安全；失败时抛异常由调用方降级"""
+    global _RERANKER
+    if _RERANKER is None:
+        with _RERANKER_LOCK:
+            if _RERANKER is None:
+                from sentence_transformers import CrossEncoder
+                model_ref = _RERANKER_MODEL
+                if not (Path(model_ref) / "model.safetensors").exists():
+                    model_ref = "BAAI/bge-reranker-v2-m3"
+                    logger.info("本地重排模型缺失，将尝试从 HF 镜像下载 %s ...", model_ref)
+                logger.info("加载重排模型 %s ...", model_ref)
+                _RERANKER = CrossEncoder(model_ref)
+    return _RERANKER
+
+
+def _node_search_text(node: Node) -> str:
+    """把节点拼成给重排器/关键词打分用的检索文本"""
+    parts = [node.name, node.description, " ".join(node.aliases)]
+    if node.node_type == "evidence":
+        parts.append(node.snippet)
+        parts.append(node.section_path)
+    return " ".join(p for p in parts if p).strip()
+
+
+def _sigmoid(x: float) -> float:
+    """cross-encoder 原始 logit → 0~1 相关度，便于 Agent 阅读"""
+    return 1.0 / (1.0 + math.exp(-x))
+
+
 class RankResultsTool(BaseTool):
     name = "rank_results"
     description = (
@@ -653,32 +699,43 @@ class RankResultsTool(BaseTool):
 
     def _run(self, params: Dict[str, Any]) -> ToolResult:
         ids = params.get("node_ids") or []
-        intent = (params.get("intent_query") or "").strip().lower()
+        intent = (params.get("intent_query") or "").strip()
         tokens = [t for t in intent.replace(",", " ").split() if t] if intent else []
 
-        scored: List[Tuple[float, str, Node]] = []
+        # 收集候选 + 检索文本
+        candidates: List[Tuple[str, Node, str]] = []
         for nid in ids:
             node = self.kg.get_node(nid)
             if not node:
                 continue
-            score = 0.0
-            if tokens:
-                hay = (node.name + " " + node.description + " " + " ".join(node.aliases)).lower()
-                if node.node_type == "evidence":
-                    hay += " " + node.snippet.lower() + " " + node.section_path.lower()
-                for tk in tokens:
-                    if tk in hay:
-                        score += 1.0
-            scored.append((score, nid, node))
+            candidates.append((nid, node, _node_search_text(node)))
 
-        # 有 intent 时按分数降序，否则按原顺序
+        rerank_method = "original_order"  # 无 intent 时保持 Agent 传入的顺序
+        scores: List[float] = []
         if tokens:
-            scored.sort(key=lambda x: x[0], reverse=True)
+            # —— 首选：cross-encoder 精排（bge-reranker-v2-m3）——
+            try:
+                reranker = _get_reranker()
+                raw = reranker.predict([(intent, text) for _, _, text in candidates])
+                scores = [_sigmoid(float(s)) for s in raw]
+                rerank_method = "cross_encoder"
+            except Exception as exc:
+                logger.warning("cross-encoder 重排失败，降级为关键词重叠: %s", exc)
+                # —— 降级：关键词重叠打分 ——
+                for _, _, text in candidates:
+                    low = text.lower()
+                    scores.append(sum(1 for tk in tokens if tk in low))
+                rerank_method = "keyword_overlap"
+
+        # 有 intent 时按分数降序，否则保持原顺序
+        ordered = list(zip(candidates, scores))
+        if tokens:
+            ordered.sort(key=lambda x: x[1], reverse=True)
         top_n = int(params.get("top_n", 10))
-        picked = scored[:top_n]
+        picked = ordered[:top_n]
 
         items: List[Dict] = []
-        for score, nid, node in picked:
+        for (nid, node, _text), score in picked:
             d = node.to_dict()
             d["rank_score"] = round(score, 3)
             if params.get("include_evidences"):
@@ -691,7 +748,138 @@ class RankResultsTool(BaseTool):
             "input_count": len(ids),
             "returned": len(items),
             "intent_query": params.get("intent_query", ""),
+            "rerank_method": rerank_method,
             "items": items,
+        })
+
+
+# =====================================================================
+# 具体工具：context 组装（纯格式化，不做取舍决策）
+# =====================================================================
+
+def _evidence_ids_of_node(kg, node: Node) -> List[str]:
+    """节点的关联证据 ID：evidence_ids 字段 + 跨层 L1-L3/L2-L3 出边，去重保序"""
+    ev_ids = list(node.evidence_ids)
+    for e in kg.get_edges(node.node_id, direction="out"):
+        if e.layer in ("L1-L3", "L2-L3"):
+            ev_ids.append(e.target)
+    seen: set = set()
+    out: List[str] = []
+    for x in ev_ids:
+        if x not in seen:
+            seen.add(x)
+            out.append(x)
+    return out
+
+
+class AssembleContextTool(BaseTool):
+    name = "assemble_context"
+    description = (
+        "把已经收集到的节点/证据 ID 组装成一段紧凑、去重、带溯源标注的 context 文本，"
+        "可直接粘进回答 prompt。它只做格式化（拼块/去重/截断/贴引用 ID），"
+        "不做任何取舍：查什么、信什么由你（Agent）自己决定。"
+        "当检索结果较多、想控制 token 预算、或需要统一引用格式（[ev_xxx]）时调用。"
+    )
+    parameters = {
+        "type": "object",
+        "properties": {
+            "node_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "已收集的 concept/entity/evidence node_id 列表",
+            },
+            "evidence_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "额外要带的证据 ID；不传则自动取各节点关联的证据",
+            },
+            "max_nodes": {"type": "integer", "default": 20, "description": "最多组装多少个节点"},
+            "max_evidence_per_node": {"type": "integer", "default": 5,
+                                      "description": "每个节点下列出多少条相关证据引用"},
+            "snippet_chars": {"type": "integer", "default": 400,
+                              "description": "每条证据原文片段最多多少字符"},
+        },
+        "required": ["node_ids"],
+    }
+    output_schema = {
+        "description": "context 文本块 + 结构化的节点/证据清单",
+    }
+
+    def _run(self, params: Dict[str, Any]) -> ToolResult:
+        nids = params.get("node_ids") or []
+        max_nodes = int(params.get("max_nodes", 20))
+        max_ev_per_node = int(params.get("max_evidence_per_node", 5))
+        snippet_chars = int(params.get("snippet_chars", 400))
+        extra_ev = params.get("evidence_ids") or []
+
+        nodes = []
+        for nid in nids:
+            node = self.kg.get_node(nid)
+            if node:
+                nodes.append(node)
+        nodes = nodes[:max_nodes]
+
+        # 收集证据 ID（显式指定优先，再按节点关联补），去重保序
+        ev_order: List[str] = []
+        seen_ev: set = set()
+
+        def add_ev(eid: str) -> None:
+            if eid and eid not in seen_ev:
+                seen_ev.add(eid)
+                ev_order.append(eid)
+
+        for evid in extra_ev:
+            add_ev(evid)
+        for node in nodes:
+            for eid in _evidence_ids_of_node(self.kg, node):
+                add_ev(eid)
+            if node.node_type == "evidence":  # 证据节点本身也作为证据入块
+                add_ev(node.node_id)
+
+        evidences = []
+        for eid in ev_order:
+            ev = self.kg.get_evidence(eid)
+            if ev:
+                evidences.append(ev)
+
+        # —— 组装文本块 ——
+        type_label = {"concept": "概念", "entity": "实体", "evidence": "证据"}
+        lines: List[str] = []
+        for node in nodes:
+            label = type_label.get(node.node_type, node.node_type)
+            lines.append(f"### [{label}] {node.name} ({node.node_id})")
+            if node.description:
+                lines.append(f"- 描述: {node.description[:200]}")
+            # 该节点的证据引用（证据节点不引用自己）
+            refs = []
+            for eid in _evidence_ids_of_node(self.kg, node)[:max_ev_per_node]:
+                if eid == node.node_id:
+                    continue
+                ev = self.kg.get_evidence(eid)
+                if ev:
+                    refs.append(f"[{eid}] ({ev.section_id}) {ev.name}")
+            if refs:
+                lines.append(f"- 相关证据: {' | '.join(refs)}")
+            lines.append("")
+
+        if evidences:
+            lines.append("### 相关证据原文")
+            for ev in evidences:
+                sn = ev.snippet
+                if len(sn) > snippet_chars:
+                    sn = sn[:snippet_chars] + "..."
+                lines.append(f"[{ev.node_id}] ({ev.section_path}) {ev.name}")
+                lines.append(f"  {sn}")
+                lines.append("")
+
+        context = "\n".join(lines).strip()
+
+        return ToolResult(self.name, True, data={
+            "node_count": len(nodes),
+            "evidence_count": len(evidences),
+            "context": context,
+            "node_ids": [n.node_id for n in nodes],
+            "evidence_ids": [e.node_id for e in evidences],
         })
 
 
@@ -714,6 +902,7 @@ _ALL_TOOLS: List[type] = [
     SearchEvidencesTool,
     SemanticSearchTool,
     RankResultsTool,
+    AssembleContextTool,
 ]
 
 
@@ -721,14 +910,11 @@ class ToolRegistry:
     """
     统一管理所有工具：注册、枚举、调用。
 
-    支持两种后端：
-      1. KGMemory（纯内存，零依赖）   —— ToolRegistry(KGMemory.load(...))
-      2. KGDBMemory（Neo4j+ChromaDB）—— ToolRegistry(KGDBMemory(...))
-    两者接口完全一致，工具层零改动。
+    只接一个后端：KGDBMemory（Neo4j + ChromaDB）—— ToolRegistry(KGDBMemory(...))
     """
 
-    def __init__(self, kg):
-        """kg 可以是 KGMemory 或 KGDBMemory，只要接口契约一致即可"""
+    def __init__(self, kg: "KGDBMemory"):  # noqa: F821
+        """kg 是 KGDBMemory 实例（Neo4j + ChromaDB 后端）"""
         self.kg = kg
         self._tools: Dict[str, BaseTool] = {}
         for cls in _ALL_TOOLS:

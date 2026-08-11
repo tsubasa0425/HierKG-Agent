@@ -40,6 +40,7 @@ def build_evidence(toc: List[Dict[str, Any]], doc_id: str = "Hello-Agents") -> L
         L3 证据节点列表
     """
     evidences: List[Dict[str, Any]] = []
+    section_counts: Dict[str, int] = {}  # section_id → 已出现次数，撞名时给证据 ID 加序号
 
     def walk(nodes: List[Dict[str, Any]], path: List[str]):
         for node in nodes:
@@ -58,8 +59,18 @@ def build_evidence(toc: List[Dict[str, Any]], doc_id: str = "Hello-Agents") -> L
                     if e.get("name")
                 ]
 
+                if section_id:
+                    n = section_counts.get(section_id, 0)
+                    section_counts[section_id] = n + 1
+                    # 同一 section_id 出现多次时（文档编号撞名），后出现的加序号保证证据 ID 唯一：
+                    # 第一个保持 ev_1.4，后续变成 ev_1.4#2、ev_1.4#3 ...
+                    evidence_id = f"ev_{section_id}" if n == 0 else f"ev_{section_id}#{n + 1}"
+                else:
+                    # 无 section_id 时按位置兜底，天然唯一
+                    evidence_id = f"ev_{len(evidences)}"
+
                 evidences.append({
-                    "evidence_id": f"ev_{section_id}" if section_id else f"ev_{len(evidences)}",
+                    "evidence_id": evidence_id,
                     "doc_id": doc_id,
                     "section_id": section_id,
                     "section_path": " > ".join(cur_path),

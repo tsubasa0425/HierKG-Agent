@@ -27,6 +27,7 @@ var/
 
 # 模型文件
 src/HiddenKG/model/bert-base-chinese/
+src/KGRetrieve/models/
 
 # 日志和临时文件
 *.log
@@ -72,3 +73,7 @@ chroma_db_v2/
 
 # Jupyter Notebook
 .ipynb_checkpoints/
+
+# Node/前端
+node_modules/
+app/frontend/dist/

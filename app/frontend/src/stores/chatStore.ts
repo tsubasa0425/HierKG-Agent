@@ -1,0 +1,154 @@
+import { create } from 'zustand';
+
+export interface ToolStep {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+  success: boolean | null; // null = 尚未返回结果
+  thinkingMs?: number; // 本轮 LLM 推理耗时
+  message?: string;
+  elapsedMs?: number;
+  dataSummary?: unknown;
+}
+
+export interface ThinkingState {
+  round: number;
+  message: string;
+}
+
+export interface ChatTurn {
+  id: number;
+  question: string;
+  steps: ToolStep[];
+  answer: string;
+  status: 'streaming' | 'done' | 'error';
+  statusMessage?: string;
+  /** 当前正在进行的 LLM 推理（ReAct 的 Think 阶段） */
+  thinking: ThinkingState | null;
+  error?: string;
+  toolRounds?: number;
+  toolCalls?: number;
+  elapsedMs?: number;
+}
+
+interface ChatStore {
+  turns: ChatTurn[];
+  current: ChatTurn | null;
+  streaming: boolean;
+  startTurn: (question: string) => void;
+  setStatus: (status: string, message: string) => void;
+  setThinking: (round: number, message: string) => void;
+  addToolCall: (ev: { id: string; name: string; arguments: Record<string, unknown>; thinking_ms?: number }) => void;
+  setToolResult: (ev: {
+    id: string;
+    name: string;
+    success: boolean;
+    message: string;
+    elapsed_ms: number;
+    data: unknown;
+  }) => void;
+  appendChunk: (text: string) => void;
+  finishTurn: (answer: string, meta: { toolRounds: number; toolCalls: number; elapsedMs: number }) => void;
+  failTurn: (message: string) => void;
+  setStreaming: (streaming: boolean) => void;
+  clear: () => void;
+}
+
+const patchCurrent = (state: ChatStore, fn: (t: ChatTurn) => ChatTurn) => {
+  if (!state.current) return {};
+  return { current: fn(state.current) };
+};
+
+export const useChatStore = create<ChatStore>((set) => ({
+  turns: [],
+  current: null,
+  streaming: false,
+
+  startTurn: (question) => {
+    const id = Date.now();
+    const turn: ChatTurn = {
+      id,
+      question,
+      steps: [],
+      answer: '',
+      status: 'streaming',
+      statusMessage: '正在连接模型...',
+      thinking: null,
+    };
+    set((state) => ({ turns: [...state.turns, turn], current: turn, streaming: true }));
+  },
+
+  setStatus: (_status, message) =>
+    set((state) => patchCurrent(state, (t) => ({ ...t, statusMessage: message }))),
+
+  setThinking: (round, message) =>
+    set((state) => patchCurrent(state, (t) => ({ ...t, thinking: { round, message } }))),
+
+  addToolCall: (ev) =>
+    set((state) =>
+      patchCurrent(state, (t) => ({
+        ...t,
+        thinking: null, // 推理结束，进入工具执行阶段
+        steps: [
+          ...t.steps,
+          {
+            id: ev.id,
+            name: ev.name,
+            arguments: ev.arguments,
+            success: null,
+            thinkingMs: ev.thinking_ms,
+          },
+        ],
+      })),
+    ),
+
+  setToolResult: (ev) =>
+    set((state) =>
+      patchCurrent(state, (t) => ({
+        ...t,
+        steps: t.steps.map((s) =>
+          s.id === ev.id
+            ? {
+                ...s,
+                success: ev.success,
+                message: ev.message,
+                elapsedMs: ev.elapsed_ms,
+                dataSummary: ev.data,
+              }
+            : s,
+        ),
+      })),
+    ),
+
+  appendChunk: (text) =>
+    set((state) => patchCurrent(state, (t) => ({ ...t, answer: t.answer + text }))),
+
+  finishTurn: (answer, meta) =>
+    set((state) => ({
+      ...patchCurrent(state, (t) => ({
+        ...t,
+        answer,
+        status: 'done',
+        statusMessage: undefined,
+        toolRounds: meta.toolRounds,
+        toolCalls: meta.toolCalls,
+        elapsedMs: meta.elapsedMs,
+      })),
+      streaming: false,
+    })),
+
+  failTurn: (message) =>
+    set((state) => ({
+      ...patchCurrent(state, (t) => ({
+        ...t,
+        status: 'error',
+        error: message,
+        statusMessage: undefined,
+      })),
+      streaming: false,
+    })),
+
+  setStreaming: (streaming) => set({ streaming }),
+
+  clear: () => set({ turns: [], current: null, streaming: false }),
+}));

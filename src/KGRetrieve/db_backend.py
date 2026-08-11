@@ -26,12 +26,12 @@ import sys
 import time
 from collections import deque
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import yaml
 from neo4j import GraphDatabase
 
-from .memory import Edge, Node
+from .models import Edge, Node
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +47,11 @@ _DEFAULT_CONFIG = {
         "database": "treekg",
     },
     "chroma": {
-        "persist_directory": "./chroma_db_v2",
-        "node_collection": "treekg_v2_nodes",
-        "edge_collection": "treekg_v2_edges",
-        "evidence_collection": "treekg_v2_evidences",
-        "embedding_model": "smartcreation/bge-large-zh-v1.5:latest",
+        "persist_directory": "./chroma_db",
+        "node_collection": "treekg_nodes",
+        "edge_collection": "treekg_edges",
+        "evidence_collection": "treekg_evidences",
+        "embedding_model": "bge-m3",
         "ollama_host": "http://localhost:11434",
     },
     "kg_file": "src/KGBuild/output/final_kg.json",
@@ -75,10 +75,10 @@ def _load_config() -> Dict[str, Any]:
             "database": neo4j_raw.get("DATABASE", _DEFAULT_CONFIG["neo4j"]["database"]),
         },
         "chroma": {
-            "persist_directory": chroma_raw.get("PERSIST_DIRECTORY", "./chroma_db_v2"),
-            "node_collection": "treekg_v2_nodes",
-            "edge_collection": "treekg_v2_edges",
-            "evidence_collection": "treekg_v2_evidences",
+            "persist_directory": chroma_raw.get("PERSIST_DIRECTORY", "./chroma_db"),
+            "node_collection": "treekg_nodes",
+            "edge_collection": "treekg_edges",
+            "evidence_collection": "treekg_evidences",
             "embedding_model": chroma_raw.get("EMBEDDING_MODEL", _DEFAULT_CONFIG["chroma"]["embedding_model"]),
             "ollama_host": chroma_raw.get("OLLAMA_HOST", _DEFAULT_CONFIG["chroma"]["ollama_host"]),
         },
@@ -95,6 +95,18 @@ def _edge_type_to_rel_type(edge_type: str) -> str:
     return re.sub(r"[^A-Z0-9_]", "_", edge_type.upper())
 
 
+def _json_safe(value: Any, default: Any = None) -> Any:
+    """Neo4j 里存的 JSON 字符串 → 解析回 dict/list；非字符串直接返回 default"""
+    if value is None or value == {} or value == []:
+        return default
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            return default
+    return value
+
+
 def _row_to_node(record: Dict, node_type: str) -> Node:
     """Neo4j 记录 → Node 对象"""
     return Node(
@@ -106,7 +118,7 @@ def _row_to_node(record: Dict, node_type: str) -> Node:
         aliases=record.get("aliases", []) or [],
         concept_id=record.get("concept_id"),
         evidence_ids=record.get("evidence_ids", []) or [],
-        attributes=record.get("attributes", {}) or {},
+        attributes=_json_safe(record.get("attributes"), default={}),
         doc_id=record.get("doc_id", ""),
         section_id=record.get("section_id", ""),
         section_path=record.get("section_path", ""),
@@ -492,10 +504,133 @@ class KGDBMemory:
         if self._driver:
             self._driver.close()
 
+    # ------------------------------------------------------------------
+    # 图可视化查询（Web UI 用）
+    # ------------------------------------------------------------------
+
+    def graph_stats(self) -> Dict[str, Any]:
+        """图统计：各层节点数 + 总边数。复用 list_layers。"""
+        layers = self.list_layers()
+        with self._session() as sess:
+            rec = sess.run("MATCH ()-[r]->() RETURN count(r) AS c").single()
+            edges = int(rec["c"]) if rec else 0
+        return {
+            "layers": layers,
+            "total_nodes": sum(layers.values()),
+            "total_edges": edges,
+        }
+
+    def sample_graph(
+        self, limit: int = 200, layers: Optional[Iterable[str]] = None
+    ) -> Dict[str, Any]:
+        """全图分层采样：三层各分 limit//len(layers) 配额，保证 L1/L2/L3 都出现。
+
+        规模悬殊（概念/实体/证据 ≈ 453/141/42），纯按度数 top 会压掉 L3，
+        故按层等分配额后 `ORDER BY rand()` 随机取。只返回采样节点之间的边。
+        """
+        layers = [l for l in (list(layers) if layers else []) if l in ("concept", "entity", "evidence")]
+        if not layers:
+            layers = ["concept", "entity", "evidence"]
+        quota = max(5, limit // len(layers))
+        node_dicts: List[Dict[str, Any]] = []
+        ids: List[str] = []
+        for lay in layers:
+            label = lay.capitalize()  # Concept / Entity / Evidence
+            cy = f"MATCH (n:{label}) RETURN n ORDER BY rand() LIMIT $lim"
+            with self._session() as sess:
+                for rec in sess.run(cy, lim=quota):
+                    d = _row_to_node(dict(rec["n"]), lay).to_dict()
+                    node_dicts.append(d)
+                    ids.append(d["node_id"])
+        return {"nodes": node_dicts, "edges": self._edges_between(ids)}
+
+    def get_neighborhood(
+        self, node_id: str, depth: int = 2, max_nodes: int = 150
+    ) -> Dict[str, Any]:
+        """双向 N 跳邻域子图（可视化双击展开用）。
+
+        用参数化变长路径一次取回节点集（含起点），再批量取节点详情和节点间边。
+        depth 钳制到 1..5；深度作为整型拼进 cypher（已钳制，无注入面）。
+        """
+        depth = max(1, min(int(depth), 5))
+        cy_nodes = (
+            f"MATCH (n)-[*0..{depth}]-(start {{node_id: $nid}}) "
+            "WITH collect(DISTINCT n.node_id) AS ids RETURN ids"
+        )
+        with self._session() as sess:
+            rec = sess.run(cy_nodes, nid=node_id).single()
+            ids = list(rec["ids"]) if rec else []
+        if not ids:
+            return {"nodes": [], "edges": []}
+        if len(ids) > max_nodes:  # 截断：保留起点 + 先扫到的
+            ordered = [node_id] + [i for i in ids if i != node_id]
+            ids = ordered[:max_nodes]
+        node_dicts: List[Dict[str, Any]] = []
+        with self._session() as sess:
+            for rec in sess.run(
+                "MATCH (n) WHERE n.node_id IN $ids RETURN n, labels(n)[0] AS label",
+                ids=ids,
+            ):
+                node_dicts.append(_row_to_node(dict(rec["n"]), rec["label"].lower()).to_dict())
+        return {"nodes": node_dicts, "edges": self._edges_between(ids)}
+
+    def search_nodes_by_name(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """图谱页搜索框用：Neo4j 名称/别名 CONTAINS 轻量搜索，不触发 ChromaDB 向量依赖。"""
+        q = query.strip().lower()
+        if not q:
+            return []
+        cy = (
+            "MATCH (n) WHERE toLower(n.name) CONTAINS $q OR "
+            "any(a IN n.aliases WHERE toLower(a) CONTAINS $q) "
+            "RETURN n, labels(n)[0] AS label LIMIT $lim"
+        )
+        out: List[Dict[str, Any]] = []
+        with self._session() as sess:
+            for rec in sess.run(cy, q=q, lim=limit):
+                out.append(_row_to_node(dict(rec["n"]), rec["label"].lower()).to_dict())
+        return out
+
+    def _edges_between(self, ids: List[str]) -> List[Dict[str, Any]]:
+        """只返回 id 集合内节点之间的边（含跨层边），并还原 edge_type。"""
+        if not ids:
+            return []
+        cy = (
+            "MATCH (a)-[r]->(b) "
+            "WHERE a.node_id IN $ids AND b.node_id IN $ids "
+            "RETURN a, r, b, type(r) AS rel_type"
+        )
+        out: List[Dict[str, Any]] = []
+        with self._session() as sess:
+            for rec in sess.run(cy, ids=ids):
+                rel_data = dict(rec["r"])
+                rel_data.setdefault("edge_type", rec["rel_type"].lower().replace("_", "-"))
+                out.append(_row_to_edge(dict(rec["a"]), dict(rec["b"]), rel_data, rec["rel_type"]).to_dict())
+        return out
+
 
 # ===========================================================================
 # 导入脚本
 # ===========================================================================
+
+def _dedupe_evidence_ids(evidences: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """证据 ID 撞名时（同 section_id 出现多个小节），给后出现的条目追加序号保证唯一。
+
+    ChromaDB 要求集合内 ID 唯一，Neo4j 里 node_id 撞名也会造成歧义。
+    所有条目内容都保留，只在冲突时重命名：第一个保持 `ev_1.4`，后续变成 `ev_1.4#2` 等。
+    其他节点里引用的 evidence_id（如 `ev_1.4`）始终指向第一个条目，依然有效。
+    """
+    seen: Dict[str, int] = {}
+    out: List[Dict[str, Any]] = []
+    for ev in evidences:
+        eid = ev["evidence_id"]
+        n = seen.get(eid, 0)
+        seen[eid] = n + 1
+        if n > 0:
+            ev = dict(ev)
+            ev["evidence_id"] = f"{eid}#{n + 1}"
+        out.append(ev)
+    return out
+
 
 def import_kg(kg_path: Optional[str] = None) -> None:
     """把 final_kg.json 导入到 Neo4j + ChromaDB"""
@@ -516,6 +651,8 @@ def import_kg(kg_path: Optional[str] = None) -> None:
     entities = kg.get("L2_entities", [])
     evidences = kg.get("L3_evidences", [])
     edges = kg.get("edges", [])
+    # 证据 ID 可能撞名（同一 section_id 的多个小节），重命名后保证唯一
+    evidences = _dedupe_evidence_ids(evidences)
     print(f"   L1 概念: {len(concepts)}, L2 实体: {len(entities)}, L3 证据: {len(evidences)}, 边: {len(edges)}")
 
     # —— 1. Neo4j 导入 ——
@@ -580,7 +717,7 @@ def _import_to_neo4j(config, concepts, entities, evidences, edges):
                 aliases=e.get("aliases", []),
                 concept_id=e.get("concept_id", ""),
                 evidence_ids=e.get("evidence_ids", []),
-                attributes=e.get("attributes", {}),
+                attributes=json.dumps(e.get("attributes", {}) or {}, ensure_ascii=False),
             )
 
         # 导入 L3 证据
