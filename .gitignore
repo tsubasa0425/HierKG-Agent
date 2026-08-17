@@ -29,6 +29,10 @@ var/
 src/KGBuild/model/bert-base-chinese/
 src/KGRetrieve/models/
 
+# 密钥配置（含 DeepSeek API Key，禁止提交）
+src/KGBuild/config/explicit_config.yaml
+src/KGBuild/config/hidden_config.yaml
+
 # 日志和临时文件
 *.log
 *.tmp
