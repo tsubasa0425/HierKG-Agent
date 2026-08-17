@@ -26,7 +26,7 @@ var/
 .venv/
 
 # 模型文件
-src/HiddenKG/model/bert-base-chinese/
+src/KGBuild/model/bert-base-chinese/
 src/KGRetrieve/models/
 
 # 日志和临时文件
