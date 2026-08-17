@@ -9,6 +9,8 @@ export interface ToolStep {
   message?: string;
   elapsedMs?: number;
   dataSummary?: unknown;
+  /** 所属检索轮次（由 thinking 事件的 round 推断，用于穿插展示推理→工具） */
+  round?: number;
 }
 
 export interface ThinkingState {
@@ -25,6 +27,8 @@ export interface ChatTurn {
   statusMessage?: string;
   /** 当前正在进行的 LLM 推理（ReAct 的 Think 阶段） */
   thinking: ThinkingState | null;
+  /** 已发生的推理轮次记录（持久展示 think→tool→result 完整时间线） */
+  thinkingLog: ThinkingState[];
   error?: string;
   toolRounds?: number;
   toolCalls?: number;
@@ -56,7 +60,14 @@ interface ChatStore {
 
 const patchCurrent = (state: ChatStore, fn: (t: ChatTurn) => ChatTurn) => {
   if (!state.current) return {};
-  return { current: fn(state.current) };
+  const updated = fn(state.current);
+  // 关键：组件订阅的是 turns（turns.map 渲染），若只改 current，
+  // turns 引用不变 → zustand 按引用比较判定状态未变 → 不重渲染。
+  // 必须同时把当前 turn 同步回 turns 数组，流式过程才能实时刷新。
+  return {
+    current: updated,
+    turns: state.turns.map((t) => (t.id === updated.id ? updated : t)),
+  };
 };
 
 export const useChatStore = create<ChatStore>((set) => ({
@@ -74,6 +85,7 @@ export const useChatStore = create<ChatStore>((set) => ({
       status: 'streaming',
       statusMessage: '正在连接模型...',
       thinking: null,
+      thinkingLog: [],
     };
     set((state) => ({ turns: [...state.turns, turn], current: turn, streaming: true }));
   },
@@ -82,24 +94,40 @@ export const useChatStore = create<ChatStore>((set) => ({
     set((state) => patchCurrent(state, (t) => ({ ...t, statusMessage: message }))),
 
   setThinking: (round, message) =>
-    set((state) => patchCurrent(state, (t) => ({ ...t, thinking: { round, message } }))),
+    set((state) =>
+      patchCurrent(state, (t) => {
+        const log = t.thinkingLog ?? []; // 防御：旧模块状态无此字段
+        const last = log[log.length - 1];
+        const dup = !!last && last.round === round; // 同轮重复事件不去重记录
+        return {
+          ...t,
+          thinking: { round, message },
+          thinkingLog: dup ? log : [...log, { round, message }],
+        };
+      }),
+    ),
 
   addToolCall: (ev) =>
     set((state) =>
-      patchCurrent(state, (t) => ({
-        ...t,
-        thinking: null, // 推理结束，进入工具执行阶段
-        steps: [
-          ...t.steps,
-          {
-            id: ev.id,
-            name: ev.name,
-            arguments: ev.arguments,
-            success: null,
-            thinkingMs: ev.thinking_ms,
-          },
-        ],
-      })),
+      patchCurrent(state, (t) => {
+        const log = t.thinkingLog ?? [];
+        const round = log[log.length - 1]?.round ?? 1; // 归属当前推理轮次
+        return {
+          ...t,
+          thinking: null, // 推理结束，进入工具执行阶段
+          steps: [
+            ...t.steps,
+            {
+              id: ev.id,
+              name: ev.name,
+              arguments: ev.arguments,
+              success: null,
+              thinkingMs: ev.thinking_ms,
+              round,
+            },
+          ],
+        };
+      }),
     ),
 
   setToolResult: (ev) =>

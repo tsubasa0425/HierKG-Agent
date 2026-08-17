@@ -37,7 +37,7 @@ HierKG-Agent/
 │   ├── config.py                     # LLM 配置加载（复用 KGBuild explicit_config）
 │   ├── dependencies.py               # 懒加载单例（KGDBMemory / ToolRegistry）
 │   ├── routers/                      # chat.py（SSE Agent 对话）+ graph.py（图谱可视化）
-│   ├── services/                     # agent_loop.py（Agent 循环）+ graph_service.py（图数据整形）
+│   ├── services/                     # langgraph_agent.py（LangGraph StateGraph 循环）+ agent_loop.py（兼容 shim）+ graph_service.py
 │   └── frontend/                     # React/Vite/AntD/sigma.js 前端（:5777）
 ├── requirements.txt
 └── README.md
@@ -164,7 +164,7 @@ python src/KGBuild/FinalKG.py
 
 ### 技术栈
 
-- 后端：FastAPI + SSE 流式（`app/routers/`），Agent 循环复用 OpenAI function-calling（`app/services/agent_loop.py`），LLM 复用 `src/KGBuild/config/explicit_config.yaml` 的 API 配置
+- 后端：FastAPI + SSE 流式（`app/routers/`），Agent 循环基于 LangGraph StateGraph（`app/services/langgraph_agent.py`，`agent_loop.py` 为兼容 shim），LLM 复用 `src/KGBuild/config/explicit_config.yaml` 的 API 配置
 - 前端：React 19 + Vite + AntD 6 + Zustand + sigma.js/graphology（`app/frontend/`）
 
 ### 启动
@@ -185,7 +185,7 @@ npm run dev
 
 ### 说明
 
-- **零新增 Python 依赖**：Web 层复用已有的 fastapi / uvicorn / openai / requests；前端单独 `npm install`。
+- Agent 循环基于 **LangGraph StateGraph**（agent → tools 条件回环 + 流式回答），SSE 六事件协议（status / tool_call / tool_result / chunk / done / error）逐字保真，前端零改动接入。
 - 图谱可视化查询（分层采样 / 邻域子图 / 统计）为 `KGDBMemory` 的纯追加方法，不触碰原有检索逻辑。
 - **Windows 网络注意**：`vite.config.ts` 已把代理 target 指向 `127.0.0.1:8777` 并将 `host` 设为 `true`（同时监听 IPv6），避免 `localhost` 的 IPv6→IPv4 回退造成每次请求 ~2s 的固定延迟。若自行修改代理配置，请保持用 `127.0.0.1` 而非 `localhost`。
 

@@ -1,0 +1,241 @@
+{
+  "meta": {
+    "source": "Hello-Agents 教材四层知识图谱（src/KGBuild/output/final_kg.json）",
+    "created_at": "2026-08-12",
+    "categories": ["definition", "single_hop", "multi_hop", "instance", "comparison"],
+    "note": "概念/实体按名称引用，由 eval.datasets.resolver 解析为 node_id；golden_evidence_ids 为去重后的真实证据 ID（镜像 ev_1.4#2）。"
+  },
+  "questions": [
+    {
+      "id": "treekg-0001",
+      "category": "definition",
+      "question": "什么是学习型智能体？它的核心结构是什么？",
+      "reference_answer": "学习型智能体通过与环境交互、积累经验来改进自身行为，是一种具备学习能力的智能体。它的核心结构包括学习元件、性能元件、评判元件和问题产生元件等，学习元件负责根据反馈改进其它元件。",
+      "golden_concept_names": ["学习型智能体"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_1.1.1"]
+    },
+    {
+      "id": "treekg-0002",
+      "category": "definition",
+      "question": "什么是反应式智能体？它有什么特点？",
+      "reference_answer": "反应式智能体不依赖内部世界模型，直接根据当前感知到的环境状态做出条件-动作映射式的反应式决策。它的特点是响应速度快、结构简单，但不具备对长期目标的显式规划能力。",
+      "golden_concept_names": ["反应式智能体"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_1.1.3"]
+    },
+    {
+      "id": "treekg-0003",
+      "category": "definition",
+      "question": "什么是 PEAS 模型？它包含哪些要素？",
+      "reference_answer": "PEAS 模型用于描述智能体任务环境，是智能体设计中用来刻画任务环境与智能体接口的框架，包含性能度量（Performance）、环境（Environment）、执行器（Actuator）、传感器（Sensor）四个要素。",
+      "golden_concept_names": ["PEAS模型"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_1.2.1", "ev_1.4"]
+    },
+    {
+      "id": "treekg-0004",
+      "category": "definition",
+      "question": "什么是知识获取瓶颈？",
+      "reference_answer": "知识获取瓶颈是符号主义（专家系统）面临的核心难题：把领域专家头脑中的知识转化为显式规则需要大量人工介入，成本高、易出错、难扩展，制约了基于规则系统的规模化应用。",
+      "golden_concept_names": ["知识获取瓶颈"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_2.1.4", "ev_2.4.3"]
+    },
+    {
+      "id": "treekg-0005",
+      "category": "definition",
+      "question": "什么是世界模型？它在智能体中起什么作用？",
+      "reference_answer": "世界模型是智能体对所处环境的内部表示，用于预测环境状态的演化、支撑规划与决策。在大语言模型驱动的新范式下，世界模型由模型的参数隐式承载，智能体借助它对世界进行推理。",
+      "golden_concept_names": ["世界模型"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_1.1.1", "ev_1.1.2", "ev_1.1.3"]
+    },
+    {
+      "id": "treekg-0006",
+      "category": "single_hop",
+      "question": "LLM 智能体和强化学习有什么关系？",
+      "reference_answer": "强化学习是训练和优化 LLM 智能体决策能力的关键方法之一：LLM 智能体通过强化学习（如基于奖励反馈的微调）逐步改进自身的决策策略。知识图谱中 LLM 智能体与强化学习以 related 关系相连。",
+      "golden_concept_names": ["LLM 智能体", "强化学习"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_2.4.2", "ev_1.1.1"]
+    },
+    {
+      "id": "treekg-0007",
+      "category": "single_hop",
+      "question": "人工智能和大语言模型驱动的智能体是什么关系？",
+      "reference_answer": "大语言模型驱动的智能体是人工智能在现代大模型范式下的一种具体形态，知识图谱中人工智能与大语言模型驱动的智能体以 part-of（构成）关系相连：前者是更广义的研究领域，后者是其子集。",
+      "golden_concept_names": ["人工智能", "大语言模型驱动的智能体"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_1.1.1", "ev_1.1.3"]
+    },
+    {
+      "id": "treekg-0008",
+      "category": "single_hop",
+      "question": "大语言模型驱动的智能体和工具调用有什么关系？",
+      "reference_answer": "工具调用是大语言模型驱动智能体扩展外部能力的重要手段：智能体通过调用工具（API、搜索引擎等）获取实时信息或执行动作。知识图谱中二者以 part-of 关系相连。",
+      "golden_concept_names": ["大语言模型驱动的智能体", "工具调用"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_2.4.4", "ev_1.3.4"]
+    },
+    {
+      "id": "treekg-0009",
+      "category": "single_hop",
+      "question": "大语言模型和神经网络有什么关系？",
+      "reference_answer": "大语言模型建立在神经网络（尤其是 Transformer 架构）基础之上，是神经网络在语言建模方向上通过大规模数据预训练得到的产物，二者是从属与演进的关系。",
+      "golden_concept_names": ["大语言模型", "神经网络"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_3.1.1", "ev_1.1.3"]
+    },
+    {
+      "id": "treekg-0010",
+      "category": "single_hop",
+      "question": "强化学习和学习型智能体有什么关系？",
+      "reference_answer": "强化学习是学习型智能体实现「学习」的核心手段之一：基于强化学习的智能体通过试错与环境交互，依据奖励信号调整策略，从而不断改进自身行为。",
+      "golden_concept_names": ["强化学习", "学习型智能体"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_2.4.2", "ev_1.1.1"]
+    },
+    {
+      "id": "treekg-0011",
+      "category": "multi_hop",
+      "question": "从人工智能出发，经过哪些中间概念可以到达工具调用？",
+      "reference_answer": "链路为：人工智能 → 大语言模型驱动的智能体 → 工具调用。知识图谱中存在人工智能 -part-of-> 大语言模型驱动的智能体 -part-of-> 工具调用 的两跳路径。",
+      "golden_concept_names": ["人工智能", "大语言模型驱动的智能体", "工具调用"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_1.1.1", "ev_1.1.3", "ev_2.4.4"],
+      "golden_src_name": "人工智能",
+      "golden_tgt_name": "工具调用"
+    },
+    {
+      "id": "treekg-0012",
+      "category": "multi_hop",
+      "question": "人工智能如何与知识库产生联系？",
+      "reference_answer": "链路为：人工智能 → 大语言模型驱动的智能体 → 知识库。大语言模型驱动的智能体通过 related 关系与知识库相连，智能体借助知识库获取领域知识支撑决策。",
+      "golden_concept_names": ["人工智能", "大语言模型驱动的智能体", "知识库"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_1.4.3", "ev_2.1.2"],
+      "golden_src_name": "人工智能",
+      "golden_tgt_name": "知识库"
+    },
+    {
+      "id": "treekg-0013",
+      "category": "multi_hop",
+      "question": "智能体的运行需要感知、记忆、决策、行动等要素如何协作？",
+      "reference_answer": "智能体通过传感器感知环境状态，结合记忆中的历史信息进行决策，再通过执行器采取行动影响环境，形成「感知 → 决策 → 行动」的循环，环境反馈又回到感知环节。",
+      "golden_concept_names": ["智能体", "感知", "记忆", "决策", "行动", "环境"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_1.2.1", "ev_1.2.2", "ev_1.2.3"]
+    },
+    {
+      "id": "treekg-0014",
+      "category": "multi_hop",
+      "question": "从符号主义到联结主义的学习范式演进中，深度学习扮演了什么角色？",
+      "reference_answer": "早期符号主义依赖显式规则，面临知识获取瓶颈；联结主义转向从数据中学习。深度学习作为联结主义在现代的代表，通过多层神经网络从大规模数据中自动学习特征，推动范式完成从符号到联结的演进。",
+      "golden_concept_names": ["符号主义", "联结主义", "深度学习"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_2.4.1", "ev_2.4.3"]
+    },
+    {
+      "id": "treekg-0015",
+      "category": "multi_hop",
+      "question": "大语言模型驱动的智能体如何通过知识库和工具调用完成任务？",
+      "reference_answer": "大语言模型驱动的智能体先借助知识库补充领域知识，再通过工具调用（API、搜索等）获取实时信息或执行动作，把外部知识与外部能力综合起来完成用户任务。",
+      "golden_concept_names": ["大语言模型驱动的智能体", "知识库", "工具调用"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_1.4.3", "ev_2.4.4"],
+      "golden_src_name": "大语言模型驱动的智能体",
+      "golden_tgt_name": "工具调用"
+    },
+    {
+      "id": "treekg-0016",
+      "category": "instance",
+      "question": "AlphaGo 属于哪一类智能体？",
+      "reference_answer": "AlphaGo 是条件动作规则类智能体的一个实例：它根据棋盘状态做出条件映射到动作的决策，并通过强化学习（自我对弈）不断改进策略。",
+      "golden_concept_names": ["条件动作规则"],
+      "golden_entity_names": ["AlphaGo"],
+      "golden_evidence_ids": ["ev_1.1.1", "ev_2.4.2"]
+    },
+    {
+      "id": "treekg-0017",
+      "category": "instance",
+      "question": "LangChain 在智能体体系中扮演什么角色？",
+      "reference_answer": "LangChain 是智能体体系中的开发工具/框架，作为工具类实体帮助开发者构建大语言模型应用与智能体的执行链路。",
+      "golden_concept_names": ["智能体"],
+      "golden_entity_names": ["LangChain"],
+      "golden_evidence_ids": ["ev_1.3.3"]
+    },
+    {
+      "id": "treekg-0018",
+      "category": "instance",
+      "question": "ChatGPT 属于哪个概念？它的典型应用是什么？",
+      "reference_answer": "ChatGPT 是大语言模型的典型实例，作为对话式 AI 应用，代表了大语言模型智能体的一种应用形态。",
+      "golden_concept_names": ["大语言模型"],
+      "golden_entity_names": ["ChatGPT"],
+      "golden_evidence_ids": ["ev_1.4", "ev_2.5"]
+    },
+    {
+      "id": "treekg-0019",
+      "category": "instance",
+      "question": "OpenAI 在智能体体系中是什么角色？",
+      "reference_answer": "OpenAI 是智能体体系中的角色/组织实体，提供大语言模型 API，支撑智能体的开发与模型接入。",
+      "golden_concept_names": ["智能体"],
+      "golden_entity_names": ["OpenAI"],
+      "golden_evidence_ids": ["ev_1.3.1", "ev_1.3.2", "ev_1.4.1"]
+    },
+    {
+      "id": "treekg-0020",
+      "category": "instance",
+      "question": "MetaGPT 是什么类型的产品？",
+      "reference_answer": "MetaGPT 是基于大语言模型的智能体编排/多智能体协作工具，作为工具类实体应用于自主协作场景。",
+      "golden_concept_names": ["大语言模型"],
+      "golden_entity_names": ["MetaGPT"],
+      "golden_evidence_ids": ["ev_1.4", "ev_1.4.2"]
+    },
+    {
+      "id": "treekg-0021",
+      "category": "comparison",
+      "question": "反应式智能体和学习型智能体的核心区别是什么？",
+      "reference_answer": "反应式智能体直接对环境状态做条件-动作映射，不依赖内部世界模型；学习型智能体通过与环境交互积累经验、改进自身行为，具备学习元件等结构，能从经验中持续提升。",
+      "golden_concept_names": ["反应式智能体", "学习型智能体"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_1.1.1", "ev_1.1.3"]
+    },
+    {
+      "id": "treekg-0022",
+      "category": "comparison",
+      "question": "传统智能体和大语言模型驱动的智能体有什么不同？",
+      "reference_answer": "传统智能体依赖显式规则、符号表示与专家知识编码，可解释但泛化受限；大语言模型驱动的智能体基于大规模预训练模型，具备更强的语言理解与泛化能力，但推理过程更难以解释。",
+      "golden_concept_names": ["传统智能体", "大语言模型驱动的智能体"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_1.1.1", "ev_1.1.2"]
+    },
+    {
+      "id": "treekg-0023",
+      "category": "comparison",
+      "question": "符号主义和联结主义两种范式有何区别？",
+      "reference_answer": "符号主义以显式符号与规则表示知识，可解释性强但面临知识获取瓶颈；联结主义通过神经网络对知识进行分布式表示，从数据中学习，鲁棒但可解释性较弱。",
+      "golden_concept_names": ["符号主义", "联结主义"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_2.4.1", "ev_2.4.3"]
+    },
+    {
+      "id": "treekg-0024",
+      "category": "comparison",
+      "question": "Workflow 和 Agent 有什么区别？",
+      "reference_answer": "Workflow 是预先定义好的固定执行路径/流程图，按步骤顺序执行；Agent 则能根据环境状态自主决策、动态规划行动序列，灵活应对未预先定义的场景。",
+      "golden_concept_names": ["Workflow", "智能体"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_1.4.3"]
+    },
+    {
+      "id": "treekg-0025",
+      "category": "comparison",
+      "question": "早期基于符号与逻辑的专家系统和现代大语言模型智能体有何不同？",
+      "reference_answer": "专家系统依赖人工编码的领域规则库，知识获取成本高、难扩展；大语言模型智能体通过大规模预训练获得广泛知识与语言理解能力，无需为每条规则显式编码，泛化能力更强。",
+      "golden_concept_names": ["专家系统", "大语言模型驱动的智能体"],
+      "golden_entity_names": [],
+      "golden_evidence_ids": ["ev_2.1.2", "ev_1.1.2"]
+    }
+  ]
+}

@@ -2,14 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Button,
-  Collapse,
   Empty,
   Input,
   Layout,
   List,
   Space,
   Tag,
-  Timeline,
   Typography,
 } from 'antd';
 import {
@@ -21,12 +19,11 @@ import {
   LoadingOutlined,
   HistoryOutlined,
   CommentOutlined,
-  RobotOutlined,
 } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { agentChatStream, type ChatMessage } from '../services/api';
-import { useChatStore, type ChatTurn } from '../stores/chatStore';
+import { useChatStore, type ChatTurn, type ToolStep } from '../stores/chatStore';
 import type { TextAreaRef } from 'antd/es/input/TextArea';
 
 const { TextArea } = Input;
@@ -64,149 +61,145 @@ function StepIcon({ success }: { success: boolean | null }) {
 // single turn: question bubble + tool timeline + streaming answer
 // ---------------------------------------------------------------------------
 
+function stepState(s: ToolStep): string {
+  if (s.success === true) return 'is-done';
+  if (s.success === false) return 'is-error';
+  return 'is-running';
+}
+
 function TurnBlock({ turn }: { turn: ChatTurn }) {
   const finished = turn.status === 'done';
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 28 }}>
-      {/* user question */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <div
-          style={{
-            maxWidth: '70%',
-            background: '#1677ff',
-            color: '#fff',
-            borderRadius: 12,
-            padding: '10px 14px',
-            fontSize: 14,
-            whiteSpace: 'pre-wrap',
-          }}
-        >
-          {turn.question}
-        </div>
-      </div>
+  const isError = turn.status === 'error';
+  const connecting = turn.status === 'streaming' && !turn.thinking && turn.steps.length === 0 && !turn.answer;
 
-      {/* ReAct 过程：🤔 思考 → 🛠 工具执行 → 🤔 思考 → … → ✍ 回答 */}
-      {(turn.steps.length > 0 || turn.thinking) && (
-        <div style={{ paddingLeft: 8, borderLeft: '3px solid #e8e8e8' }}>
-          <Text type="secondary" style={{ fontSize: 12, marginBottom: 6, display: 'block' }}>
-            🤖 Agent ReAct 过程（{turn.steps.length} 次工具调用）
-          </Text>
-          <Timeline
-            items={[
-              // 每个工具步骤：推理耗时 + 工具执行耗时 + 可展开的参数/结果
-              ...turn.steps.map((s) => ({
-                color: s.success === false ? 'red' : s.success === true ? 'green' : 'blue',
-                dot: <StepIcon success={s.success} />,
-                children: (
-                  <Collapse
-                    size="small"
-                    ghost
-                    items={[
-                      {
-                        key: s.id,
-                        label: (
-                          <Space size={8} wrap>
-                            <Tag color={s.success === false ? 'red' : 'blue'} style={{ marginInlineEnd: 0 }}>
-                              {s.name}
-                            </Tag>
-                            {s.thinkingMs != null && (
-                              <Text type="secondary" style={{ fontSize: 12 }}>
-                                🤔 推理 {(s.thinkingMs / 1000).toFixed(1)}s
-                              </Text>
-                            )}
-                            {s.success === true && s.message && (
-                              <Text type="secondary" style={{ fontSize: 12 }}>{s.message}</Text>
-                            )}
-                            {s.elapsedMs != null && (
-                              <Text type="secondary" style={{ fontSize: 12 }}>⚡ {s.elapsedMs}ms</Text>
-                            )}
-                          </Space>
-                        ),
-                        children: (
-                          <div>
-                            <Text type="secondary" style={{ fontSize: 12 }}>参数</Text>
-                            <pre style={preStyle}>{formatArgs(s.arguments)}</pre>
-                            {s.dataSummary !== undefined && (
-                              <>
-                                <Text type="secondary" style={{ fontSize: 12 }}>结果摘要</Text>
-                                <pre style={preStyle}>{formatSummary(s.dataSummary)}</pre>
-                              </>
-                            )}
-                          </div>
-                        ),
-                      },
-                    ]}
-                  />
-                ),
-              })),
-              // 当前正在进行的 LLM 推理（Think 阶段）
-              ...(turn.thinking
-                ? [
-                    {
-                      color: 'blue',
-                      dot: <LoadingOutlined spin style={{ color: '#1677ff' }} />,
-                      children: (
-                        <Text type="secondary" style={{ fontSize: 13 }}>
-                          {turn.thinking.message}
-                        </Text>
-                      ),
-                    },
-                  ]
-                : []),
-            ]}
-          />
+  // 实时状态条：此刻 Agent 正在做什么（让等待过程"看得到"）
+  const liveAction = (() => {
+    if (turn.status !== 'streaming') return null;
+    if (turn.thinking) return `🧠 ${turn.thinking.message}`;
+    if (turn.steps.some((s) => s.success === null))
+      return `🛠 正在执行工具 ${turn.steps.find((s) => s.success === null)!.name} ...`;
+    if (connecting) return turn.statusMessage || '🤖 正在连接模型...';
+    if (turn.answer) return '✍ 正在生成回答...';
+    return null;
+  })();
+
+  // 把 推理轮次 + 工具步骤 按 round 穿插成完整时间线：think(1)→tools(1)→think(2)→tools(2)→…
+  const seq = (() => {
+    const thinkByRound = new Map((turn.thinkingLog ?? []).map((e) => [e.round, e.message]));
+    const toolsByRound = new Map<number, ToolStep[]>();
+    for (const s of turn.steps) {
+      const r = s.round ?? 1;
+      if (!toolsByRound.has(r)) toolsByRound.set(r, []);
+      toolsByRound.get(r)!.push(s);
+    }
+    const rounds = Array.from(new Set([...thinkByRound.keys(), ...toolsByRound.keys()])).sort((a, b) => a - b);
+    const items: { kind: 'think' | 'tool'; round: number; message?: string; step?: ToolStep }[] = [];
+    for (const r of rounds) {
+      const msg = thinkByRound.get(r);
+      if (msg != null) items.push({ kind: 'think', round: r, message: msg });
+      for (const s of toolsByRound.get(r) ?? []) items.push({ kind: 'tool', round: r, step: s });
+    }
+    return items;
+  })();
+
+  const showPanel = seq.length > 0 || turn.answer || connecting || finished || isError;
+
+  return (
+    <div className="turn-block">
+      {/* user question */}
+      <div className="turn-question">{turn.question}</div>
+
+      {/* Agent 实时动作面板（过程：浅灰底、小号字，与答案明确区分） */}
+      {showPanel && (
+        <div className="agent-panel">
+          <div className="agent-panel-header">
+            <span>🤖 Agent 动作过程</span>
+            {liveAction && (
+              <span className="agent-live">
+                <span className="agent-live-dot" />
+                {liveAction}
+              </span>
+            )}
+          </div>
+          <div className="agent-steps">
+            {seq.map((it) =>
+              it.kind === 'think' ? (
+                <div
+                  key={`t${it.round}`}
+                  className={`agent-step ${turn.thinking && turn.thinking.round === it.round ? 'is-running' : 'is-done'}`}
+                >
+                  <div className="agent-step-head">
+                    {turn.thinking && turn.thinking.round === it.round ? (
+                      <LoadingOutlined spin style={{ color: '#1677ff' }} />
+                    ) : (
+                      <span className="agent-step-no">🧠</span>
+                    )}
+                    <Text type="secondary" style={{ fontSize: 12 }}>{it.message}</Text>
+                  </div>
+                </div>
+              ) : (
+                <div key={it.step!.id} className={`agent-step ${stepState(it.step!)}`}>
+                  <div className="agent-step-head">
+                    <span className="agent-step-no">{it.round}</span>
+                    <Tag color={it.step!.success === false ? 'red' : 'blue'} style={{ marginInlineEnd: 0 }}>
+                      {it.step!.name}
+                    </Tag>
+                    <StepIcon success={it.step!.success} />
+                    {it.step!.thinkingMs != null && (
+                      <Text type="secondary" style={{ fontSize: 11 }}>
+                        🤔 推理 {(it.step!.thinkingMs / 1000).toFixed(1)}s
+                      </Text>
+                    )}
+                    {it.step!.elapsedMs != null && (
+                      <Text type="secondary" style={{ fontSize: 11 }}>⚡ {it.step!.elapsedMs}ms</Text>
+                    )}
+                    {it.step!.success === false && it.step!.message && (
+                      <Text type="secondary" style={{ fontSize: 11 }}>{it.step!.message}</Text>
+                    )}
+                  </div>
+                  {it.step!.success === null ? (
+                    <div className="agent-step-result">
+                      <pre>执行中...</pre>
+                    </div>
+                  ) : it.step!.dataSummary !== undefined ? (
+                    <div className="agent-step-result">
+                      <pre>{formatSummary(it.step!.dataSummary)}</pre>
+                    </div>
+                  ) : null}
+                  <details className="agent-step-detail">
+                    <summary>查看参数</summary>
+                    <pre>{formatArgs(it.step!.arguments)}</pre>
+                  </details>
+                </div>
+              ),
+            )}
+          </div>
         </div>
       )}
 
-      {/* answer */}
-      <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-        <div style={{ maxWidth: '92%', width: '100%' }}>
-          {/* 连接模型阶段（尚无任何 ReAct 输出）给一个提示 */}
-          {turn.status === 'streaming' && !turn.thinking && turn.steps.length === 0 && (
-            <Alert
-              type="info"
-              showIcon
-              icon={<RobotOutlined spin />}
-              message={turn.statusMessage || 'Agent 正在连接模型...'}
-              style={{ marginBottom: 10 }}
-            />
-          )}
+      {/* 最终答案（大号正文 + 蓝色标题，与过程视觉区分） */}
+      {(turn.answer || finished || isError) && (
+        <div className="answer-block">
+          <div className="answer-header">📝 最终回答</div>
           {turn.answer ? (
-            <div style={{ fontSize: 14, lineHeight: 1.7 }} className="markdown-body">
+            <div className="answer-markdown markdown-body">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{turn.answer}</ReactMarkdown>
             </div>
           ) : null}
-          {turn.status === 'error' && (
-            <Alert
-              type="error"
-              showIcon
-              message={turn.error || '出错了，请重试'}
-              style={{ marginTop: 8 }}
-            />
+          {isError && (
+            <Alert type="error" showIcon message={turn.error || '出错了，请重试'} style={{ marginTop: 8 }} />
           )}
           {finished && (
-            <Text type="secondary" style={{ fontSize: 12 }}>
+            <div className="answer-meta">
               检索 {turn.toolRounds ?? 0} 轮 · {turn.toolCalls ?? 0} 次工具调用 ·{' '}
               {((turn.elapsedMs ?? 0) / 1000).toFixed(1)}s
-            </Text>
+            </div>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
-
-const preStyle: React.CSSProperties = {
-  background: '#f6f8fa',
-  padding: 10,
-  borderRadius: 6,
-  fontSize: 12,
-  overflowX: 'auto',
-  whiteSpace: 'pre-wrap',
-  wordBreak: 'break-all',
-  margin: '4px 0 12px',
-  maxHeight: 200,
-};
 
 // ---------------------------------------------------------------------------
 // page
@@ -233,7 +226,12 @@ export default function AgentChat() {
   // auto-scroll to bottom on new content
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [turns, turns[turns.length - 1]?.answer, turns[turns.length - 1]?.steps.length]);
+  }, [
+    turns,
+    turns[turns.length - 1]?.answer,
+    turns[turns.length - 1]?.steps.length,
+    turns[turns.length - 1]?.thinkingLog.length,
+  ]);
 
   const buildHistory = (): ChatMessage[] => {
     const msgs: ChatMessage[] = [];

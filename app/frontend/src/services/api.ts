@@ -105,14 +105,37 @@ export interface AgentStreamCallbacks {
  * 发一条 user 消息给 Agent，SSE 解析事件流。
  * 事件协议：status / tool_call / tool_result / chunk / done / error
  * 返回 AbortController 用于中途取消。
+ *
+ * 健壮性：连接中断/长时间无事件/流自然结束但没收到 done 时，
+ * 都会回调 onError 明确提示，避免 UI 永远停在"正在连接模型"。
  */
 export const agentChatStream = (
   messages: ChatMessage[],
   callbacks: AgentStreamCallbacks,
 ): AbortController => {
   const controller = new AbortController();
+  const STALL_MS = 60_000; // 60s 无任何事件 → 判定连接中断
+  let receivedDone = false;
+  let ended = false; // 已报错/已完成，防止重复回调
+
+  const error = (msg: string) => {
+    if (!ended) {
+      ended = true;
+      callbacks.onError(msg);
+    }
+  };
 
   (async () => {
+    let lastEventAt = Date.now();
+    // 心跳：长时间无事件则中止，防止无限挂起
+    const stallTimer = setInterval(() => {
+      if (Date.now() - lastEventAt > STALL_MS && !receivedDone) {
+        clearInterval(stallTimer);
+        controller.abort();
+        error('长时间无响应，连接已中断，请重试');
+      }
+    }, 5000);
+
     try {
       const response = await fetch('/api/chat/stream', {
         method: 'POST',
@@ -122,13 +145,13 @@ export const agentChatStream = (
       });
 
       if (!response.ok) {
-        callbacks.onError(`HTTP ${response.status}: ${response.statusText}`);
+        error(`HTTP ${response.status}: ${response.statusText}`);
         return;
       }
 
       const reader = response.body?.getReader();
       if (!reader) {
-        callbacks.onError('无法读取响应流');
+        error('无法读取响应流');
         return;
       }
 
@@ -158,6 +181,7 @@ export const agentChatStream = (
 
           try {
             const data = JSON.parse(eventData);
+            lastEventAt = Date.now();
             switch (eventType) {
               case 'status':
                 callbacks.onStatus(data.status, data.message, data.round);
@@ -172,10 +196,11 @@ export const agentChatStream = (
                 callbacks.onChunk(data.text);
                 break;
               case 'done':
+                receivedDone = true;
                 callbacks.onDone(data);
                 break;
               case 'error':
-                callbacks.onError(data.message);
+                error(data.message);
                 break;
             }
           } catch {
@@ -183,9 +208,14 @@ export const agentChatStream = (
           }
         }
       }
+
+      // 流自然结束但没有 done → 说明中途被掐断
+      if (!receivedDone && !ended) error('连接中断，未收到完整回答，请重试');
     } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      callbacks.onError('网络连接失败，请稍后重试');
+      if (err instanceof DOMException && err.name === 'AbortError') return; // 主动取消 / stall 超时已报错
+      error('网络连接失败，请稍后重试');
+    } finally {
+      clearInterval(stallTimer);
     }
   })();
 

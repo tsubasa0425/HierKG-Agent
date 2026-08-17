@@ -14,3 +14,163 @@ body {
 #root {
   min-height: 100vh;
 }
+
+/* ── Agent 对话：过程 vs 答案 视觉区分 ─────────────────────────────
+   过程：浅灰底、小号灰字（像一个可实时滚动的"动作日志"）
+   答案：大号正文 + 蓝色标题，一眼可辨 */
+.turn-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.turn-question {
+  align-self: flex-end;
+  max-width: 70%;
+  background: #1677ff;
+  color: #fff;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+/* 过程面板 */
+.agent-panel {
+  background: #f8f9fb;
+  border: 1px solid #eef0f4;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.agent-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #8c8c8c;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.agent-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #1677ff;
+  margin-left: 6px;
+  font-weight: 500;
+}
+.agent-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1677ff;
+  animation: agent-pulse 1s ease-in-out infinite;
+}
+@keyframes agent-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.agent-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.agent-step {
+  background: #fff;
+  border: 1px solid #eef0f4;
+  border-left: 3px solid #d9d9d9;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.agent-step.is-running {
+  border-left-color: #1677ff;
+}
+.agent-step.is-done {
+  border-left-color: #52c41a;
+}
+.agent-step.is-error {
+  border-left-color: #ff4d4f;
+}
+.agent-step-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #595959;
+}
+.agent-step-no {
+  background: #f0f0f0;
+  border-radius: 4px;
+  padding: 0 6px;
+  font-size: 11px;
+  color: #8c8c8c;
+  min-width: 20px;
+  text-align: center;
+}
+.agent-step-result {
+  margin-top: 6px;
+}
+.agent-step-result pre {
+  margin: 0;
+  background: #fafbfc;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: #8c8c8c;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 96px;
+  overflow: auto;
+}
+.agent-step-detail {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #8c8c8c;
+}
+.agent-step-detail summary {
+  cursor: pointer;
+  color: #bfbfbf;
+  user-select: none;
+}
+.agent-step-detail pre {
+  margin: 4px 0 0;
+  background: #fafbfc;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: #8c8c8c;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 120px;
+  overflow: auto;
+}
+
+/* 最终答案 */
+.answer-block {
+  border-top: 1px solid #f0f0f0;
+  padding-top: 12px;
+}
+.answer-header {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1677ff;
+  margin-bottom: 8px;
+}
+.answer-markdown {
+  font-size: 16px;
+  line-height: 1.8;
+  color: #262626;
+}
+.answer-meta {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #8c8c8c;
+}

@@ -362,8 +362,9 @@ class GetEntitiesOfConceptTool(BaseTool):
 class GetEvidencesOfNodeTool(BaseTool):
     name = "get_evidences_of_node"
     description = (
-        "获取某个 L1 概念或 L2 实体关联的所有 L3 证据（appears_in / described_by 跨层关系），"
-        "直接返回原文片段和章节定位，用于溯源。"
+        "获取某个 L1 概念或 L2 实体关联的所有 L3 证据（跨层 described_by / appears_in 边）。"
+        "每条证据带 rel 字段：described_by=该证据在“讲”此节点（强/定义性），"
+        "appears_in=该证据只是“提到”此节点（弱/提及性）。直接返回原文片段和章节定位，用于溯源和判断引用强度。"
     )
     parameters = {
         "type": "object",
@@ -381,27 +382,31 @@ class GetEvidencesOfNodeTool(BaseTool):
         node = self.kg.get_node(nid)
         if not node:
             return ToolResult(self.name, False, message=f"节点不存在: {nid}")
-        ev_ids = list(node.evidence_ids)
-        # 补充边里的 appears_in / described_by
-        for e in self.kg.get_edges(nid, direction="out", edge_type=None):
-            if e.layer in ("L1-L3", "L2-L3"):
-                ev_ids.append(e.target)
-        # 去重保序
+        # 以跨层边为权威来源（canonical），保留关系类型语义：
+        #   described_by = 该证据在“讲”这个概念（强/定义性）
+        #   appears_in   = 该证据只是“提到”这个实体（弱/提及性）
+        # evidence_ids 只是边的投影，不再双写合并；若出现投影漂移，兜底保留并
+        # 标注 rel=None（数据不一致由 eval/validate_kg.py 报警）。
+        pairs: List[Tuple[str, Optional[str]]] = []
         seen = set()
-        ordered: List[str] = []
-        for x in ev_ids:
-            if x not in seen:
-                seen.add(x)
-                ordered.append(x)
+        for e in self.kg.get_edges(nid, direction="out"):
+            if e.layer in ("L1-L3", "L2-L3") and e.target not in seen:
+                seen.add(e.target)
+                pairs.append((e.target, e.type))
+        for eid in node.evidence_ids:  # 投影兜底（数据一致时此处应为空）
+            if eid not in seen:
+                seen.add(eid)
+                pairs.append((eid, None))
         limit = int(params.get("limit", 20))
         snippet_chars = int(params.get("snippet_chars", 1000))
         include_snippet = bool(params.get("include_snippet", True))
         evidences: List[Dict] = []
-        for eid in ordered[:limit]:
+        for eid, rel in pairs[:limit]:
             ev = self.kg.get_evidence(eid)
             if not ev:
                 continue
             d = ev.to_dict()
+            d["rel"] = rel
             if not include_snippet:
                 d.pop("snippet", None)
             elif "snippet" in d and len(d["snippet"]) > snippet_chars:
@@ -410,7 +415,7 @@ class GetEvidencesOfNodeTool(BaseTool):
         return ToolResult(self.name, True, data={
             "node_id": nid,
             "node_name": node.name,
-            "total": len(ordered),
+            "total": len(pairs),
             "evidences": evidences,
         })
 
