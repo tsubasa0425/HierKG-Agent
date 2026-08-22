@@ -43,7 +43,7 @@ _DEFAULT_CONFIG = {
     "neo4j": {
         "uri": "bolt://localhost:7687",
         "username": "neo4j",
-        "password": "",
+        "password": "",   # 真实凭据放 gitignore 的 storage.yaml（模板见 storage.yaml.example）
         "database": "treekg",
     },
     "chroma": {
