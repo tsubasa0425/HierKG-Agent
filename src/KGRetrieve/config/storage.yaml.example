@@ -1,0 +1,17 @@
+# TreeKG 知识图谱存储配置（示例，复制为 storage.yaml 后填写真实凭据）
+# KGRetrieve 数据库后端（Neo4j + ChromaDB）
+# 注意：storage.yaml 含 Neo4j 密码，已 gitignore，禁止提交。
+
+Neo4jConfig:
+  URI: "bolt://localhost:7687"
+  USERNAME: "neo4j"
+  PASSWORD: "<YOUR_NEO4J_PASSWORD>"
+  DATABASE: "neo4j"
+  MAX_CONNECTION_LIFETIME: 3600
+  MAX_CONNECTION_POOL_SIZE: 50
+  CONNECTION_ACQUISITION_TIMEOUT: 60
+
+ChromaConfig:
+  EMBEDDING_MODEL: "bge-m3"
+  OLLAMA_HOST: "http://localhost:11434"
+  PERSIST_DIRECTORY: "./chroma_db"

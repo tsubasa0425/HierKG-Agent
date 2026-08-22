@@ -76,6 +76,20 @@ def build_system_prompt(registry) -> str:
 4. 控制工具参数 limit，避免一次拉取过大。"""
 
 
+# 回答轮专用系统提示词：检索阶段已结束，模型不再拥有工具，只许文字作答。
+# 与 build_system_prompt 分离，避免模型在最终回答时仍认为自己可以调工具——
+# deepseek 会在回答轮把工具调用写成 <tool_calls> XML 文本，需从源头掐断
+# （工具轮/回答轮用两套 system prompt，而非同一套）。
+ANSWER_SYSTEM_PROMPT = (
+    "你是 TreeKG 四层知识图谱（L1 概念 / L2 实体 / L3 证据）检索 Agent 的最终回答环节。\n"
+    "【检索阶段已全部结束】上方消息记录中已有检索到的证据。\n"
+    "请直接基于这些证据，给出最终的中文回答（Markdown），用 [ev_xxx] 标注证据来源；"
+    "证据不足就明说，不要编造。\n"
+    "严禁输出任何工具调用格式：禁止出现 <tool_calls>、<tool_call>、<invoke>、<parameter> 等 "
+    "XML 标签，也不要描述检索动作，直接给答案。"
+)
+
+
 # ---------------------------------------------------------------------------
 # 工具结果处理（从 agent_loop.py 原样搬入，行为逐字对齐）
 # ---------------------------------------------------------------------------
@@ -238,7 +252,11 @@ async def answer(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     else:
         writer({"event": "status", "data": {"status": "answering", "message": "检索完成，正在生成回答..."}})
 
-    messages = state["messages"]
+    # 检索阶段已结束：换掉工具导向的系统提示词，模型只以"最终作答"身份输出文字，
+    # 从源头避免把工具调用写成 <tool_calls> XML 文本（只影响回答轮，不污染 agent 轮）。
+    messages = [SystemMessage(content=ANSWER_SYSTEM_PROMPT)] + [
+        m for m in state["messages"] if not isinstance(m, SystemMessage)
+    ]
     stripped = ""
     for attempt in range(2):
         final = ""

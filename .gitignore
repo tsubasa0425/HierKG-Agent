@@ -33,6 +33,9 @@ src/KGRetrieve/models/
 src/KGBuild/config/explicit_config.yaml
 src/KGBuild/config/hidden_config.yaml
 
+# 存储凭据配置（含 Neo4j 密码，禁止提交）
+src/KGRetrieve/config/storage.yaml
+
 # 日志和临时文件
 *.log
 *.tmp
