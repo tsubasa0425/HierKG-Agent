@@ -25,6 +25,35 @@ async def run_agent_once(registry, cfg: Dict[str, Any], question: str, max_round
     return events, round((time.perf_counter() - t0) * 1000)
 
 
+# 跨层边类型 → 引用强度：described_by 是定义性（证据在"讲"此节点），appears_in 是提及性。
+_CROSS_LAYERS = ("L1-L3", "L2-L3")
+_REL_WEIGHT = {"described_by": 1.0, "appears_in": 0.5}
+
+
+def resolve_citation_rels(registry, golden_node_ids, cited_ids):
+    """被引证据 → 引用强度。从黄金节点的跨层出边解析：
+    described_by=definition(定义/1.0)，appears_in=mention(提及/0.5)。
+    同一证据被多个黄金节点以不同边类型挂靠时取强（definition）。
+    黄金节点为空或证据不在黄金节点出边上 → 不算强度（中性 1.0，交给 judge 内容判断）。
+    """
+    cited = set(cited_ids or [])
+    rels: Dict[str, str] = {}
+    weights: Dict[str, float] = {}
+    for nid in (golden_node_ids or []):
+        try:
+            edges = registry.kg.get_edges(nid, direction="out")
+        except Exception:
+            continue
+        for e in edges:
+            if e.layer not in _CROSS_LAYERS or e.target not in cited:
+                continue
+            w = _REL_WEIGHT.get(e.type, 1.0)
+            if e.target not in weights or w > weights[e.target]:
+                weights[e.target] = w
+                rels[e.target] = "definition" if e.type == "described_by" else "mention"
+    return rels, weights
+
+
 def _strip_think(text: str) -> str:
     import re
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.S)
@@ -96,7 +125,21 @@ async def run_one(registry, cfg, item: Dict[str, Any], max_rounds: int = 8,
     answer = _strip_think(done.get("answer", ""))
     cited = sorted({m for m in CITATION_RE.findall(answer)})
     retrieved = replay_retrieved(registry, trace["tool_calls"])
+    retrieved_set = set(retrieved)
     golden = set(item.get("golden_evidence_ids") or [])
+    golden_nodes = list((item.get("golden_concept_ids") or [])
+                        + (item.get("golden_entity_ids") or []))
+    citation_rels, rel_weights = resolve_citation_rels(registry, golden_nodes, cited)
+
+    # rel 加权引用真实性：定义性引用权重 1.0、提及性 0.5；未挂靠黄金节点的引用中性 1.0。
+    # 分母=全部引用的权重和，分子=其中真的被检索到的权重和——定义性引用若没检索到，
+    # 比提及性引用没检索到更伤分。
+    if cited:
+        w_total = sum(rel_weights.get(e, 1.0) for e in cited)
+        w_grounded = sum(rel_weights.get(e, 1.0) for e in cited if e in retrieved_set)
+        citation_weighted = w_grounded / w_total if w_total else None
+    else:
+        citation_weighted = None
 
     row.update({
         "no_done": False,
@@ -107,12 +150,16 @@ async def run_one(registry, cfg, item: Dict[str, Any], max_rounds: int = 8,
         "cited_ids": cited,
         "n_cited": len(cited),
         # grounding：答案引用的证据里，有多大比例是系统真的检索到的
-        "grounding_fraction": (len(set(cited) & set(retrieved)) / len(cited)
+        "grounding_fraction": (len(retrieved_set & set(cited)) / len(cited)
                                if cited else None),
-        "ungrounded_citations": sorted(set(cited) - set(retrieved)),
+        "ungrounded_citations": sorted(set(cited) - retrieved_set),
         # 引用覆盖率：golden 证据里被答案引用的比例
         "citation_coverage": (len(set(cited) & golden) / len(golden)
                               if golden else None),
+        # 引用强度：被引证据相对黄金节点的边类型（definition=定义性 / mention=提及性）
+        "citation_rels": citation_rels,
+        # rel 加权引用真实性：0–1，定义性引用权重大
+        "citation_weighted": citation_weighted,
         "retrieved_evidence_count": len(retrieved),
     })
 
@@ -128,6 +175,8 @@ async def run_one(registry, cfg, item: Dict[str, Any], max_rounds: int = 8,
             retrieved_ids=retrieved,
             grounding_fraction=row["grounding_fraction"],
             citation_coverage=row["citation_coverage"],
+            citation_rels=citation_rels,
+            citation_weighted=citation_weighted,
         )
     return row
 

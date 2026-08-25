@@ -95,14 +95,19 @@ async def _llm_score(cfg: Dict[str, Any], prompt: str) -> Optional[Dict[str, Any
 
 def _fallback(question: str, reference_answer: str, answer: str, golden_evidence_ids: List[str],
               cited_ids: List[str], grounding_fraction: Optional[float],
-              citation_coverage: Optional[float]) -> Dict[str, Any]:
-    """确定性回退：grounding 分 → faithfulness/citation，bigram Dice → 其余。"""
+              citation_coverage: Optional[float],
+              citation_weighted: Optional[float] = None) -> Dict[str, Any]:
+    """确定性回退：grounding 分 → faithfulness/citation，bigram Dice → 其余。
+
+    citation 维度优先用 rel 加权指标（定义性引用权重大），没算出来再回退到 golden 覆盖率。
+    """
     cited = set(cited_ids or [])
     golden = set(golden_evidence_ids or [])
     if cited:
         faithfulness = grounding_fraction if grounding_fraction is not None else 0.0
-        citation = (len(cited & golden) / len(golden) if golden
-                    else (grounding_fraction if grounding_fraction is not None else 0.0))
+        citation = (citation_weighted if citation_weighted is not None
+                    else (len(cited & golden) / len(golden) if golden
+                          else (grounding_fraction if grounding_fraction is not None else 0.0)))
     else:
         faithfulness = 0.0
         citation = 0.0
@@ -117,15 +122,29 @@ def _fallback(question: str, reference_answer: str, answer: str, golden_evidence
         "completeness": to5(completeness),
         "relevance": to5(relevance),
         "citation": to5(citation),
-        "reason": "fallback: LLM judge 不可用，基于引用 grounding 与 bigram Dice 的启发式评分",
+        "reason": "fallback: LLM judge 不可用，基于引用 grounding/rel 加权与 bigram Dice 的启发式评分",
     }
+
+
+def _rels_text(citation_rels: Optional[Dict[str, str]]) -> str:
+    """把被引证据的引用强度分类渲染成 judge 的输入块。"""
+    if not citation_rels:
+        return ""
+    lines = []
+    for eid, rel in sorted(citation_rels.items()):
+        label = "定义性（described_by，该证据在定义/讲解相关概念，强）" if rel == "definition" \
+            else "提及性（appears_in，该证据只是顺带提到，弱）"
+        lines.append(f"- [{eid}]: {label}")
+    return "\n".join(lines)
 
 
 async def score(cfg: Dict[str, Any], *, question: str, reference_answer: str,
                 golden_evidence_ids: List[str], snippets: List[Dict[str, Any]],
                 answer: str, cited_ids: List[str], retrieved_ids: Optional[List[str]] = None,
                 grounding_fraction: Optional[float],
-                citation_coverage: Optional[float]) -> Dict[str, Any]:
+                citation_coverage: Optional[float],
+                citation_rels: Optional[Dict[str, str]] = None,
+                citation_weighted: Optional[float] = None) -> Dict[str, Any]:
     """评一道题。返回 {faithfulness, completeness, relevance, citation, reason, judge_source}。"""
     if not answer:
         return {
@@ -136,6 +155,13 @@ async def score(cfg: Dict[str, Any], *, question: str, reference_answer: str,
     golden_text = "、".join(golden_evidence_ids or ["（无）"])
     snip_text = "\n".join(f"- [{s['id']}] {s['snippet']}" for s in snippets) or "（无检索证据片段）"
     retrieved_text = "、".join(retrieved_ids or []) or "（无）"
+    rels_block = _rels_text(citation_rels)
+    rels_instruction = (
+        "\n- citation（引用质量）评分时，**定义性引用比提及性引用权重更高**：定义性引用是"
+        "该证据在定义/讲解问题涉及的概念（强），提及性引用只是顺带提到（弱）。\n"
+        f"【答案引用的引用强度】（judge 已按图谱边类型解析；未列出的引用视为中性）\n{rels_block}\n"
+        if rels_block else ""
+    )
     prompt = f"""你是严格的 RAG 系统评测员。请对「系统给出的答案」按四个维度各打 1–5 分（整数），并给出一句理由。
 
 【用户问题】{question}
@@ -153,8 +179,7 @@ async def score(cfg: Dict[str, Any], *, question: str, reference_answer: str,
 - faithfulness（忠实度）：答案内容是否都能由检索到的证据支撑，有没有编造。
 - completeness（完整性）：相对参考答案，答案覆盖了哪些关键点，有没有漏答。
 - relevance（相关性）：答案是否紧扣问题本身，有没有跑题。
-- citation（引用质量）：答案是否用 [ev_...] 引用「系统实际检索到的证据 ID」列表中的证据，引用是否准确、充分（引用列表之外的 ID 视为无效引用）。
-
+- citation（引用质量）：答案是否用 [ev_...] 引用「系统实际检索到的证据 ID」列表中的证据，引用是否准确、充分（引用列表之外的 ID 视为无效引用）。{rels_instruction}
 只输出一个 JSON 对象，格式：
 {{"faithfulness": 5, "completeness": 4, "relevance": 5, "citation": 3, "reason": "一句话理由"}}"""
 
@@ -163,7 +188,8 @@ async def score(cfg: Dict[str, Any], *, question: str, reference_answer: str,
         return {**scores, "judge_source": "llm"}
     return {
         **{k: v for k, v in _fallback(question, reference_answer, answer, golden_evidence_ids,
-                                      cited_ids, grounding_fraction, citation_coverage).items()
+                                      cited_ids, grounding_fraction, citation_coverage,
+                                      citation_weighted).items()
            if k != "reason"},
         "reason": "LLM judge 3 次重试失败，使用启发式回退评分",
         "judge_source": "fallback",

@@ -8,6 +8,10 @@
 evidence_ids 只是边的投影缓存。本脚本守护这条不变量——一旦构建过程让两者
 漂移（节点上多了/少了证据而边表没同步），检索会漏证据或引用失真，必须报警。
 
+唯一合法例外：FinalKG 3.5 步的「派生导语」证据（evidence.derived=true）只进边、
+不进投影——它们是图导航锚点，不该被检索传播当候选证据（否则挤占真实叶子，
+实测 Recall@10 掉 5.4pp）。见 FinalKG.py pass 5 注释。
+
 同时报告：
   - 每个概念/实体 evidence_ids 与其跨层出边 target 集合的差集（漂移明细）
   - 没有任何跨层边可达的「孤儿证据」——只能靠向量搜索命中，图导航到不了
@@ -36,11 +40,16 @@ def validate(kg: Dict[str, Any]) -> Dict[str, Any]:
 
     drift: List[Dict[str, Any]] = []
     nodes_checked = 0
+    # 派生导语证据（FinalKG 3.5 步打标 derived）：只进跨层边做图导航锚点、
+    # 不进 evidence_ids 投影（否则检索传播会拿它们当候选证据排挤真实叶子）。
+    # 因此「有边但投影无」对它们合法，漂移检查需豁免。
+    derived_ev = {e["evidence_id"] for e in kg["L3_evidences"] if e.get("derived")}
     for layer, idkey in (("L1_concepts", "concept_id"), ("L2_entities", "entity_id")):
         for n in kg[layer]:
             nid = n[idkey]
             evids = set(_evid(n))
-            edge_targets = {e["target"] for e in cross_by_source.get(nid, [])}
+            edge_targets = {e["target"] for e in cross_by_source.get(nid, [])
+                            if e["target"] not in derived_ev}
             nodes_checked += 1
             if evids != edge_targets:
                 drift.append({
@@ -61,6 +70,7 @@ def validate(kg: Dict[str, Any]) -> Dict[str, Any]:
         "n_orphans": len(orphans),
         "orphans": orphans,
         "reachable_ratio": (len(all_ev) - len(orphans)) / len(all_ev) if all_ev else 1.0,
+        "n_derived": len(derived_ev),
     }
 
 
@@ -80,7 +90,7 @@ def main(argv=None) -> int:
         print(f"  ⚠ {d['node_id']} ({d['layer']}): "
               f"仅 evidence_ids={d['only_in_evidence_ids']} 仅边={d['only_in_edges']}")
     print(f"证据: {r['n_evidence']} 个，孤儿（无跨层边可达）{r['n_orphans']} 个，"
-          f"图可达率 {r['reachable_ratio']:.1%}")
+          f"图可达率 {r['reachable_ratio']:.1%}，派生导语 {r['n_derived']} 个（仅图导航、不进检索投影）")
     if r["orphans"]:
         print("  孤儿证据: " + ", ".join(r["orphans"]))
 
@@ -88,9 +98,9 @@ def main(argv=None) -> int:
         print("✗ 存在投影漂移：evidence_ids 与跨层边不一致，请修构建逻辑")
         return 1
     if r["n_orphans"]:
-        print("⚠ evidence_ids 与跨层边完全一致；有孤儿证据（非漂移，但图导航到不了它们）")
+        print("⚠ evidence_ids 与跨层边一致（派生豁免已生效）；有孤儿证据（非漂移，但图导航到不了它们）")
     else:
-        print("✓ evidence_ids 与跨层边完全一致，图可达全部证据")
+        print("✓ evidence_ids 与跨层边一致，图可达全部证据（派生导语豁免）")
     return 0
 
 

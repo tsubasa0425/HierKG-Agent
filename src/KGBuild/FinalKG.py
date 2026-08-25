@@ -155,6 +155,33 @@ def assemble():
 
     sec2ev = build_section_to_evidence(l3_evidences)
 
+    # 3.5) 父级证据补边：章/节导语补齐 entities_in_section。
+    #     根因：Extraction.collect_subsections 只把「没有子节点的节」送进 extract_entities，
+    #     章（level1）与带子节的节（如 1.1 / 2.1）整个被跳过——它们的导语内容有正文
+    #     （267-536 字）却从未被扫描实体 → entities_in_section 为空 → 无跨层边 → 孤儿证据，
+    #     图导航到不了、只能靠向量命中。
+    #     修法：空 entities_in_section 的父级证据，按 section_id 层级从「后代证据的
+    #     entities_in_section」取并集继承（1章→1.x…，1.1→1.1.x…），pass 4 自然建边。
+    #     从快照读取，避免中间派生互相级联（顺序无关）。叶子节无后代 → 不变。
+    #     派生边在 pass 4 一律降权为 appears_in（章/节导语只是概述「提到」其下概念，
+    #     不是定义，不应带 described_by 的 1.0 定义权重注入检索）。
+    _orig_ent = {e["evidence_id"]: list(e.get("entities_in_section") or [])
+                 for e in l3_evidences}
+    _derived: set = set()   # 被 3.5 派生的证据 ID（pass 4 据此降权）
+    for ev in l3_evidences:
+        if _orig_ent.get(ev["evidence_id"]):
+            continue
+        prefix = (ev.get("section_id") or "").rstrip("章") + "."
+        child_ents = set()
+        for other in l3_evidences:
+            osid = other.get("section_id") or ""
+            if osid != ev.get("section_id") and osid.startswith(prefix):
+                child_ents.update(_orig_ent.get(other["evidence_id"]) or [])
+        if child_ents:
+            ev["entities_in_section"] = sorted(child_ents)
+            ev["derived"] = True      # 打标：派生导语只做图导航锚点，不进检索投影（见 pass 5）
+            _derived.add(ev["evidence_id"])
+
     # === 边装配 ===
     edges: List[dict] = []
     edge_set: set = set()
@@ -203,44 +230,57 @@ def assemble():
 
     # 3) 跨层 L1→L3 / L2→L3：appears_in
     #    依据：实体 occurrences 的 node_id(=section_id) → evidence_id
-    #    同时回填节点的 evidence_ids
-    ev_by_id = {ev["evidence_id"]: ev for ev in l3_evidences}
+    #    注意：evidence_ids 不在此回填，统一在 pass 4 之后从跨层边派生（见 #5）——
+    #    同一节点会经 occurrence（本 pass）与 entities_in_section（pass 4）两条路径挂边，
+    #    两条路径各自回填必漏一条造成投影漂移（2026-08-25 实测 20 个漂移节点）。
 
     def _link_to_evidence(node_id: str, layer_name: str, occurrences: List[dict]):
-        ev_ids: List[str] = []
         for occ in occurrences or []:
             sid = (occ.get("node_id") or "").strip()
             evid = sec2ev.get(sid)
             if not evid:
                 continue
-            ev_ids.append(evid)
             # L1→L3 用 described_by，L2→L3 用 appears_in（区分概念定义出处 vs 实体出现处）
             rel = "described_by" if layer_name == "concept" else "appears_in"
             add_edge(node_id, evid, rel, f"L{1 if layer_name=='concept' else 2}-L3")
-        return ev_ids
 
-    # 回填 L1 concepts 的 evidence_ids
     for c in l1_concepts:
-        ent = entities.get(c["name"], {})
-        ev_ids = _link_to_evidence(c["concept_id"], "concept", ent.get("occurrences") or [])
-        c["evidence_ids"] = sorted(set(ev_ids))
-
-    # 回填 L2 entities 的 evidence_ids
+        _link_to_evidence(c["concept_id"], "concept",
+                          entities.get(c["name"], {}).get("occurrences") or [])
     for e2 in l2_entities:
-        ent = entities.get(e2["name"], {})
-        ev_ids = _link_to_evidence(e2["entity_id"], "entity", ent.get("occurrences") or [])
-        e2["evidence_ids"] = sorted(set(ev_ids))
+        _link_to_evidence(e2["entity_id"], "entity",
+                          entities.get(e2["name"], {}).get("occurrences") or [])
 
     # 4) 补充：evidence.entities_in_section → 反向连接（确保证据侧声明的实体也被挂上）
+    #    3.5 派生的父级证据（_derived）边一律 appears_in：章/节导语只概述「提到」其下
+    #    概念，不是定义，降为提及级（0.5），避免最强权重注入噪声。
     for ev in l3_evidences:
         evid = ev["evidence_id"]
+        derived = evid in _derived
         for nm in ev.get("entities_in_section") or []:
             if nm not in name_to_node_id:
                 continue
             node_id = name_to_node_id[nm]
             layer_name = name_to_layer[nm]
-            rel = "described_by" if layer_name == "concept" else "appears_in"
+            rel = "appears_in" if (derived or layer_name == "entity") else "described_by"
             add_edge(node_id, evid, rel, f"L{1 if layer_name=='concept' else 2}-L3")
+
+    # 5) 统一回填 evidence_ids：从跨层边派生（边为唯一权威，evidence_ids 只是投影缓存）。
+    #    全部跨层边（L1-L3/L2-L3）建完后重算，保证 evidence_ids 恒等于节点跨层出边
+    #    target 集合 —— eval/validate_kg.py 守护的不变量，缺了会漏证据/引用失真。
+    #    2026-08-25 例外：_derived（3.5 步派生的父级导语证据）只进边、不进投影——
+    #    它们只是图导航锚点，若进 evidence_ids 会被检索传播当候选证据，排挤真实
+    #    叶子证据（实测 0005/0009/0014 Recall@10 掉 5.4pp）。投影=检索、边=导航，
+    #    两条职责分离。validate_kg 已同步豁免派生证据。
+    cross_layers = ("L1-L3", "L2-L3")
+    evidence_by_node: Dict[str, set] = {}
+    for e in edges:
+        if e["layer"] in cross_layers and e["target"] not in _derived:
+            evidence_by_node.setdefault(e["source"], set()).add(e["target"])
+    for c in l1_concepts:
+        c["evidence_ids"] = sorted(evidence_by_node.get(c["concept_id"], set()))
+    for e2 in l2_entities:
+        e2["evidence_ids"] = sorted(evidence_by_node.get(e2["entity_id"], set()))
 
     # === 输出 ===
     kg = {

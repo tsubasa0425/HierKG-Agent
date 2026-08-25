@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -58,7 +59,7 @@ def markdown(run: Dict[str, Any]) -> str:
     L: List[str] = []
     cfg, summary = run["config"], run["summary"]
 
-    L.append("# TreeKG 评测报告\n")
+    L.append("# HierKG 评测报告\n")
     L.append(f"- 生成时间: {run['dir'].name}  (UTC 时间戳目录)")
     if cfg.get("git_head"):
         L.append(f"- git HEAD: `{cfg['git_head']}`")
@@ -132,6 +133,16 @@ def markdown(run: Dict[str, Any]) -> str:
 
     # —— ⑤ Agent 层 ——
     traces = run["traces"]
+
+    def _has_tool_markup(answer: str) -> bool:
+        """答案是否残留工具调用标记：DSML 全角竖线（<｜DSML｜...>）或 ASCII 尖括号版本。"""
+        if "DSML" in answer:                                    # <｜DSML｜...> / <||DSML||...>
+            return True
+        return bool(re.search(r"<tool_calls?\b|<invoke\b", answer, re.IGNORECASE))
+
+    def _is_degenerate(r) -> bool:
+        return bool(r.get("no_done")) or r.get("n_cited") == 0 \
+            or _has_tool_markup(r.get("answer") or "")
     if traces:
         L.append("## 4. 端到端 Agent 层\n")
         ok = [r for r in traces if not r.get("has_error") and not r.get("no_done")]
@@ -150,10 +161,11 @@ def markdown(run: Dict[str, Any]) -> str:
                 L.append(f"- 引用 grounding：{_pct(sum(g) / len(g))}  （答案引用中确实被检索到的比例）")
             if cc:
                 L.append(f"- 引用覆盖率：{_pct(sum(cc) / len(cc))}  （golden 证据中被答案引用的比例）")
-            def _degenerate(r):
-                return bool(r.get("no_done")) or r.get("n_cited") == 0 \
-                    or (bool(r.get("answer")) and "<invoke" in r["answer"])
-            deg = [r for r in traces if _degenerate(r)]
+            cw = [r.get("citation_weighted") for r in ok if r.get("citation_weighted") is not None]
+            if cw:
+                L.append(f"- 引用真实性（rel 加权）：{_pct(sum(cw) / len(cw))}  "
+                         f"（定义性引用 described_by 权重 1.0、提及性 appears_in 0.5；越靠近黄金定义的引用越关键）")
+            deg = [r for r in traces if _is_degenerate(r)]
             if deg:
                 L.append(f"- ⚠ **{len(deg)}/{len(traces)} 题为退化答案**（未给出文字回答，输出工具调用 XML 或零引用），"
                          f"judge 记 1 分；正常作答题的平均分见下）")
@@ -165,7 +177,7 @@ def markdown(run: Dict[str, Any]) -> str:
                 for dim in ("faithfulness", "completeness", "relevance", "citation"):
                     all_v = [j.get(dim) for j in llm_judges if j.get(dim) is not None]
                     norm_v = [j.get(dim) for j, r in zip(llm_judges, ok)
-                              if j.get(dim) is not None and not _degenerate(r)]
+                              if j.get(dim) is not None and not _is_degenerate(r)]
                     L.append(f"| {dim} | {sum(all_v) / len(all_v):.2f} | "
                              f"{sum(norm_v) / len(norm_v):.2f} |")
                 L.append(f"\n- LLM judge 判分行: {len(llm_judges)}/{len(judges)}（其余为启发式回退）")
@@ -176,8 +188,8 @@ def markdown(run: Dict[str, Any]) -> str:
     # —— ⑥ 逐题明细 ——
     traces_by_id = {r.get("id"): r for r in (traces or [])}
     L.append("## 5. 逐题明细\n")
-    L.append("| 题ID | 类别 | 概念@10 | 实体@10 | 证据KG@10 | flat@10 | 引用数 | grounding | 引用覆盖率 | agent退化 |")
-    L.append("|---|---|---|---|---|---|---|---|---|---|")
+    L.append("| 题ID | 类别 | 概念@10 | 实体@10 | 证据KG@10 | flat@10 | 引用数 | grounding | 引用加权 | 引用覆盖率 | agent退化 |")
+    L.append("|---|---|---|---|---|---|---|---|---|---|---|")
     for r in run["retrieval"]:
         c = r.get("concept", {}) or {}
         e = r.get("entity", {}) or {}
@@ -186,13 +198,14 @@ def markdown(run: Dict[str, Any]) -> str:
         t = traces_by_id.get(r["id"]) or {}
         n_cited = t.get("n_cited")
         g = t.get("grounding_fraction")
+        cw = t.get("citation_weighted")
         cc = t.get("citation_coverage")
-        deg = (t.get("no_done") or t.get("n_cited") == 0
-               or (bool(t.get("answer")) and "<invoke" in t["answer"]))
+        deg = _is_degenerate(t)
         L.append(f"| {r['id']} | {r['category']} | {_pct(c.get('recall@10'))} | "
                  f"{_pct(e.get('recall@10')) if e else '—'} | {_pct(ev.get('recall@10'))} | "
                  f"{_pct(flat.get('recall@10')) if flat else '—'} | {n_cited if n_cited is not None else '—'} | "
-                 f"{_pct(g) if g is not None else '—'} | {_pct(cc) if cc is not None else '—'} | "
+                 f"{_pct(g) if g is not None else '—'} | {_pct(cw) if cw is not None else '—'} | "
+                 f"{_pct(cc) if cc is not None else '—'} | "
                  f"{'⚠ XML' if deg else ''} |")
     L.append("")
 
