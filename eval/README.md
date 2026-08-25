@@ -1,4 +1,4 @@
-# TreeKG 评测子系统
+# HierKG 评测子系统
 
 证明「四层知识图谱检索 > 扁平 RAG」的评估体系：手写 25 道黄金 QA 题，跑**检索层**（确定性、零成本）+ **端到端 Agent 层**（真实 `run_agent` + LLM-as-judge），并加朴素 RAG 扁平向量检索做**消融基线**。
 
@@ -8,7 +8,7 @@
 
 ```bash
 # ① 校验数据集（不碰 DB）
-python -m eval.datasets.resolver --validate eval/datasets/treekg_qa.json
+python -m eval.datasets.resolver --validate eval/datasets/hierkg_qa.json
 
 # ② 数据纪律：evidence_ids(投影) 与跨层边(canonical) 一致性（不碰 DB，秒级）
 python -m eval.validate_kg
@@ -61,7 +61,7 @@ judge 上下文喂的是 agent **实际检索到的证据片段**（不是重新
 ### LLM-as-judge（`eval/agent/judge.py`）
 DeepSeek（temp 0，OpenAI 兼容），一次评四维（faithfulness/completeness/relevance/citation，1–5）+ 一句理由，严格 JSON。3 次重试退避；失败回退确定性启发式（引用 grounding → 忠实度/引用，中文 bigram Dice → 完整度/相关性），标 `judge_source: llm|fallback`，报告只在 llm 行上断言硬指标。
 
-## 黄金数据集（`eval/datasets/treekg_qa.json`）
+## 黄金数据集（`eval/datasets/hierkg_qa.json`）
 
 25 题，5 类各 5 题：`definition / single_hop / multi_hop / instance / comparison`。
 
@@ -81,7 +81,7 @@ eval/
   common.py           # ID/引用正则、extract_evidence_ids 深遍历、JSONL 写出、run 目录
   report.py           # 聚合 → report.md
   datasets/
-    treekg_qa.json    # 黄金数据集
+    hierkg_qa.json    # 黄金数据集
     resolver.py       # GoldenResolver：名称→ID、证据去重镜像、校验
   retrieval/
     runner.py         # RetrievalRunner：确定性工具流水线 → 分层排序

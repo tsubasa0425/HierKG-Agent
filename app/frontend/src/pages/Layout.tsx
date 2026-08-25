@@ -17,7 +17,7 @@ export default function AppLayout() {
     <Layout style={{ minHeight: '100vh' }}>
       <Sider theme="dark" width={220}>
         <div style={{ padding: '20px 16px', color: '#fff', fontSize: 18, fontWeight: 'bold' }}>
-          🧠 TreeKG Agent
+          🧠 HierKG Agent
         </div>
         <Menu
           theme="dark"
@@ -29,7 +29,7 @@ export default function AppLayout() {
       </Sider>
       <Layout>
         <Header style={{ background: '#fff', padding: '0 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center' }}>
-          <span style={{ fontSize: 16, fontWeight: 500 }}>TreeKG 知识图谱 Agent</span>
+          <span style={{ fontSize: 16, fontWeight: 500 }}>HierKG 知识图谱 Agent</span>
         </Header>
         <Content style={{ margin: 24, padding: 24, background: '#fff', borderRadius: 8, overflow: 'auto' }}>
           <Outlet />

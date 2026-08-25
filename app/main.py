@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""TreeKG Web UI —— FastAPI 入口。
+"""HierKG Web UI —— FastAPI 入口。
 
 启动：python -m uvicorn app.main:app --port 8777
 """
@@ -21,9 +21,9 @@ from app.config import load_llm_config
 from app.routers import chat, graph  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
-logger = logging.getLogger("treekg-web")
+logger = logging.getLogger("hierkg-web")
 
-app = FastAPI(title="TreeKG Agent Web UI")
+app = FastAPI(title="HierKG Agent Web UI")
 
 app.add_middleware(
     CORSMiddleware,

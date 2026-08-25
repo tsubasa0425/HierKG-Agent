@@ -15,7 +15,7 @@ KGRetrieve 的全部检索工具（搜索 / 精确查找 / 图遍历 / 重排 / 
 Agent 侧接入示例（Claude Code .mcp.json 风格）：
     {
       "mcpServers": {
-        "treekg": {
+        "hierkg": {
           "command": "conda",
           "args": ["run", "-n", "TreeKG", "python", "-m", "src.KGRetrieve.mcp_server"],
           "cwd": "d:\\workspace\\HierKG-Agent"
@@ -119,8 +119,8 @@ def build_server() -> MCPServer:
     registry = ToolRegistry(kg)
 
     server = MCPServer(
-        "treekg",
-        title="TreeKG 四层知识图谱检索",
+        "hierkg",
+        title="HierKG 四层知识图谱检索",
         version="1.0.0",
     )
 
@@ -159,11 +159,11 @@ def _main() -> None:
     n_tools = asyncio.run(_list_tool_count(server))
 
     if args.transport == "stdio":
-        print(f"✅ TreeKG MCP server 就绪（stdio，{n_tools} 个工具）",
+        print(f"✅ HierKG MCP server 就绪（stdio，{n_tools} 个工具）",
               file=sys.stderr, flush=True)
         server.run(transport="stdio")
     else:
-        print(f"✅ TreeKG MCP server 就绪（{args.transport}，端口 {args.http_port}）",
+        print(f"✅ HierKG MCP server 就绪（{args.transport}，端口 {args.http_port}）",
               file=sys.stderr, flush=True)
         server.run(transport=args.transport, port=args.http_port)
 

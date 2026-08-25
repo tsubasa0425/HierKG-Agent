@@ -44,13 +44,13 @@ _DEFAULT_CONFIG = {
         "uri": "bolt://localhost:7687",
         "username": "neo4j",
         "password": "",   # 真实凭据放 gitignore 的 storage.yaml（模板见 storage.yaml.example）
-        "database": "treekg",
+        "database": "neo4j",   # Neo4j Community 不支持 CREATE DATABASE，只能用工内置默认库 neo4j
     },
     "chroma": {
         "persist_directory": "./chroma_db",
-        "node_collection": "treekg_nodes",
-        "edge_collection": "treekg_edges",
-        "evidence_collection": "treekg_evidences",
+        "node_collection": "hierkg_nodes",
+        "edge_collection": "hierkg_edges",
+        "evidence_collection": "hierkg_evidences",
         "embedding_model": "bge-m3",
         "ollama_host": "http://localhost:11434",
     },
@@ -76,9 +76,9 @@ def _load_config() -> Dict[str, Any]:
         },
         "chroma": {
             "persist_directory": chroma_raw.get("PERSIST_DIRECTORY", "./chroma_db"),
-            "node_collection": "treekg_nodes",
-            "edge_collection": "treekg_edges",
-            "evidence_collection": "treekg_evidences",
+            "node_collection": "hierkg_nodes",
+            "edge_collection": "hierkg_edges",
+            "evidence_collection": "hierkg_evidences",
             "embedding_model": chroma_raw.get("EMBEDDING_MODEL", _DEFAULT_CONFIG["chroma"]["embedding_model"]),
             "ollama_host": chroma_raw.get("OLLAMA_HOST", _DEFAULT_CONFIG["chroma"]["ollama_host"]),
         },

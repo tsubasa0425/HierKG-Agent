@@ -23,7 +23,7 @@ from eval.retrieval import metrics as m
 from eval.retrieval.baseline import FlatEvidenceBaseline
 from eval.retrieval.runner import RetrievalRunner
 
-_DEFAULT_DATASET = EVAL_ROOT / "datasets" / "treekg_qa.json"
+_DEFAULT_DATASET = EVAL_ROOT / "datasets" / "hierkg_qa.json"
 
 
 # ---------------------------------------------------------------------------
@@ -203,7 +203,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if sys.stdout and hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-    ap = argparse.ArgumentParser(description="TreeKG 评测：检索层 + Agent 层 + 朴素 RAG 消融")
+    ap = argparse.ArgumentParser(description="HierKG 评测：检索层 + Agent 层 + 朴素 RAG 消融")
     ap.add_argument("--mode", choices=["retrieval", "agent", "all"], default="retrieval")
     ap.add_argument("--dataset", default=str(_DEFAULT_DATASET))
     ap.add_argument("--limit", type=int, default=None, help="只跑前 N 道题（冒烟用）")

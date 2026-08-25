@@ -58,7 +58,7 @@ Agent 侧（Claude Code `.mcp.json` 风格）：
 ```json
 {
   "mcpServers": {
-    "treekg": {
+    "hierkg": {
       "command": "conda",
       "args": ["run", "-n", "TreeKG", "python", "-m", "src.KGRetrieve.mcp_server"],
       "cwd": "d:\\workspace\\HierKG-Agent"

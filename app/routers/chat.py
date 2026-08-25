@@ -14,7 +14,7 @@ from app.config import make_client
 from app.dependencies import get_registry
 from app.services.agent_loop import run_agent
 
-logger = logging.getLogger("treekg-web.chat")
+logger = logging.getLogger("hierkg-web.chat")
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 

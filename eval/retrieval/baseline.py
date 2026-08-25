@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """朴素 RAG 基线：扁平证据向量检索（无知识图谱结构），用于消融对比。
 
-与 KG 方法共用同一 search_by_name 后端（ChromaDB treekg_evidences + Neo4j 名称匹配），
+与 KG 方法共用同一 search_by_name 后端（ChromaDB hierkg_evidences + Neo4j 名称匹配），
 只走 search_evidences 一个工具，不做概念/实体传播——这就是「图不图」的唯一差异，
 保证 KG 召回优势可归因于图谱结构。
 """
