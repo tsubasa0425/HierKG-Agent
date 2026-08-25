@@ -169,6 +169,21 @@ body {
   line-height: 1.8;
   color: #262626;
 }
+/* 证据来源徽章：`§1.1.1` → 浅色圆角小标签，替代 ev_ 内部编码 */
+.ev-ref {
+  display: inline-block;
+  padding: 0 6px;
+  margin: 0 2px;
+  border-radius: 4px;
+  border: 1px solid #d6e4f5;
+  background: #eef3fb;
+  color: #2f6fbf;
+  font-size: 0.85em;
+  font-weight: 500;
+  line-height: 1.6;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
 .answer-meta {
   margin-top: 8px;
   font-size: 12px;

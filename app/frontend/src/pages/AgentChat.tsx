@@ -28,6 +28,14 @@ import type { TextAreaRef } from 'antd/es/input/TextArea';
 
 const { TextArea } = Input;
 const { Text, Title } = Typography;
+
+// 证据引用徽章：把答案里的 [ev_1.1.1] / [ev_1.4#2] 内部编码转成可读的章节徽章。
+// ev_ 是图谱证据 ID 前缀，1.1.1 即章节号；用户只看章节号，看不懂内部编码。
+// 转成 markdown 内联代码 `§1.1.1`，再由下方 code 组件渲染为 .ev-ref 徽章样式。
+const CITE_RE = /\[ev_([0-9.]+)(?:#[0-9]+)?\]/g;
+function formatAnswer(text: string): string {
+  return text.replace(CITE_RE, (_m, sec: string) => '`§' + sec + '`');
+}
 const { Sider, Content } = Layout;
 
 // ---------------------------------------------------------------------------
@@ -183,7 +191,29 @@ function TurnBlock({ turn }: { turn: ChatTurn }) {
           <div className="answer-header">📝 最终回答</div>
           {turn.answer ? (
             <div className="answer-markdown markdown-body">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{turn.answer}</ReactMarkdown>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  code({ className, children, ...props }) {
+                    const text = String(children ?? '');
+                    // `§1.1.1` 内联代码（由 formatAnswer 生成）→ 渲染为来源徽章
+                    if (!className && text.startsWith('§')) {
+                      return (
+                        <span className="ev-ref" title="证据来源章节">
+                          {text}
+                        </span>
+                      );
+                    }
+                    return (
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    );
+                  },
+                }}
+              >
+                {formatAnswer(turn.answer)}
+              </ReactMarkdown>
             </div>
           ) : null}
           {isError && (
@@ -300,7 +330,7 @@ export default function AgentChat() {
                   <Space direction="vertical" size={8} style={{ alignItems: 'center' }}>
                     <CommentOutlined style={{ fontSize: 48, color: '#bbb' }} />
                     <Text style={{ color: '#888' }}>
-                      与 TreeKG 知识图谱 Agent 对话 —— 它会自主调用检索工具，引用图谱证据回答
+                      与 HierKG 知识图谱 Agent 对话 —— 它会自主调用检索工具，引用图谱证据回答
                     </Text>
                     <Text type="secondary" style={{ fontSize: 13 }}>
                       试试：「强化学习和学习型智能体有什么关系？有哪些实例？」
@@ -332,7 +362,7 @@ export default function AgentChat() {
             />
             <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text type="secondary" style={{ fontSize: 12 }}>
-                {streaming ? 'Agent 正在处理，可随时停止...' : '支持多轮追问，回答会标注 [ev_xxx] 证据'}
+                {streaming ? 'Agent 正在处理，可随时停止...' : '支持多轮追问，回答会标注引用来源章节'}
               </Text>
               <Space>
                 <Button icon={<ClearOutlined />} onClick={handleClear} disabled={streaming}>
