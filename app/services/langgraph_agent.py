@@ -41,30 +41,46 @@ from langgraph.graph import END, START, MessagesState, StateGraph
 
 from src.KGRetrieve.tools import ToolResult
 
-logger = logging.getLogger("treekg-web.agent")
+logger = logging.getLogger("hierkg-web.agent")
 
 MAX_TOOL_ROUNDS = 8            # 最大工具迭代轮数（防死循环）
 MAX_TOOL_RESULT_CHARS = 4000   # 单条工具结果喂给 LLM 的字符上限
 HISTORY_LIMIT = 10             # 多轮历史最多保留条数（防上下文爆炸）
 
 _THINK_RE = re.compile(r"</?think>", re.IGNORECASE)
-# DeepSeek 在非工具轮偶发把工具调用决策以 <tool_calls> XML 文本输出，
-# 而不是给出真实回答；这类块应从最终答案里剥掉。
-# 注意只剥 <tool_calls> 包装不够 —— invoke/parameter 内层标签也要剥，
-# 且要优先按 <tool_calls>...</tool_calls> 整块（DOTALL）剥，避免残留空壳。
+# DeepSeek 在非工具轮偶发把工具调用决策以 XML 文本输出，而不是给出真实回答；
+# 这类块应从最终答案里剥掉。两种定界格式都要处理：
+#   1. ASCII 尖括号：<tool_calls> / <invoke> / <parameter>
+#   2. DeepSeek 原生 DSML 标记：<｜DSML｜tool_calls> / <｜DSML｜invoke> / <｜DSML｜parameter>
+#      —— ｜ 是 U+FF5C 全角竖线；模型偶发降级为 ASCII 双竖线 ||DSML||，一并覆盖。
+# 注意只剥包装不够 —— invoke/parameter 内层标签也要剥，
+# 且要优先按整块（DOTALL）剥，避免残留空壳。
+_DSML_DELIM = r"(?:｜{1,2}|\|{1,2})DSML(?:｜{1,2}|\|{1,2})"
 _TOOL_CALLS_RE = re.compile(
-    r"<tool_calls\b[^>]*>.*?</tool_calls\s*>"  # 完整 <tool_calls>...</tool_calls> 块
-    r"|</?tool_calls?\b[^>]*>"                  # 孤立 tool_calls 标签（防截断）
-    r"|</?invoke\b[^>]*>"
-    r"|</?parameter\b[^>]*>",
+    r"<tool_calls\b[^>]*>.*?(?:</tool_calls\s*>|$)"                                        # 完整 ASCII <tool_calls> 块（含截断到结尾）
+    r"|<" + _DSML_DELIM + r"(?:tool_calls|function_calls)\b[^>]*>.*?"                      # 完整 DSML 块（含截断到结尾）
+    + r"(?:</" + _DSML_DELIM + r"(?:tool_calls|function_calls)\s*>|$)"
+    r"|</?tool_calls?\b[^>]*>?"                                                            # 孤立 ASCII tool_calls 标签（防截断）
+    r"|</?invoke\b[^>]*>?"
+    r"|</?parameter\b[^>]*>?"
+    r"|</?" + _DSML_DELIM + r"(?:tool_calls?|function_calls?|invoke|parameter)\b[^>]*>?",  # 孤立 DSML 标签（含流中断在闭合符前）
     re.IGNORECASE | re.DOTALL,
+)
+# 元描述非答案：模型在回答轮拒绝收尾，不输出 XML 而是把"我还想继续检索"写成散文
+# （"让我再搜索… / 补取证据… / 完善论据…"）。与 XML 泄漏同源，只是换成文字形式。
+# 判据：零引用 + 搜索/补证意图动词。零引用是强信号——正常作答必须 [ev_xxx] 引用。
+_META_INTENT_RE = re.compile(
+    r"让我|需要|还需|还要|我补|补取|再搜索|再补充|再获取|再查|再查看|"
+    r"(?:补充|获取|确认|完善|调取|查找|搜索).{0,15}"
+    r"(?:证据|细节|内容|原文|段落|片段|定义|关系|表述|论据|信息|描述)",
+    re.IGNORECASE,
 )
 LLM_CALL_TIMEOUT = 55   # 工具轮单次 LLM 调用硬上限；< 前端 60s 停摆检测，后端先报错
 LLM_CHUNK_TIMEOUT = 45  # 回答轮相邻 token 间隔上限（断流判定）
 
 
 def build_system_prompt(registry) -> str:
-    return f"""你是 TreeKG 四层知识图谱（L1 概念 / L2 实体 / L3 证据）的检索 Agent。
+    return f"""你是 HierKG 四层知识图谱（L1 概念 / L2 实体 / L3 证据）的检索 Agent。
 可用工具：
 {registry.get_tool_docs()}
 
@@ -73,7 +89,10 @@ def build_system_prompt(registry) -> str:
    multi_hop_traverse / get_entities_of_concept / get_evidences_of_node 深入。
 2. 回答必须基于检索到的知识，用 [ev_xxx] 标注证据来源；查不到就明说，不要编造。
 3. 检索到足够信息立即停止调用工具，给出结构化中文回答（Markdown）。
-4. 控制工具参数 limit，避免一次拉取过大。"""
+4. 控制工具参数 limit，避免一次拉取过大。
+5. 若用户问题与本知识图谱检索无关（如询问你是谁、你能做什么、闲聊寒暄），
+   不要调用任何检索工具，直接用中文回答。介绍自己时，基于上方"可用工具"与规则
+   说明你的身份、检索能力与作答方式即可，不必强行引用证据。"""
 
 
 # 回答轮专用系统提示词：检索阶段已结束，模型不再拥有工具，只许文字作答。
@@ -81,12 +100,17 @@ def build_system_prompt(registry) -> str:
 # deepseek 会在回答轮把工具调用写成 <tool_calls> XML 文本，需从源头掐断
 # （工具轮/回答轮用两套 system prompt，而非同一套）。
 ANSWER_SYSTEM_PROMPT = (
-    "你是 TreeKG 四层知识图谱（L1 概念 / L2 实体 / L3 证据）检索 Agent 的最终回答环节。\n"
+    "你是 HierKG 四层知识图谱（L1 概念 / L2 实体 / L3 证据）检索 Agent 的最终回答环节。\n"
     "【检索阶段已全部结束】上方消息记录中已有检索到的证据。\n"
     "请直接基于这些证据，给出最终的中文回答（Markdown），用 [ev_xxx] 标注证据来源；"
-    "证据不足就明说，不要编造。\n"
-    "严禁输出任何工具调用格式：禁止出现 <tool_calls>、<tool_call>、<invoke>、<parameter> 等 "
-    "XML 标签，也不要描述检索动作，直接给答案。"
+    "证据不足就明说，不要编造。若用户问题与图谱检索无关（如闲聊 / 自我介绍），"
+    "直接作答即可，无需强行标注 [ev_xxx]。\n"
+    "严禁输出任何工具调用标记，包括：\n"
+    "1. 尖括号 XML：<tool_calls>、<tool_call>、<invoke>、<parameter>；\n"
+    "2. DeepSeek 原生 DSML 标记：｜DSML｜ 前缀的 tool_calls / invoke / parameter 标签"
+    "（全角竖线｜包住 DSML 的那种，形如 <｜DSML｜tool_calls>）。\n"
+    "检索阶段已结束，你无法再调用任何工具。绝对不要写'让我搜索 / 再补充证据 / 我补取证据 / "
+    "完善论据'这类继续检索的话，直接给出最终答案。"
 )
 
 
@@ -133,6 +157,23 @@ def _strip_think(text: str) -> str:
     text = _THINK_RE.sub("", text)
     text = _TOOL_CALLS_RE.sub("", text)
     return text.strip()
+
+
+def _is_meta_non_answer(text: str) -> bool:
+    """零引用的搜索意图描述 → 判为未作答（触发 nudge 重试）。
+
+    与 XML 泄漏同源的退化：模型在回答轮拒绝收尾，不输出工具调用标记，
+    而是把"我还想继续检索"写成散文（"让我再搜索… / 补取证据… / 完善论据…"）。
+    判据保守：零引用 + 明确意图动词，避免误伤带引用的正常回答。
+    """
+    if "[ev_" in text:
+        return False
+    return bool(_META_INTENT_RE.search(text))
+
+
+def _is_real_answer(text: str) -> bool:
+    """有实质文字且非"继续检索"元描述，才算真实回答。"""
+    return bool(text.strip()) and not _is_meta_non_answer(text)
 
 
 # ---------------------------------------------------------------------------
@@ -287,12 +328,15 @@ async def answer(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
             raise _AgentAbort()
 
         stripped = _strip_think(final)
-        if stripped:
-            break                                 # 有实质文字，直接用
-        # 整段都是工具调用 XML → nudge 让它给文字回答，最多重试一轮
+        if _is_real_answer(stripped):
+            break                                 # 有实质文字且非元描述，直接用
+        # 空答案 或 只写了"还要检索"的元描述 → nudge 让它给文字回答，最多重试一轮
         nudge = HumanMessage(content=(
-            "注意：上面你输出了工具调用格式，但本轮检索已结束。请直接基于已检索到的信息给出最终中文回答，"
-            "不要输出任何 XML 标签（<tool_calls>、<invoke>、<parameter> 等）。"))
+            "注意：上面你输出了工具调用格式，或只是表达了继续检索的意图，没有给出实际回答。"
+            "本轮检索已结束，你无法再调用任何工具。请直接基于已检索到的证据给出最终中文回答；"
+            "若某方面证据不足，直接说明并给出已知信息即可。"
+            "不要输出 XML 标签（tool_calls / invoke / parameter / DSML），"
+            "也不要写'让我 / 再搜索 / 补充证据'之类的话。"))
         messages = [*messages, nudge]
     else:
         stripped = "模型未能给出文字回答，请换个问法重试。"
@@ -334,7 +378,7 @@ AGENT_GRAPH = build_agent_graph()              # 一次性编译（图无每请�
 
 
 # ---------------------------------------------------------------------------
-# run_agent wrapper（SSE 事件映射层）
+# run_agent wrapper（映射层）
 # ---------------------------------------------------------------------------
 
 def _history_to_messages(items: List[Dict[str, Any]]) -> List[AnyMessage]:
