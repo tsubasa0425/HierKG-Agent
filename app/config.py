@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Web 层 LLM 配置 loader。
 
-独立 yaml.safe_load 读取 src/KGBuild/config/explicit_config.yaml 的 APIConfig，
+独立 yaml.safe_load 读取 src/KGBuild/config/config.yaml 的 APIConfig，
 不 import KGBuild 各阶段模块（Extraction.py/Conv.py 等在 import 时会构造 client、
 mkdir 等副作用）。
 """
@@ -13,7 +13,7 @@ from typing import Any, Dict
 
 import yaml
 
-_DEFAULT_CFG = Path(__file__).resolve().parents[1] / "src" / "KGBuild" / "config" / "explicit_config.yaml"
+_DEFAULT_CFG = Path(__file__).resolve().parents[1] / "src" / "KGBuild" / "config" / "config.yaml"
 
 
 def load_llm_config(path: str | None = None) -> Dict[str, Any]:

@@ -34,8 +34,8 @@ def _load_additional_configs(include_files: List[str], base_dir: Path) -> dict:
 # 脚本所在目录：src/KGBuild
 script_dir = Path(__file__).resolve().parent
 
-# 主配置：src/KGBuild/config/explicit_config.yaml
-config_file = script_dir / "config" / "explicit_config.yaml"
+# 主配置：src/KGBuild/config/config.yaml
+config_file = script_dir / "config" / "config.yaml"
 config_dir = config_file.parent  # = src/KGBuild/config
 
 # 读取主配置并合并 include

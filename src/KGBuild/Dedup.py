@@ -91,7 +91,7 @@ class DSU:
 def run():
     # —— 路径根：KGBuild/ —— #
     script_dir = Path(__file__).resolve().parent
-    cfg_path = script_dir / "config" / "hidden_config.yaml"
+    cfg_path = script_dir / "config" / "config.yaml"
     cfg = load_config_with_includes(cfg_path)
 
     # —— 取子配置 —— #

@@ -1,58 +1,14 @@
-# HierKG
+# HierKG-Agent
 
-面向教科书/技术文档的四层知识图谱构建与检索系统。将文档从"检索骨架"重构为 **L0 本体 / L1 概念 / L2 实体 / L3 证据** 四层分层模型，提供 15 个原子工具供 Agent 自主调用检索，并内置 Web UI（Agent 对话 + 图谱可视化）。
+面向有结构文档（比如教科书）的四层知识图谱构建与检索系统。将文档重构为 **L0 本体 / L1 概念 / L2 实体 / L3 证据** 四层分层图谱，提供 15 个原子工具供 Agent 自主调用检索，并内置 Web UI（Agent 对话 + 图谱可视化）。
 
-## 项目结构
+## 核心亮点
 
-```
-HierKG-Agent/
-├── src/
-│   ├── KGBuild/                # 四层知识图谱构建流水线
-│   │   ├── TextSegmentation.py     # 显式：docx → TOC + 原文小节
-│   │   ├── Extraction.py           # 显式：小节 → 实体/关系抽取
-│   │   ├── toc_graph.py            # 显式：构建 toc_graph.json
-│   │   ├── Conv.py                 # 隐式：显式结果 → 隐式格式转换
-│   │   ├── Aggr.py                 # 隐式：concept/entity 分层判定
-│   │   ├── Embedding.py            # 隐式：BERT 嵌入
-│   │   ├── Dedup.py                # 隐式：概念去重（调用 dedup/ 子包）
-│   │   ├── Pred.py                 # 隐式：关系预测
-│   │   ├── FinalKG.py              # 隐式：四层 KG 装配 → final_kg.json
-│   │   ├── dedup/                   # 去重子包（knn / llm / name_similarity）
-│   │   ├── model/                   # BERT 编码器 + bert-base-chinese 权重
-│   │   ├── doc/                     # 输入文件（.docx 教材原文）
-│   │   ├── config/                  # 显式+隐式阶段所有 YAML 配置 + schema.yaml
-│   │   ├── output/                  # 构建产物（final_kg.json 等）
-│   │   └── logs/                    # 运行日志
-│   ├── KGRetrieve/             # 检索层 —— 15 个 Agent 原子工具
-│   │   ├── tools.py                 # ToolRegistry + 15 个工具 + cross-encoder 重排
-│   │   ├── models.py                # 共享数据模型：Node / Edge
-│   │   ├── db_backend.py            # KGDBMemory（Neo4j + ChromaDB 后端）+ 导入脚本
-│   │   ├── mcp_server.py            # MCP server（Pi Agent / Claude 直连）
-│   │   └── TOOLS.md                 # 工具文档
-│   ├── utils/
-│   │   └── evidence_builder.py     # L3 证据构建工具
-│   └── (schema.yaml 已移入 KGBuild/config/)
-├── app/                         # Web UI：FastAPI 后端 + React 前端
-│   ├── main.py                       # FastAPI 入口（:8777）
-│   ├── config.py                     # LLM 配置加载（复用 KGBuild explicit_config）
-│   ├── dependencies.py               # 懒加载单例（KGDBMemory / ToolRegistry）
-│   ├── routers/                      # chat.py（SSE Agent 对话）+ graph.py（图谱可视化）
-│   ├── services/                     # langgraph_agent.py（LangGraph StateGraph 循环）+ agent_loop.py（兼容 shim）+ graph_service.py
-│   └── frontend/                     # React/Vite/AntD/sigma.js 前端（:5777）
-├── requirements.txt
-└── README.md
-```
-
-## 四层知识图谱模型
-
-| 层 | 名称 | 内容 | 来源 |
-|----|------|------|------|
-| L0 | 本体层 | 实体类型定义、关系类型定义、`layer_hint` 分层规则 | `src/KGBuild/config/schema.yaml` |
-| L1 | 概念层 | 抽象领域术语（如"强化学习""效用函数"），跨文档可合并 | `Aggr.py` 分层判定 + `Dedup.py` 去重 |
-| L2 | 实体层 | 具体实例（如"AlphaGo"），带属性和别名 | `Extraction.py` 抽取 + `Aggr.py` 分层 |
-| L3 | 证据层 | 原文小节片段，支撑 L1/L2 节点的溯源 | `TextSegmentation.py` 解析 + `evidence_builder.py` 构建 |
-
-层间关系通过 `edges` 数组中的 `layer` 字段标注：同层（L1-L1、L2-L2）和跨层（L2→L1、L1→L3 `described_by`、L2→L3 `appears_in`）。跨层边的类型还编码了证据引用强度（`rel`），见[混合查询链路与引用加权](#混合查询链路与引用加权)。
+- **四层知识图谱**：L0 本体 / L1 概念 / L2 实体 / L3 证据，跨层边编码引用强度（定义 / 提及），答案可溯源到原文小节
+- **15 个原子检索工具**：精确查找 / 图查询 / 语义搜索 / 精排与上下文组装，供 Agent 自主编排
+- **混合查询链路**：向量定位入口节点，再沿图谱边取证据——回答必须引用 L3 证据原文，杜绝无源回答
+- **LangGraph Agent**：StateGraph 工具循环 + SSE 流式回答，工具调用全过程实时可视化
+- **多端接入**：内置 Web UI（对话 + 图谱可视化），亦可作为 MCP server 供 Claude / Pi Agent 直连
 
 ## 快速开始
 
@@ -71,37 +27,66 @@ pip install -r requirements.txt
 ### 3. 配置
 
 ```bash
-cp src/KGBuild/config/explicit_config.yaml.example src/KGBuild/config/explicit_config.yaml
+cp src/KGBuild/config/config.yaml.example src/KGBuild/config/config.yaml
 ```
 
-编辑 `explicit_config.yaml` 填写 LLM API 密钥。`hidden_config.yaml` 通过 `include` 自动继承显式配置的密钥。
+编辑 `config.yaml` 填写 LLM API 密钥。流水线各阶段配置（`extraction` / `text` / `conv` / `aggr` / `dedup` / `pred`）通过 `include_files` 自动合并。
 
 ### 4. 构建知识图谱
 
-**显式阶段**（TOC 解析 → 实体关系抽取 → toc_graph）：
+一键串联整条流水线（docx 解析 → 实体抽取 → toc_graph → 证据构建 → 格式转换 → 分层 → 嵌入 → 去重 → 关系预测 → 四层装配）：
 
 ```bash
-python src/KGBuild/TextSegmentation.py
-python src/KGBuild/Extraction.py
-python src/KGBuild/toc_graph.py
+python src/KGBuild/pipeline.py          # 完整跑一遍
+python src/KGBuild/pipeline.py --check  # 只预检各步骤输入文件，不开跑
 ```
 
-**隐式阶段**（格式转换 → 分层 → 嵌入 → 去重 → 关系预测 → 四层装配）：
-
-```bash
-python src/KGBuild/Conv.py
-python src/KGBuild/Aggr.py
-python src/KGBuild/Embedding.py
-python src/KGBuild/Dedup.py
-python src/KGBuild/Pred.py
-python src/KGBuild/FinalKG.py
-```
+中途失败可用 `--start <步骤名>` 断点续跑，`--only / --skip / --until` 精细选择步骤（`python src/KGBuild/pipeline.py --help` 查看）。
 
 输出：`src/KGBuild/output/final_kg.json`
 
-### 5. 启动 Web UI（可选）
+### 5. 启动 Web UI
 
-启动方法见下方 [Web UI](#web-ui) 章节。
+前置：Neo4j 已启动，并已导入图谱数据（`python -m src.KGRetrieve.db_backend import`）。
+
+```bash
+# 后端（:8777）
+python -m uvicorn app.main:app --port 8777
+
+# 前端（:5777）
+cd app/frontend
+npm install          # 首次
+npm run dev
+```
+
+浏览器打开 `http://localhost:5777`。
+
+## 工作原理
+
+### 四层知识图谱模型
+
+| 层 | 名称 | 内容 | 来源 |
+|----|------|------|------|
+| L0 | 本体层 | 实体类型定义、关系类型定义、`layer_hint` 分层规则 | `src/KGBuild/config/schema.yaml` |
+| L1 | 概念层 | 抽象领域术语（如"强化学习""效用函数"），跨文档可合并 | `Aggr.py` 分层判定 + `Dedup.py` 去重 |
+| L2 | 实体层 | 具体实例（如"AlphaGo"），带属性和别名 | `Extraction.py` 抽取 + `Aggr.py` 分层 |
+| L3 | 证据层 | 原文小节片段，支撑 L1/L2 节点的溯源 | `TextSegmentation.py` 解析 + `evidence_builder.py` 构建 |
+
+层间关系通过 `edges` 数组中的 `layer` 字段标注：同层（L1-L1、L2-L2）和跨层（L2→L1、L1→L3 `described_by`、L2→L3 `appears_in`）。跨层边的类型还编码了证据引用强度（`rel`），见下方[证据引用加权](#证据引用加权)。
+
+### 证据引用加权（rel）
+
+跨层边（L1/L2 → L3）的类型编码了证据的**引用强度**，`get_evidences_of_node` 返回时以 `rel` 字段标注：
+
+| 边类型 | 层 | 语义 | rel | 权重 |
+|--------|-----|------|-----|------|
+| `described_by` | L1-L3 | 证据在「定义/讲解」此节点（强/定义性） | `definition` | 1.0 |
+| `appears_in` | L2-L3 | 证据只是「提到」此节点（弱/提及性） | `mention` | 0.5 |
+
+加权用于两处：
+
+1. **检索传播加权**：概念/实体命中后沿边传播证据，同排名时 `described_by` 排在 `appears_in` 前——「定义这段的证据」优先于「只是提到这个实体的证据」。
+2. **judge 引用加权**：LLM 判分时定义性引用权重高于提及性；并产出确定性指标 `citation_weighted`（rel 加权引用真实性），不受 LLM judge 漂移影响。
 
 ## 知识图谱格式
 
@@ -131,31 +116,8 @@ python src/KGBuild/FinalKG.py
 
 当前 POC 数据规模：453 概念 / 141 实体 / 42 证据 / 1226 条边。
 
-## KGRetrieve —— 15 个原子工具
 
-| 工具 | 作用 |
-|------|------|
-| `get_schema` | 获取 L0 本体定义 |
-| `get_node_by_id` | 按 ID 精确获取任意层节点 |
-| `get_concept_by_id` | 按 ID 精确获取 L1 概念节点 |
-| `get_entity_by_id` | 按 ID 精确获取 L2 实体 |
-| `get_evidence_by_id` | 按 ID 精确获取 L3 证据 |
-| `get_relations` | 获取节点的所有关系（出边+入边） |
-| `get_entities_of_concept` | 获取某概念下的所有实体（L1→L2） |
-| `get_evidences_of_node` | 获取某节点的所有溯源证据 |
-| `multi_hop_traverse` | 多跳遍历（BFS，可指定层数） |
-| `search_concepts` | 按名称/语义模糊搜索 L1 概念 |
-| `search_entities` | 按名称/语义模糊搜索 L2 实体 |
-| `search_evidences` | 按关键词搜索 L3 证据 |
-| `semantic_search` | 跨层语义搜索（bge-m3 向量 + 名称混合） |
-| `rank_results` | 对候选 node_id 用 bge-reranker-v2-m3 做 cross-encoder 精排 |
-| `assemble_context` | 把收集到的 ID 组装成带溯源标注、可粘贴的 context 块 |
-
-后端为 `KGDBMemory`（Neo4j + ChromaDB + Ollama），可通过 `python -m src.KGRetrieve.mcp_server` 暴露为 MCP server，供 Pi Agent / Claude 等 Agent 直连调用。
-
-## 混合查询链路与引用加权
-
-### 1. 查询链路：向量定位入口，图内继续查询
+### 混合查询链路：向量定位入口，图内继续查询
 
 Agent 对任何问题的检索都遵循同一链路：**先用向量/关键词工具定位入口节点，再进图沿边取证据**。
 
@@ -167,28 +129,79 @@ search_entities         →  get_evidences_of_node（取溯源证据）
 search_evidences        →  get_evidence_by_id（取证据原文）
 ```
 
-关键点：**不存在「具体问题就跳过图查询」**。因为答案必须引用 L3 证据原文（否则引用 grounding 归零），而证据正文在图边背后，只能靠 `get_evidences_of_node` 沿 L1/L2→L3 边取到。向量库里存的是概念/实体简介，不是答案内容。
 
-随问题模糊度变化的是**图遍历深度**，而非「用不用图」：
+随问题模糊度变化的是**图遍历深度**：
 
 - 具体/单概念问题 → 浅遍历：单跳（节点 → 证据）
 - 模糊/多概念/对比问题 → 深遍历：多跳（`multi_hop_traverse`、`get_entities_of_concept`）
 
-（25 题 eval 实测：全部先向量后图、无纯向量作答；definition 类仅 1/5 用多跳，comparison 类 4/5 用多跳。）
 
-### 2. 跨层边 rel 与证据引用加权
 
-跨层边（L1/L2 → L3）的类型编码了证据的**引用强度**，`get_evidences_of_node` 返回时以 `rel` 字段标注：
+## 检索工具与架构
 
-| 边类型 | 层 | 语义 | rel | 权重 |
-|--------|-----|------|-----|------|
-| `described_by` | L1-L3 | 证据在「定义/讲解」此节点（强/定义性） | `definition` | 1.0 |
-| `appears_in` | L2-L3 | 证据只是「提到」此节点（弱/提及性） | `mention` | 0.5 |
+### 15 个原子工具
 
-用于两处：
+| 工具 | 作用 |
+|------|------|
+| `get_schema` | 获取 L0 本体定义 |
+| `get_node_by_id` | 按 ID 精确获取任意层节点 |
+| `get_concept_by_id` | 按 ID 精确获取 L1 概念节点 |
+| `get_entity_by_id` | 按 ID 精确获取 L2 实体 |
+| `get_evidence_by_id` | 按 ID 精确获取 L3 证据 |
+| `get_relations` | 获取节点的所有关系（出边+入边） |
+| `get_entities_of_concept` | 获取某概念下的所有实体（L1→L2） |
+| `get_evidences_of_node` | 获取某节点的所有溯源证据（带 rel 引用强度） |
+| `multi_hop_traverse` | 多跳遍历（BFS，可指定层数） |
+| `search_concepts` | 按名称/语义模糊搜索 L1 概念 |
+| `search_entities` | 按名称/语义模糊搜索 L2 实体 |
+| `search_evidences` | 按关键词搜索 L3 证据 |
+| `semantic_search` | 跨层语义搜索（bge-m3 向量 + 名称混合） |
+| `rank_results` | 对候选 node_id 用 bge-reranker-v2-m3 做 cross-encoder 精排 |
+| `assemble_context` | 把收集到的 ID 组装成带溯源标注、可粘贴的 context 块 |
 
-1. **检索传播加权**（`eval/retrieval/runner.py::rank_evidences_full`）：概念/实体命中后沿边传播证据，同排名时 `described_by` 排在 `appears_in` 前——「定义这段的证据」优先于「只是提到这个实体的证据」。
-2. **judge 引用加权**（`eval/agent/runner.py::resolve_citation_rels` + `eval/agent/judge.py`）：把被引证据按 rel 分类（definition/mention）喂给 LLM judge，定义性引用权重高于提及性；同时产出确定性指标 `citation_weighted`（rel 加权引用真实性），作为不受 LLM judge 漂移影响的硬指标。
+后端为 `KGDBMemory`（Neo4j + ChromaDB + Ollama），可通过 `python -m src.KGRetrieve.mcp_server` 暴露为 MCP server，供 Pi Agent / Claude 等 Agent 直连调用。
+
+### 项目结构
+
+```
+HierKG-Agent/
+├── src/
+│   ├── KGBuild/                # 四层知识图谱构建流水线
+│   │   ├── TextSegmentation.py     # docx → TOC + 原文小节
+│   │   ├── Extraction.py           # 小节 → 实体/关系抽取
+│   │   ├── toc_graph.py            # 构建 toc_graph.json
+│   │   ├── Conv.py                 # 结果格式转换
+│   │   ├── Aggr.py                 # concept/entity 分层判定
+│   │   ├── Embedding.py            # BERT 嵌入
+│   │   ├── Dedup.py                # 概念去重（调用 dedup/ 子包）
+│   │   ├── Pred.py                 # 关系预测
+│   │   ├── FinalKG.py              # 四层 KG 装配 → final_kg.json
+│   │   ├── pipeline.py              # 一键串联全部构图步骤
+│   │   ├── evidence_builder.py      # L3 证据构建
+│   │   ├── dedup/                   # 去重子包（knn / llm / name_similarity）
+│   │   ├── model/                   # BERT 编码器 + bert-base-chinese 权重
+│   │   ├── doc/                     # 输入文件（.docx 教材原文）
+│   │   ├── config/                  # 流水线各阶段 YAML 配置 + schema.yaml
+│   │   ├── output/                  # 构建产物（final_kg.json 等）
+│   │   └── logs/                    # 运行日志
+│   ├── KGRetrieve/             # 检索层 —— 15 个 Agent 原子工具
+│   │   ├── tools.py                 # ToolRegistry + 15 个工具 + cross-encoder 重排
+│   │   ├── models.py                # 共享数据模型：Node / Edge
+│   │   ├── db_backend.py            # KGDBMemory（Neo4j + ChromaDB 后端）+ 导入脚本
+│   │   ├── mcp_server.py            # MCP server（Pi Agent / Claude 直连）
+│   │   └── TOOLS.md                 # 工具文档
+│   └── (schema.yaml 已移入 KGBuild/config/)
+├── app/                         # Web UI：FastAPI 后端 + React 前端
+│   ├── main.py                       # FastAPI 入口（:8777）
+│   ├── config.py                     # LLM 配置加载（复用 KGBuild config.yaml）
+│   ├── dependencies.py               # 懒加载单例（KGDBMemory / ToolRegistry）
+│   ├── routers/                      # chat.py（SSE Agent 对话）+ graph.py（图谱可视化）
+│   ├── services/                     # langgraph_agent.py（LangGraph StateGraph 循环）+ agent_loop.py（兼容 shim）+ graph_service.py
+│   └── frontend/                     # React/Vite/AntD/sigma.js 前端（:5777）
+├── eval/                         # 评测子系统（25 题黄金数据集 + 检索层消融 + LLM-as-judge）
+├── requirements.txt
+└── README.md
+```
 
 ## Web UI
 
@@ -201,31 +214,19 @@ search_evidences        →  get_evidence_by_id（取证据原文）
 
 ### 技术栈
 
-- 后端：FastAPI + SSE 流式（`app/routers/`），Agent 循环基于 LangGraph StateGraph（`app/services/langgraph_agent.py`，`agent_loop.py` 为兼容 shim），LLM 复用 `src/KGBuild/config/explicit_config.yaml` 的 API 配置
+- 后端：FastAPI + SSE 流式（`app/routers/`），Agent 循环基于 LangGraph StateGraph（`app/services/langgraph_agent.py`，`agent_loop.py` 为兼容 shim），LLM 复用 `src/KGBuild/config/config.yaml` 的 API 配置
 - 前端：React 19 + Vite + AntD 6 + Zustand + sigma.js/graphology（`app/frontend/`）
 
-### 启动
+## 效果验证
 
-前置：Neo4j 已启动，并已导入图谱数据（`python -m src.KGRetrieve.db_backend import`）。
+25题数据集（定义 / 事实 / 关系 / 属性 / 溯源 5 类问题），检索层与 Agent 层实测：
 
-```bash
-# 后端（:8777）
-python -m uvicorn app.main:app --port 8777
+| 指标 | 结果 |
+|------|------|
+| KG 证据召回 Recall@10 | **86.7%** |
+| 扁平向量 RAG 基线（消融对照） | 68.7% |
+| 图谱结构增益（Δ） | **+18pp** |
+| 引用覆盖率 | 84% |
+| 引用 grounding | 100% |
 
-# 前端（:5777）
-cd app/frontend
-npm install          # 首次
-npm run dev
-```
-
-浏览器打开 `http://localhost:5777`。
-
-### 说明
-
-- Agent 循环基于 **LangGraph StateGraph**（agent → tools 条件回环 + 流式回答），SSE 六事件协议（status / tool_call / tool_result / chunk / done / error）逐字保真，前端零改动接入。
-- 图谱可视化查询（分层采样 / 邻域子图 / 统计）为 `KGDBMemory` 的纯追加方法，不触碰原有检索逻辑。
-- **Windows 网络注意**：`vite.config.ts` 已把代理 target 指向 `127.0.0.1:8777` 并将 `host` 设为 `true`（同时监听 IPv6），避免 `localhost` 的 IPv6→IPv4 回退造成每次请求 ~2s 的固定延迟。若自行修改代理配置，请保持用 `127.0.0.1` 而非 `localhost`。
-
-## 引用
-
-- [TreeKG 复现](https://github.com/lzl8800/TreeKG)：提供了知识图谱构建的核心实现思路和代码基础。
+可复现：`python -m eval.run --mode all --baseline --judge`；只看检索层用 `python -m eval.run --mode retrieval --baseline`（零 LLM 成本，约 1 分钟）。

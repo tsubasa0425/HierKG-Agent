@@ -20,7 +20,7 @@ def _safe_load_yaml(p: Path) -> dict:
 
 def load_config(config_path: Path) -> dict:
     """
-    读取 KGBuild/config/hidden_config.yaml，并按 include_files 依次合并（相对 KGBuild/config/）
+    读取 KGBuild/config/config.yaml，并按 include_files 依次合并（相对 KGBuild/config/）
     """
     base = _safe_load_yaml(config_path)
     merged = dict(base)
@@ -72,7 +72,7 @@ def main():
     # 基准目录：KGBuild/
     script_dir = Path(__file__).resolve().parent
     cfg_root = script_dir / "config"
-    cfg_path = cfg_root / "hidden_config.yaml"
+    cfg_path = cfg_root / "config.yaml"
 
     config = load_config(cfg_path)
     emb = config.get("EmbConfig", {})  # 来自 emb.yaml

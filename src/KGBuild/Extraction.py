@@ -38,7 +38,7 @@ def load_additional_configs(include_files: list, base_dir: Path) -> dict:
 # -------- 先确定脚本 & 配置路径 --------
 script_dir = Path(__file__).resolve().parent
 project_root = script_dir.parent.parent  # = 项目根目录
-config_file = script_dir / "config" / "explicit_config.yaml"
+config_file = script_dir / "config" / "config.yaml"
 config_dir = config_file.parent  # = KGBuild/config
 schema_file = script_dir / "config" / "schema.yaml"  # src/KGBuild/config/schema.yaml
 

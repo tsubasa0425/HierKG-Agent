@@ -24,7 +24,7 @@ PredConfig:
   COMMIT_DEFAULT: false      # 是否把新边写回 dedup_result.json
   DEBUG_LLM_DEFAULT: false   # 调试开关
 
-  # —— LLM 调用参数（step 专属；公共参数在 explicit_config.yaml APIConfig）——
+  # —— LLM 调用参数（step 专属；公共参数在 config.yaml APIConfig）——
   TEMPERATURE: 0.2
   MAX_TOKENS: 1000
 

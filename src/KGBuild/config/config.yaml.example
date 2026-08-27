@@ -1,5 +1,5 @@
-# KGBuild/config/explicit_config.yaml.example
-# 复制为 explicit_config.yaml 并填写实际 API 密钥
+# KGBuild/config/config.yaml.example
+# 复制为 config.yaml 并填写实际 API 密钥
 
 APIConfig:
   API_BASE: "https://api.siliconflow.cn/v1"
@@ -17,3 +17,7 @@ APIConfig:
 include_files:
   - "extraction.yaml"
   - "text.yaml"
+  - "conv.yaml"
+  - "aggr.yaml"
+  - "dedup.yaml"
+  - "pred.yaml"

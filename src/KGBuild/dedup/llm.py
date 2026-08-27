@@ -14,11 +14,11 @@ import yaml
 # =========================
 def _load_config() -> dict:
     """
-    从 KGBuild/config/hidden_config.yaml 读取主配置，并合并 include_files。
+    从 KGBuild/config/config.yaml 读取主配置，并合并 include_files。
     include_files 中的每个条目都按“相对 config.yaml 所在目录”解析。
     """
     kgbuild_dir = Path(__file__).resolve().parents[1]           # .../src/KGBuild
-    cfg_path = kgbuild_dir / "config" / "hidden_config.yaml"    # .../src/KGBuild/config/hidden_config.yaml
+    cfg_path = kgbuild_dir / "config" / "config.yaml"           # .../src/KGBuild/config/config.yaml
     if not cfg_path.exists():
         raise FileNotFoundError(f"未找到配置文件：{cfg_path}")
 

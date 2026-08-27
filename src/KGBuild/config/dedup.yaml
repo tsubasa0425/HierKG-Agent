@@ -19,7 +19,7 @@ DedupConfig:
   PER_NODE_CAP: 30
   MAX_NEIGHBORS_GLOBAL: 30
 
-  # —— LLM 调用参数（step 专属；公共参数在 explicit_config.yaml APIConfig）——
+  # —— LLM 调用参数（step 专属；公共参数在 config.yaml APIConfig）——
   TEMPERATURE: 0.0
   MAX_TOKENS: 1000
   DRY_RUN: false

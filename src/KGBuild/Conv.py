@@ -32,7 +32,7 @@ def load_config(config_file: Path) -> dict:
 
 # 当前模块目录：src/KGBuild
 script_dir = Path(__file__).resolve().parent
-config_file = script_dir / "config" / "hidden_config.yaml"
+config_file = script_dir / "config" / "config.yaml"
 config = load_config(config_file)
 
 APIConfig = config.get("APIConfig", {})

@@ -21,10 +21,10 @@ import yaml
 # ========== 配置加载 ==========
 def load_merged_config() -> dict:
     """
-    读取 KGBuild/config/hidden_config.yaml，并合并 include_files（相对 config.yaml 所在目录解析）
+    读取 KGBuild/config/config.yaml，并合并 include_files（相对 config.yaml 所在目录解析）
     """
-    hidden_dir = Path(__file__).resolve().parent
-    cfg_path = hidden_dir / "config" / "hidden_config.yaml"
+    cfg_dir = Path(__file__).resolve().parent
+    cfg_path = cfg_dir / "config" / "config.yaml"
     if not cfg_path.exists():
         raise FileNotFoundError(f"未找到配置文件：{cfg_path}")
 

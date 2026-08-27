@@ -22,8 +22,8 @@ def load_yaml(path: Path) -> dict:
 SCRIPT_DIR = Path(__file__).resolve().parent
 CFG_DIR = SCRIPT_DIR / "config"
 
-# 主配置：src/KGBuild/config/hidden_config.yaml
-MAIN_CFG_PATH = CFG_DIR / "hidden_config.yaml"
+# 主配置：src/KGBuild/config/config.yaml
+MAIN_CFG_PATH = CFG_DIR / "config.yaml"
 config = load_yaml(MAIN_CFG_PATH)
 
 # 递归加载 include_files（相对 KGBuild/config/ 拼接；绝对路径原样用）

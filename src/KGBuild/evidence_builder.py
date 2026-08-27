@@ -90,10 +90,11 @@ def build_evidence(toc: List[Dict[str, Any]], doc_id: str = "Hello-Agents") -> L
 
 
 def main():
+    out_dir = Path(__file__).resolve().parent / "output"   # src/KGBuild/output
     ap = argparse.ArgumentParser(description="从 TOC JSON 构建 L3 证据层")
-    ap.add_argument("--input", default="src/KGBuild/output/toc_with_entities_and_relations.json",
+    ap.add_argument("--input", default=str(out_dir / "toc_with_entities_and_relations.json"),
                     help="输入文件路径")
-    ap.add_argument("--output", default="src/KGBuild/output/evidence.json",
+    ap.add_argument("--output", default=str(out_dir / "evidence.json"),
                     help="输出文件路径")
     ap.add_argument("--doc-id", default="Hello-Agents",
                     help="文档标识")

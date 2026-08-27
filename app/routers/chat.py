@@ -38,7 +38,7 @@ async def chat_stream(req: ChatRequest, request: Request):
     cfg = request.app.state.llm_cfg
     if cfg is None:
         return StreamingResponse(
-            iter([_sse("error", {"message": "LLM 配置加载失败，请检查 explicit_config.yaml"})]),
+            iter([_sse("error", {"message": "LLM 配置加载失败，请检查 config.yaml"})]),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
