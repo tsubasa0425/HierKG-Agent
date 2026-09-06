@@ -153,6 +153,22 @@ body {
   overflow: auto;
 }
 
+/* 思考块（原生 THINKING_BLOCK_*，每段一个可折叠 details） */
+.think-block summary {
+  cursor: pointer;
+  user-select: none;
+}
+.think-block[open] summary {
+  border-bottom: 1px dashed #eef0f4;
+  padding-bottom: 6px;
+}
+.think-block .think-stream {
+  white-space: pre-wrap;
+  color: #595959;
+  max-height: 240px;
+  overflow: auto;
+}
+
 /* 最终答案 */
 .answer-block {
   border-top: 1px solid #f0f0f0;

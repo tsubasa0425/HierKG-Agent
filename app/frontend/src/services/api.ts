@@ -60,43 +60,6 @@ export const searchEntities = (query: string, limit = 20): Promise<GraphSearchRe
   api.get('/graph/search', { params: { q: query, limit } }).then(r => r.data.results);
 
 // ---------------------------------------------------------------------------
-// Agent 对话（SSE 流式）
-// ---------------------------------------------------------------------------
-
-export interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
-export interface ToolCallEvent {
-  id: string;
-  name: string;
-  arguments: Record<string, unknown>;
-  thinking_ms?: number; // 本轮 LLM 推理耗时（ReAct 过程可视化）
-}
-
-export interface ToolResultEvent {
-  id: string;
-  name: string;
-  tool_name: string;
-  success: boolean;
-  message: string;
-  elapsed_ms: number;
-  data: unknown;
-}
-
-export interface DoneEvent {
-  answer: string;
-  tool_rounds: number;
-  tool_calls: number;
-  elapsed_ms: number;
-  /** 热缓存命中层级：none / evidence（证据回放） / answer（答案直出） */
-  cache_hit?: string;
-  evidence_ids?: string[];
-  node_ids?: string[];
-}
-
-// ---------------------------------------------------------------------------
 // 会话管理
 // ---------------------------------------------------------------------------
 
@@ -129,23 +92,48 @@ export const getSessionMessages = (sessionId: string): Promise<StoredMessage[]> 
 export const deleteSession = (sessionId: string): Promise<{ deleted: boolean }> =>
   api.delete(`/sessions/${sessionId}`).then((r) => r.data);
 
+// ---------------------------------------------------------------------------
+// Agent 对话（SSE 流式，原生事件直通）
+// ---------------------------------------------------------------------------
+
+/** 后端每个 SSE 帧：原生 AgentScope 事件 或 应用层帧（session/TURN_DONE/ERROR）。
+ *  顶层 type 分派（REPLY_START / TEXT_BLOCK_DELTA / TOOL_CALL_START / ...）。 */
+export interface AgentFrame {
+  type: string;
+  // 原生事件：reply_id / block_id / tool_call_id / delta / finished_reason …
+  // 应用帧：  session → {session_id}
+  //           TURN_DONE → {data: TurnDoneData}
+  //           ERROR    → {data: {message}}
+  [k: string]: unknown;
+}
+
+/** TURN_DONE 权威收尾：answer + 检索统计（chat.py finally 据此持久化）。 */
+export interface TurnDoneData {
+  answer: string;
+  tool_rounds: number;
+  tool_calls: number;
+  elapsed_ms: number;
+  /** 热缓存命中层级：none / evidence（证据回放） / answer（答案直出） */
+  cache_hit?: string;
+  evidence_ids?: string[];
+  node_ids?: string[];
+}
+
 export interface AgentStreamCallbacks {
   /** 流开始时后端回传实际使用的 session_id（处理前端陈旧 id 被重建的场景） */
-  onSession?: (sessionId: string) => void;
-  onStatus: (status: string, message: string, round?: number) => void;
-  onToolCall: (ev: ToolCallEvent) => void;
-  onToolResult: (ev: ToolResultEvent) => void;
-  onChunk: (text: string) => void;
-  onDone: (ev: DoneEvent) => void;
+  onSession: (sessionId: string) => void;
+  /** 逐帧投递（type 由调用方在 store 里分派）。session 帧不投这里，走 onSession。 */
+  onFrame: (frame: AgentFrame) => void;
+  /** 出错（ERROR 帧 / 连接失败 / stall 超时），message 可直接展示 */
   onError: (message: string) => void;
 }
 
 /**
- * 发一条 user 消息给 Agent，SSE 解析事件流（会话式：服务端根据 session_id 拼历史）。
- * 事件协议：status / tool_call / tool_result / chunk / done / error
+ * 发一条 user 消息给 Agent，SSE 解析原生事件帧（会话式：服务端按 session_id 拼历史）。
+ * 帧协议：event 名统一 message，前端只按 data.type 分派；另有 session/TURN_DONE/ERROR 应用帧。
  * 返回 AbortController 用于中途取消。
  *
- * 健壮性：连接中断/长时间无事件/流自然结束但没收到 done 时，
+ * 健壮性：连接中断/长时间无事件/流自然结束但没收到 TURN_DONE 时，
  * 都会回调 onError 明确提示，避免 UI 永远停在"正在连接模型"。
  */
 export const agentChatStream = (
@@ -163,6 +151,22 @@ export const agentChatStream = (
       ended = true;
       callbacks.onError(msg);
     }
+  };
+
+  const dispatch = (data: AgentFrame) => {
+    if (data.type === 'session') {
+      callbacks.onSession(data.session_id as string);
+      return;
+    }
+    if (data.type === 'ERROR') {
+      const inner = data.data as { message?: string } | undefined;
+      error(inner?.message || '出错了，请重试');
+      return;
+    }
+    if (data.type === 'TURN_DONE') {
+      receivedDone = true;
+    }
+    callbacks.onFrame(data);
   };
 
   (async () => {
@@ -209,50 +213,23 @@ export const agentChatStream = (
         for (const eventBlock of events) {
           if (!eventBlock.trim()) continue;
 
-          let eventType = '';
           let eventData = '';
-
           for (const line of eventBlock.split('\n')) {
-            if (line.startsWith('event: ')) eventType = line.slice(7);
-            else if (line.startsWith('data: ')) eventData = line.slice(6);
+            if (line.startsWith('data: ')) eventData = line.slice(6);
           }
-
           if (!eventData) continue;
 
           try {
             const data = JSON.parse(eventData);
             lastEventAt = Date.now();
-            switch (eventType) {
-              case 'session':
-                callbacks.onSession?.(data.session_id);
-                break;
-              case 'status':
-                callbacks.onStatus(data.status, data.message, data.round);
-                break;
-              case 'tool_call':
-                callbacks.onToolCall(data);
-                break;
-              case 'tool_result':
-                callbacks.onToolResult(data);
-                break;
-              case 'chunk':
-                callbacks.onChunk(data.text);
-                break;
-              case 'done':
-                receivedDone = true;
-                callbacks.onDone(data);
-                break;
-              case 'error':
-                error(data.message);
-                break;
-            }
+            dispatch(data);
           } catch {
             // skip malformed events
           }
         }
       }
 
-      // 流自然结束但没有 done → 说明中途被掐断
+      // 流自然结束但没有 TURN_DONE → 说明中途被掐断
       if (!receivedDone && !ended) error('连接中断，未收到完整回答，请重试');
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return; // 主动取消 / stall 超时已报错

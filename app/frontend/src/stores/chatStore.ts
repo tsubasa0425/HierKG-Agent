@@ -1,40 +1,43 @@
 import { create } from 'zustand';
-import type { SessionInfo, StoredMessage } from '../services/api';
+import type { AgentFrame, SessionInfo, StoredMessage, TurnDoneData } from '../services/api';
 
+/** 一段 Agent 推理（原生 THINKING_BLOCK_*，用 block_id 归组累积）。 */
+export interface ThinkingBlock {
+  id: string;
+  order: number;
+  text: string;
+  running: boolean;
+}
+
+/** 一次工具调用（原生 TOOL_CALL_* → TOOL_RESULT_*，用 tool_call_id 配对成 step）。 */
 export interface ToolStep {
   id: string;
+  order: number;
   name: string;
-  arguments: Record<string, unknown>;
+  /** TOOL_CALL_DELTA 拼出的 arguments JSON（未闭合时是片段） */
+  args: string;
+  /** TOOL_RESULT_TEXT_DELTA 拼出的结果文本（工具 payload JSON） */
+  result: string;
   success: boolean | null; // null = 尚未返回结果
-  thinkingMs?: number; // 本轮 LLM 推理耗时
-  message?: string;
-  elapsedMs?: number;
-  dataSummary?: unknown;
-  /** 所属检索轮次（由 thinking 事件的 round 推断，用于穿插展示推理→工具） */
-  round?: number;
+  running: boolean; // 结果尚未返回
 }
 
-export interface ThinkingState {
-  round: number;
-  message: string;
-}
+export type Phase = 'connecting' | 'thinking' | 'tool' | 'answer' | 'idle';
 
 export interface ChatTurn {
   id: number;
   question: string;
+  thinking: ThinkingBlock[];
   steps: ToolStep[];
   answer: string;
   status: 'streaming' | 'done' | 'error';
-  statusMessage?: string;
-  /** 当前正在进行的 LLM 推理（ReAct 的 Think 阶段） */
-  thinking: ThinkingState | null;
-  /** 已发生的推理轮次记录（持久展示 think→tool→result 完整时间线） */
-  thinkingLog: ThinkingState[];
+  /** 实时阶段（供顶部 live 文案），由原生事件推进 */
+  phase: Phase;
   error?: string;
   toolRounds?: number;
   toolCalls?: number;
   elapsedMs?: number;
-  /** 热缓存命中层级（none/evidence/answer），用于答案 meta 徽章 */
+  /** 热缓存命中层级（none/evidence/answer），答案 meta 徽章 */
   cacheHit?: string;
 }
 
@@ -46,40 +49,32 @@ interface ChatStore {
   streaming: boolean;
   setSessionId: (sid: string | null) => void;
   setSessions: (list: SessionInfo[]) => void;
-  /** 从服务端历史重建当前会话的 turns（工具过程不持久化，只重建 问题/答案） */
+  /** 从服务端历史重建当前会话的 turns（工具过程不持久化，只重建 问题/答案/meta） */
   loadSession: (sid: string, messages: StoredMessage[]) => void;
   /** 新建会话：清空本地状态，下次发送时服务端创建新 session */
   newSession: () => void;
   startTurn: (question: string) => void;
-  setStatus: (status: string, message: string) => void;
-  setThinking: (round: number, message: string) => void;
-  addToolCall: (ev: { id: string; name: string; arguments: Record<string, unknown>; thinking_ms?: number }) => void;
-  setToolResult: (ev: {
-    id: string;
-    name: string;
-    success: boolean;
-    message: string;
-    elapsed_ms: number;
-    data: unknown;
-  }) => void;
-  appendChunk: (text: string) => void;
-  finishTurn: (answer: string, meta: { toolRounds: number; toolCalls: number; elapsedMs: number; cacheHit?: string }) => void;
+  /** 消费一帧原生/应用层事件（streaming 中的唯一状态入口） */
+  handleFrame: (frame: AgentFrame) => void;
+  finishTurn: (data: TurnDoneData) => void;
   failTurn: (message: string) => void;
   setStreaming: (streaming: boolean) => void;
   clear: () => void;
 }
 
+/** 同步 current 与 turns 数组：组件订阅 turns 渲染，必须两边同写引用才触发重渲。 */
 const patchCurrent = (state: ChatStore, fn: (t: ChatTurn) => ChatTurn) => {
   if (!state.current) return {};
   const updated = fn(state.current);
-  // 关键：组件订阅的是 turns（turns.map 渲染），若只改 current，
-  // turns 引用不变 → zustand 按引用比较判定状态未变 → 不重渲染。
-  // 必须同时把当前 turn 同步回 turns 数组，流式过程才能实时刷新。
   return {
     current: updated,
     turns: state.turns.map((t) => (t.id === updated.id ? updated : t)),
   };
 };
+
+/** 当前 turn 下一个活动项序号（保证 thinking/tool 可按真实时序穿插渲染） */
+const nextOrder = (t: ChatTurn): number =>
+  Math.max(0, ...t.thinking.map((b) => b.order), ...t.steps.map((s) => s.order)) + 1;
 
 export const useChatStore = create<ChatStore>((set) => ({
   sessionId: null,
@@ -105,11 +100,11 @@ export const useChatStore = create<ChatStore>((set) => ({
           turns.push({
             id: id++,
             question: pendingQ,
+            thinking: [],
             steps: [],
             answer: m.content,
             status: 'done',
-            thinking: null,
-            thinkingLog: [],
+            phase: 'idle',
             toolRounds: (m.meta?.tool_rounds as number) ?? 0,
             toolCalls: (m.meta?.tool_calls as number) ?? 0,
             elapsedMs: (m.meta?.elapsed_ms as number) ?? 0,
@@ -123,11 +118,11 @@ export const useChatStore = create<ChatStore>((set) => ({
         turns.push({
           id: id++,
           question: pendingQ,
+          thinking: [],
           steps: [],
           answer: '',
           status: 'error',
-          thinking: null,
-          thinkingLog: [],
+          phase: 'idle',
           error: '该消息当时未收到回答',
         });
       }
@@ -141,102 +136,167 @@ export const useChatStore = create<ChatStore>((set) => ({
     const turn: ChatTurn = {
       id,
       question,
+      thinking: [],
       steps: [],
       answer: '',
       status: 'streaming',
-      statusMessage: '正在连接模型...',
-      thinking: null,
-      thinkingLog: [],
+      phase: 'connecting',
     };
     set((state) => ({ turns: [...state.turns, turn], current: turn, streaming: true }));
   },
 
-  setStatus: (_status, message) =>
-    set((state) => patchCurrent(state, (t) => ({ ...t, statusMessage: message }))),
+  // ---------------------------------------------------------------------
+  // 原生事件帧 → turn 状态（归组：thinking 用 block_id、tool 用 tool_call_id）
+  // ---------------------------------------------------------------------
+  handleFrame: (frame) =>
+    set((state) => {
+      const type = frame.type;
+      const t = state.current;
+      if (!t || t.status !== 'streaming') return {};
 
-  setThinking: (round, message) =>
-    set((state) =>
-      patchCurrent(state, (t) => {
-        const log = t.thinkingLog ?? []; // 防御：旧模块状态无此字段
-        const last = log[log.length - 1];
-        const dup = !!last && last.round === round; // 同轮重复事件不去重记录
-        return {
-          ...t,
-          thinking: { round, message },
-          thinkingLog: dup ? log : [...log, { round, message }],
-        };
-      }),
-    ),
+      if (type === 'THINKING_BLOCK_START') {
+        const id = frame.block_id as string;
+        if (t.thinking.some((b) => b.id === id)) return {};
+        return patchCurrent(state, (cur) => ({
+          ...cur,
+          phase: 'thinking',
+          thinking: [
+            ...cur.thinking,
+            { id, order: nextOrder(cur), text: '', running: true },
+          ],
+        }));
+      }
+      if (type === 'THINKING_BLOCK_DELTA') {
+        const id = frame.block_id as string;
+        const delta = (frame.delta as string) || '';
+        return patchCurrent(state, (cur) => ({
+          ...cur,
+          thinking: cur.thinking.map((b) =>
+            b.id === id ? { ...b, text: b.text + delta } : b),
+        }));
+      }
+      if (type === 'THINKING_BLOCK_END') {
+        const id = frame.block_id as string;
+        return patchCurrent(state, (cur) => ({
+          ...cur,
+          thinking: cur.thinking.map((b) =>
+            b.id === id ? { ...b, running: false } : b),
+        }));
+      }
 
-  addToolCall: (ev) =>
-    set((state) =>
-      patchCurrent(state, (t) => {
-        const log = t.thinkingLog ?? [];
-        const round = log[log.length - 1]?.round ?? 1; // 归属当前推理轮次
-        return {
-          ...t,
-          thinking: null, // 推理结束，进入工具执行阶段
+      if (type === 'TOOL_CALL_START') {
+        const id = frame.tool_call_id as string;
+        if (t.steps.some((s) => s.id === id)) return {};
+        return patchCurrent(state, (cur) => ({
+          ...cur,
+          phase: 'tool',
           steps: [
-            ...t.steps,
+            ...cur.steps,
             {
-              id: ev.id,
-              name: ev.name,
-              arguments: ev.arguments,
+              id,
+              order: nextOrder(cur),
+              name: (frame.tool_call_name as string) || '',
+              args: '',
+              result: '',
               success: null,
-              thinkingMs: ev.thinking_ms,
-              round,
+              running: true,
             },
           ],
-        };
-      }),
-    ),
+        }));
+      }
+      if (type === 'TOOL_CALL_DELTA') {
+        const id = frame.tool_call_id as string;
+        const delta = (frame.delta as string) || '';
+        return patchCurrent(state, (cur) => ({
+          ...cur,
+          steps: cur.steps.map((s) =>
+            s.id === id ? { ...s, args: s.args + delta } : s),
+        }));
+      }
 
-  setToolResult: (ev) =>
-    set((state) =>
-      patchCurrent(state, (t) => ({
-        ...t,
-        steps: t.steps.map((s) =>
-          s.id === ev.id
-            ? {
-                ...s,
-                success: ev.success,
-                message: ev.message,
-                elapsedMs: ev.elapsed_ms,
-                dataSummary: ev.data,
-              }
-            : s,
-        ),
-      })),
-    ),
+      if (type === 'TOOL_RESULT_START') {
+        const id = frame.tool_call_id as string;
+        const name = (frame.tool_call_name as string) || '';
+        return patchCurrent(state, (cur) => ({
+          ...cur,
+          steps: cur.steps.map((s) =>
+            s.id === id ? { ...s, name: s.name || name } : s),
+        }));
+      }
+      if (type === 'TOOL_RESULT_TEXT_DELTA') {
+        const id = frame.tool_call_id as string;
+        const delta = (frame.delta as string) || '';
+        return patchCurrent(state, (cur) => ({
+          ...cur,
+          steps: cur.steps.map((s) =>
+            s.id === id ? { ...s, result: s.result + delta } : s),
+        }));
+      }
+      if (type === 'TOOL_RESULT_END') {
+        const id = frame.tool_call_id as string;
+        const success = frame.state === 'success';
+        return patchCurrent(state, (cur) => ({
+          ...cur,
+          steps: cur.steps.map((s) =>
+            s.id === id ? { ...s, success, running: false } : s),
+        }));
+      }
 
-  appendChunk: (text) =>
-    set((state) => patchCurrent(state, (t) => ({ ...t, answer: t.answer + text }))),
+      if (type === 'TEXT_BLOCK_START') {
+        return patchCurrent(state, (cur) => ({ ...cur, phase: 'answer' }));
+      }
+      if (type === 'TEXT_BLOCK_DELTA') {
+        const delta = (frame.delta as string) || '';
+        return patchCurrent(state, (cur) => ({ ...cur, answer: cur.answer + delta }));
+      }
 
-  finishTurn: (answer, meta) =>
-    set((state) => ({
-      ...patchCurrent(state, (t) => ({
-        ...t,
-        answer,
-        status: 'done',
-        statusMessage: undefined,
-        toolRounds: meta.toolRounds,
-        toolCalls: meta.toolCalls,
-        elapsedMs: meta.elapsedMs,
-        cacheHit: meta.cacheHit,
-      })),
-      streaming: false,
-    })),
+      if (type === 'MODEL_CALL_START') {
+        // 模型开始生成：默认视作思考（随后 TEXT/TOOL 事件会纠正阶段）
+        return patchCurrent(state, (cur) =>
+          cur.phase === 'answer' ? cur : { ...cur, phase: 'thinking' });
+      }
+      if (type === 'REPLY_START' && frame.session_id) {
+        return patchCurrent(state, (cur) => ({ ...cur, phase: 'thinking' }));
+      }
+
+      return {}; // REPLY_END / HINT / DATA_* / 其他：无需入状态
+    }),
+
+  finishTurn: (data) =>
+    set((state) => {
+      if (!state.current) return { streaming: false };
+      const updated = {
+        ...state.current,
+        answer: data.answer ?? state.current.answer,
+        status: 'done' as const,
+        phase: 'idle' as const,
+        toolRounds: data.tool_rounds,
+        toolCalls: data.tool_calls,
+        elapsedMs: data.elapsed_ms,
+        cacheHit: data.cache_hit || undefined,
+      };
+      return {
+        current: updated,
+        turns: state.turns.map((t) => (t.id === updated.id ? updated : t)),
+        streaming: false,
+      };
+    }),
 
   failTurn: (message) =>
-    set((state) => ({
-      ...patchCurrent(state, (t) => ({
-        ...t,
-        status: 'error',
+    set((state) => {
+      if (!state.current) return { streaming: false };
+      const updated = {
+        ...state.current,
+        status: 'error' as const,
+        phase: 'idle' as const,
         error: message,
-        statusMessage: undefined,
-      })),
-      streaming: false,
-    })),
+      };
+      return {
+        current: updated,
+        turns: state.turns.map((t) => (t.id === updated.id ? updated : t)),
+        streaming: false,
+      };
+    }),
 
   setStreaming: (streaming) => set({ streaming }),
 

@@ -25,13 +25,14 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   agentChatStream,
-  createSession,
   deleteSession,
   getSessionMessages,
   listSessions,
+  type AgentFrame,
   type SessionInfo,
+  type TurnDoneData,
 } from '../services/api';
-import { useChatStore, type ChatTurn, type ToolStep } from '../stores/chatStore';
+import { useChatStore, type ChatTurn, type Phase, type ToolStep } from '../stores/chatStore';
 import type { TextAreaRef } from 'antd/es/input/TextArea';
 
 const { TextArea } = Input;
@@ -40,8 +41,6 @@ const { Text, Title } = Typography;
 const LS_KEY = 'hierkg_session_id';
 
 // 证据引用徽章：把答案里的 [ev_1.1.1] / [ev_1.4#2] 内部编码转成可读的章节徽章。
-// ev_ 是图谱证据 ID 前缀，1.1.1 即章节号；用户只看章节号，看不懂内部编码。
-// 转成 markdown 内联代码 `§1.1.1`，再由下方 code 组件渲染为 .ev-ref 徽章样式。
 const CITE_RE = /\[ev_([0-9.]+)(?:#[0-9]+)?\]/g;
 function formatAnswer(text: string): string {
   return text.replace(CITE_RE, (_m, sec: string) => '`§' + sec + '`');
@@ -52,32 +51,34 @@ const { Sider, Content } = Layout;
 // helpers
 // ---------------------------------------------------------------------------
 
-function formatSummary(data: unknown): string {
-  if (typeof data === 'string') return data;
+function pretty(text: string): string {
+  if (!text) return '';
   try {
-    return JSON.stringify(data, null, 2);
+    return JSON.stringify(JSON.parse(text), null, 2);
   } catch {
-    return String(data);
-  }
-}
-
-function formatArgs(args: Record<string, unknown>): string {
-  try {
-    return JSON.stringify(args, null, 2);
-  } catch {
-    return String(args);
+    return text;
   }
 }
 
 function StepIcon({ success }: { success: boolean | null }) {
   if (success === true) return <CheckCircleOutlined style={{ color: '#52c41a' }} />;
   if (success === false) return <CloseCircleOutlined style={{ color: '#ff4d4f' }} />;
-  return <LoadingOutlined style={{ color: '#1677ff' }} />;
+  return <LoadingOutlined spin style={{ color: '#1677ff' }} />;
 }
 
-// ---------------------------------------------------------------------------
-// single turn: question bubble + tool timeline + streaming answer
-// ---------------------------------------------------------------------------
+/** 从工具结果 payload 里抠一行摘要（成功 → elapsed，失败 → message）。 */
+function resultLine(step: ToolStep): string {
+  try {
+    const o = JSON.parse(step.result);
+    if (o && typeof o === 'object') {
+      if (o.success === false && o.message) return `失败：${o.message}`;
+      if (o.elapsed_ms != null) return `⚡ ${Math.round(o.elapsed_ms)}ms`;
+    }
+  } catch {
+    /* result 可能是未闭合文本，忽略 */
+  }
+  return '';
+}
 
 function stepState(s: ToolStep): string {
   if (s.success === true) return 'is-done';
@@ -94,117 +95,72 @@ function cacheBadge(hit: string | undefined) {
   );
 }
 
+function phaseCaption(phase: Phase, runningTool?: ToolStep): string | null {
+  switch (phase) {
+    case 'connecting':
+      return '🤖 正在连接模型...';
+    case 'thinking':
+      return '🧠 正在思考…';
+    case 'tool':
+      return runningTool ? `🛠 正在执行 ${runningTool.name} …` : '🛠 工具调用中…';
+    case 'answer':
+      return '✍ 正在生成回答…';
+    default:
+      return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// single turn: question + thinking/tool timeline (可折叠) + streaming answer
+// ---------------------------------------------------------------------------
+
+type Activity = { kind: 'think'; order: number; blockId: string } | { kind: 'tool'; order: number; step: ToolStep };
+
 function TurnBlock({ turn }: { turn: ChatTurn }) {
   const finished = turn.status === 'done';
   const isError = turn.status === 'error';
-  const connecting = turn.status === 'streaming' && !turn.thinking && turn.steps.length === 0 && !turn.answer;
+  const streaming = turn.status === 'streaming';
 
-  // 实时状态条：此刻 Agent 正在做什么（让等待过程"看得到"）
-  const liveAction = (() => {
-    if (turn.status !== 'streaming') return null;
-    if (turn.thinking) return `🧠 ${turn.thinking.message}`;
-    if (turn.steps.some((s) => s.success === null))
-      return `🛠 正在执行工具 ${turn.steps.find((s) => s.success === null)!.name} ...`;
-    if (connecting) return turn.statusMessage || '🤖 正在连接模型...';
-    if (turn.answer) return '✍ 正在生成回答...';
-    return null;
-  })();
+  // 思考块与工具步骤按真实到达序穿插成时间线（原生事件无轮号，用自增 order）
+  const act: Activity[] = [
+    ...turn.thinking.map((b) => ({ kind: 'think' as const, order: b.order, blockId: b.id })),
+    ...turn.steps.map((s) => ({ kind: 'tool' as const, order: s.order, step: s })),
+  ].sort((a, b) => a.order - b.order);
 
-  // 把 推理轮次 + 工具步骤 按 round 穿插成完整时间线：think(1)→tools(1)→think(2)→tools(2)→…
-  const seq = (() => {
-    const thinkByRound = new Map((turn.thinkingLog ?? []).map((e) => [e.round, e.message]));
-    const toolsByRound = new Map<number, ToolStep[]>();
-    for (const s of turn.steps) {
-      const r = s.round ?? 1;
-      if (!toolsByRound.has(r)) toolsByRound.set(r, []);
-      toolsByRound.get(r)!.push(s);
-    }
-    const rounds = Array.from(new Set([...thinkByRound.keys(), ...toolsByRound.keys()])).sort((a, b) => a - b);
-    const items: { kind: 'think' | 'tool'; round: number; message?: string; step?: ToolStep }[] = [];
-    for (const r of rounds) {
-      const msg = thinkByRound.get(r);
-      if (msg != null) items.push({ kind: 'think', round: r, message: msg });
-      for (const s of toolsByRound.get(r) ?? []) items.push({ kind: 'tool', round: r, step: s });
-    }
-    return items;
-  })();
-
-  const showPanel = seq.length > 0 || turn.answer || connecting || finished || isError;
+  const runningTool = turn.steps.find((s) => s.running);
+  const live = streaming ? phaseCaption(turn.phase, runningTool) : null;
+  const showPanel = streaming || act.length > 0;
 
   return (
     <div className="turn-block">
       {/* user question */}
       <div className="turn-question">{turn.question}</div>
 
-      {/* Agent 实时动作面板（过程：浅灰底、小号字，与答案明确区分） */}
+      {/* Agent 动作面板：思考（可折叠）+ 工具 step，与答案视觉区分 */}
       {showPanel && (
         <div className="agent-panel">
           <div className="agent-panel-header">
             <span>🤖 Agent 动作过程</span>
-            {liveAction && (
+            {live && (
               <span className="agent-live">
                 <span className="agent-live-dot" />
-                {liveAction}
+                {live}
               </span>
             )}
           </div>
           <div className="agent-steps">
-            {seq.map((it) =>
+            {act.map((it) =>
               it.kind === 'think' ? (
-                <div
-                  key={`t${it.round}`}
-                  className={`agent-step ${turn.thinking && turn.thinking.round === it.round ? 'is-running' : 'is-done'}`}
-                >
-                  <div className="agent-step-head">
-                    {turn.thinking && turn.thinking.round === it.round ? (
-                      <LoadingOutlined spin style={{ color: '#1677ff' }} />
-                    ) : (
-                      <span className="agent-step-no">🧠</span>
-                    )}
-                    <Text type="secondary" style={{ fontSize: 12 }}>{it.message}</Text>
-                  </div>
-                </div>
+                <ThinkingRow key={it.blockId} turn={turn} blockId={it.blockId} />
               ) : (
-                <div key={it.step!.id} className={`agent-step ${stepState(it.step!)}`}>
-                  <div className="agent-step-head">
-                    <span className="agent-step-no">{it.round}</span>
-                    <Tag color={it.step!.success === false ? 'red' : 'blue'} style={{ marginInlineEnd: 0 }}>
-                      {it.step!.name}
-                    </Tag>
-                    <StepIcon success={it.step!.success} />
-                    {it.step!.thinkingMs != null && (
-                      <Text type="secondary" style={{ fontSize: 11 }}>
-                        🤔 推理 {(it.step!.thinkingMs / 1000).toFixed(1)}s
-                      </Text>
-                    )}
-                    {it.step!.elapsedMs != null && (
-                      <Text type="secondary" style={{ fontSize: 11 }}>⚡ {it.step!.elapsedMs}ms</Text>
-                    )}
-                    {it.step!.success === false && it.step!.message && (
-                      <Text type="secondary" style={{ fontSize: 11 }}>{it.step!.message}</Text>
-                    )}
-                  </div>
-                  {it.step!.success === null ? (
-                    <div className="agent-step-result">
-                      <pre>执行中...</pre>
-                    </div>
-                  ) : it.step!.dataSummary !== undefined ? (
-                    <div className="agent-step-result">
-                      <pre>{formatSummary(it.step!.dataSummary)}</pre>
-                    </div>
-                  ) : null}
-                  <details className="agent-step-detail">
-                    <summary>查看参数</summary>
-                    <pre>{formatArgs(it.step!.arguments)}</pre>
-                  </details>
-                </div>
+                <ToolRow key={it.step.id} step={it.step} />
               ),
             )}
           </div>
         </div>
       )}
 
-      {/* 最终答案（大号正文 + 蓝色标题，与过程视觉区分） */}
+      {/* 最终回答（大号正文 + 蓝色标题，与过程视觉区分） */}
       {(turn.answer || finished || isError) && (
         <div className="answer-block">
           <div className="answer-header">📝 最终回答</div>
@@ -251,6 +207,71 @@ function TurnBlock({ turn }: { turn: ChatTurn }) {
   );
 }
 
+/** 一段推理：运行时展开实时流，结束后折叠成摘要行。 */
+function ThinkingRow({ turn, blockId }: { turn: ChatTurn; blockId: string }) {
+  const b = turn.thinking.find((x) => x.id === blockId);
+  if (!b) return null;
+  return (
+    <details className={`agent-step think-block ${b.running ? 'is-running' : 'is-done'}`} open={b.running}>
+      <summary className="agent-step-head">
+        {b.running ? (
+          <LoadingOutlined spin style={{ color: '#1677ff' }} />
+        ) : (
+          <span className="agent-step-no">🧠</span>
+        )}
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          {b.running ? '思考中…' : '思考片段'}
+        </Text>
+        {!b.running && b.text && (
+          <Text type="secondary" style={{ fontSize: 11, fontWeight: 400 }}>
+            {b.text.slice(0, 60)}
+            {b.text.length > 60 ? '…' : ''}
+          </Text>
+        )}
+      </summary>
+      {b.text && (
+        <div className="agent-step-result">
+          <pre className="think-stream">{b.text}</pre>
+        </div>
+      )}
+    </details>
+  );
+}
+
+function ToolRow({ step }: { step: ToolStep }) {
+  const running = step.running;
+  return (
+    <div className={`agent-step ${stepState(step)}`}>
+      <div className="agent-step-head">
+        <span className="agent-step-no">{step.order}</span>
+        <Tag color={step.success === false ? 'red' : 'blue'} style={{ marginInlineEnd: 0 }}>
+          {step.name || '…'}
+        </Tag>
+        <StepIcon success={step.success} />
+        {!running && resultLine(step) && (
+          <Text type="secondary" style={{ fontSize: 11 }}>{resultLine(step)}</Text>
+        )}
+      </div>
+      <details className="agent-step-detail" open={running && !!step.args}>
+        <summary>{running ? '参数（实时）' : '查看参数'}</summary>
+        <pre>{pretty(step.args) || '…'}</pre>
+      </details>
+      {running ? (
+        <div className="agent-step-result">
+          <pre>执行中...</pre>
+        </div>
+      ) : (
+        step.result !== '' && (
+          <details className="agent-step-detail">
+            <summary>查看结果</summary>
+            <pre>{pretty(step.result)}</pre>
+          </details>
+        )
+      )}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // page
 // ---------------------------------------------------------------------------
@@ -261,11 +282,7 @@ export default function AgentChat() {
   const sessionId = useChatStore((s) => s.sessionId);
   const sessions = useChatStore((s) => s.sessions);
   const startTurn = useChatStore((s) => s.startTurn);
-  const setStatus = useChatStore((s) => s.setStatus);
-  const setThinking = useChatStore((s) => s.setThinking);
-  const addToolCall = useChatStore((s) => s.addToolCall);
-  const setToolResult = useChatStore((s) => s.setToolResult);
-  const appendChunk = useChatStore((s) => s.appendChunk);
+  const handleFrame = useChatStore((s) => s.handleFrame);
   const finishTurn = useChatStore((s) => s.finishTurn);
   const failTurn = useChatStore((s) => s.failTurn);
   const setSessionId = useChatStore((s) => s.setSessionId);
@@ -284,8 +301,8 @@ export default function AgentChat() {
   }, [
     turns,
     turns[turns.length - 1]?.answer,
+    turns[turns.length - 1]?.thinking.length,
     turns[turns.length - 1]?.steps.length,
-    turns[turns.length - 1]?.thinkingLog.length,
   ]);
 
   const refreshSessions = () => {
@@ -311,7 +328,7 @@ export default function AgentChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const streamWith = (sid: string, q: string) => {
+  const streamWith = (sid: string | null, q: string) => {
     abortRef.current = agentChatStream(q, sid, {
       onSession: (actual) => {
         if (actual !== sid) {
@@ -319,24 +336,13 @@ export default function AgentChat() {
           localStorage.setItem(LS_KEY, actual);
         }
       },
-      onStatus: (status, message, round) => {
-        if (status === 'thinking') {
-          setThinking(round ?? 1, message);
-        } else {
-          setStatus(status, message);
+      onFrame: (frame: AgentFrame) => {
+        if (frame.type === 'TURN_DONE') {
+          finishTurn(frame.data as TurnDoneData);
+          refreshSessions();
+          return;
         }
-      },
-      onToolCall: (ev) => addToolCall(ev),
-      onToolResult: (ev) => setToolResult(ev),
-      onChunk: (text) => appendChunk(text),
-      onDone: (ev) => {
-        finishTurn(ev.answer, {
-          toolRounds: ev.tool_rounds,
-          toolCalls: ev.tool_calls,
-          elapsedMs: ev.elapsed_ms,
-          cacheHit: ev.cache_hit,
-        });
-        refreshSessions();
+        handleFrame(frame);
       },
       onError: (message) => failTurn(message),
     });
@@ -350,20 +356,8 @@ export default function AgentChat() {
 
     setInput('');
     startTurn(q);
-
-    if (sessionId) {
-      streamWith(sessionId, q);
-      return;
-    }
-    // 无会话 → 先创建，拿到 id 再流式
-    createSession('', q.slice(0, 30))
-      .then((res) => {
-        const sid = res.session_id;
-        setSessionId(sid);
-        localStorage.setItem(LS_KEY, sid);
-        streamWith(sid, q);
-      })
-      .catch(() => failTurn('创建会话失败，请重试'));
+    // session_id 为空时由服务端懒建会话，session 帧回传实际 id
+    streamWith(sessionId, q);
   };
 
   const handleCancel = () => {
