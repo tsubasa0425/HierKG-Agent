@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { SessionInfo, StoredMessage } from '../services/api';
 
 export interface ToolStep {
   id: string;
@@ -33,12 +34,22 @@ export interface ChatTurn {
   toolRounds?: number;
   toolCalls?: number;
   elapsedMs?: number;
+  /** 热缓存命中层级（none/evidence/answer），用于答案 meta 徽章 */
+  cacheHit?: string;
 }
 
 interface ChatStore {
+  sessionId: string | null;
+  sessions: SessionInfo[];
   turns: ChatTurn[];
   current: ChatTurn | null;
   streaming: boolean;
+  setSessionId: (sid: string | null) => void;
+  setSessions: (list: SessionInfo[]) => void;
+  /** 从服务端历史重建当前会话的 turns（工具过程不持久化，只重建 问题/答案） */
+  loadSession: (sid: string, messages: StoredMessage[]) => void;
+  /** 新建会话：清空本地状态，下次发送时服务端创建新 session */
+  newSession: () => void;
   startTurn: (question: string) => void;
   setStatus: (status: string, message: string) => void;
   setThinking: (round: number, message: string) => void;
@@ -52,7 +63,7 @@ interface ChatStore {
     data: unknown;
   }) => void;
   appendChunk: (text: string) => void;
-  finishTurn: (answer: string, meta: { toolRounds: number; toolCalls: number; elapsedMs: number }) => void;
+  finishTurn: (answer: string, meta: { toolRounds: number; toolCalls: number; elapsedMs: number; cacheHit?: string }) => void;
   failTurn: (message: string) => void;
   setStreaming: (streaming: boolean) => void;
   clear: () => void;
@@ -71,9 +82,59 @@ const patchCurrent = (state: ChatStore, fn: (t: ChatTurn) => ChatTurn) => {
 };
 
 export const useChatStore = create<ChatStore>((set) => ({
+  sessionId: null,
+  sessions: [],
   turns: [],
   current: null,
   streaming: false,
+
+  setSessionId: (sid) => set({ sessionId: sid }),
+  setSessions: (list) => set({ sessions: list }),
+
+  loadSession: (sid, messages) =>
+    set(() => {
+      const turns: ChatTurn[] = [];
+      let id = 0;
+      let pendingQ = '';
+      for (const m of messages) {
+        if (m.role === 'user') {
+          pendingQ = m.content;
+          continue;
+        }
+        if (m.role === 'assistant' && pendingQ) {
+          turns.push({
+            id: id++,
+            question: pendingQ,
+            steps: [],
+            answer: m.content,
+            status: 'done',
+            thinking: null,
+            thinkingLog: [],
+            toolRounds: (m.meta?.tool_rounds as number) ?? 0,
+            toolCalls: (m.meta?.tool_calls as number) ?? 0,
+            elapsedMs: (m.meta?.elapsed_ms as number) ?? 0,
+            cacheHit: (m.meta?.cache_hit as string) || undefined,
+          });
+          pendingQ = '';
+        }
+      }
+      // 末尾还有未配对的 user 消息（中断/未答完）
+      if (pendingQ) {
+        turns.push({
+          id: id++,
+          question: pendingQ,
+          steps: [],
+          answer: '',
+          status: 'error',
+          thinking: null,
+          thinkingLog: [],
+          error: '该消息当时未收到回答',
+        });
+      }
+      return { sessionId: sid, turns, current: null, streaming: false };
+    }),
+
+  newSession: () => set({ sessionId: null, turns: [], current: null, streaming: false }),
 
   startTurn: (question) => {
     const id = Date.now();
@@ -161,6 +222,7 @@ export const useChatStore = create<ChatStore>((set) => ({
         toolRounds: meta.toolRounds,
         toolCalls: meta.toolCalls,
         elapsedMs: meta.elapsedMs,
+        cacheHit: meta.cacheHit,
       })),
       streaming: false,
     })),

@@ -32,3 +32,29 @@ def make_client(cfg: Dict[str, Any]):
     from openai import AsyncOpenAI
 
     return AsyncOpenAI(api_key=cfg["API_KEY"], base_url=cfg["API_BASE"])
+
+
+_CHAT_DEFAULTS: Dict[str, Any] = {
+    "ENABLED": True,       # 热问题缓存总开关
+    "DB_PATH": "",         # 空 → chat_store 默认路径（env HIERKG_CHAT_DB > app/data/chat.db）
+    "THETA_EXACT": 0.96,   # ≥ 此相似度 + 版本匹配 → L1 答案直出
+    "THETA_NEAR": 0.85,    # ≥ 此相似度 → L2 证据回放；否则 L3 全量检索
+}
+
+
+def load_chat_config(path: str | None = None) -> Dict[str, Any]:
+    """读取 config.yaml 的 CacheConfig 段（会话/缓存共用配置）。
+
+    与 load_llm_config 同一配置文件；段缺失或字段缺省时回退默认值，不报错。
+    返回大写下划线键，与 APIConfig 风格一致。
+    """
+    merged = dict(_CHAT_DEFAULTS)
+    p = Path(path or os.environ.get("HIERKG_LLM_CONFIG") or _DEFAULT_CFG)
+    if not p.exists():
+        return merged
+    raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    cfg = raw.get("CacheConfig") or {}
+    for k in _CHAT_DEFAULTS:
+        if k in cfg and cfg[k] is not None:
+            merged[k] = cfg[k]
+    return merged

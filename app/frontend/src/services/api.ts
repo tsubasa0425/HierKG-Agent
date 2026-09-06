@@ -90,9 +90,48 @@ export interface DoneEvent {
   tool_rounds: number;
   tool_calls: number;
   elapsed_ms: number;
+  /** 热缓存命中层级：none / evidence（证据回放） / answer（答案直出） */
+  cache_hit?: string;
+  evidence_ids?: string[];
+  node_ids?: string[];
 }
 
+// ---------------------------------------------------------------------------
+// 会话管理
+// ---------------------------------------------------------------------------
+
+export interface SessionInfo {
+  id: string;
+  user_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StoredMessage {
+  id: number;
+  session_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  meta: Record<string, unknown>;
+  created_at: string;
+}
+
+export const createSession = (userId = '', title = ''): Promise<{ session_id: string }> =>
+  api.post('/sessions', { user_id: userId, title }).then((r) => r.data);
+
+export const listSessions = (userId = ''): Promise<SessionInfo[]> =>
+  api.get('/sessions', { params: { user_id: userId } }).then((r) => r.data.sessions);
+
+export const getSessionMessages = (sessionId: string): Promise<StoredMessage[]> =>
+  api.get(`/sessions/${sessionId}/messages`).then((r) => r.data.messages);
+
+export const deleteSession = (sessionId: string): Promise<{ deleted: boolean }> =>
+  api.delete(`/sessions/${sessionId}`).then((r) => r.data);
+
 export interface AgentStreamCallbacks {
+  /** 流开始时后端回传实际使用的 session_id（处理前端陈旧 id 被重建的场景） */
+  onSession?: (sessionId: string) => void;
   onStatus: (status: string, message: string, round?: number) => void;
   onToolCall: (ev: ToolCallEvent) => void;
   onToolResult: (ev: ToolResultEvent) => void;
@@ -102,7 +141,7 @@ export interface AgentStreamCallbacks {
 }
 
 /**
- * 发一条 user 消息给 Agent，SSE 解析事件流。
+ * 发一条 user 消息给 Agent，SSE 解析事件流（会话式：服务端根据 session_id 拼历史）。
  * 事件协议：status / tool_call / tool_result / chunk / done / error
  * 返回 AbortController 用于中途取消。
  *
@@ -110,7 +149,8 @@ export interface AgentStreamCallbacks {
  * 都会回调 onError 明确提示，避免 UI 永远停在"正在连接模型"。
  */
 export const agentChatStream = (
-  messages: ChatMessage[],
+  message: string,
+  sessionId: string | null,
   callbacks: AgentStreamCallbacks,
 ): AbortController => {
   const controller = new AbortController();
@@ -140,7 +180,7 @@ export const agentChatStream = (
       const response = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages }),
+        body: JSON.stringify({ message, session_id: sessionId }),
         signal: controller.signal,
       });
 
@@ -183,6 +223,9 @@ export const agentChatStream = (
             const data = JSON.parse(eventData);
             lastEventAt = Date.now();
             switch (eventType) {
+              case 'session':
+                callbacks.onSession?.(data.session_id);
+                break;
               case 'status':
                 callbacks.onStatus(data.status, data.message, data.round);
                 break;

@@ -13,21 +13,31 @@ import {
 import {
   SendOutlined,
   StopOutlined,
-  ClearOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
   LoadingOutlined,
   HistoryOutlined,
   CommentOutlined,
+  PlusOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { agentChatStream, type ChatMessage } from '../services/api';
+import {
+  agentChatStream,
+  createSession,
+  deleteSession,
+  getSessionMessages,
+  listSessions,
+  type SessionInfo,
+} from '../services/api';
 import { useChatStore, type ChatTurn, type ToolStep } from '../stores/chatStore';
 import type { TextAreaRef } from 'antd/es/input/TextArea';
 
 const { TextArea } = Input;
 const { Text, Title } = Typography;
+
+const LS_KEY = 'hierkg_session_id';
 
 // 证据引用徽章：把答案里的 [ev_1.1.1] / [ev_1.4#2] 内部编码转成可读的章节徽章。
 // ev_ 是图谱证据 ID 前缀，1.1.1 即章节号；用户只看章节号，看不懂内部编码。
@@ -73,6 +83,15 @@ function stepState(s: ToolStep): string {
   if (s.success === true) return 'is-done';
   if (s.success === false) return 'is-error';
   return 'is-running';
+}
+
+function cacheBadge(hit: string | undefined) {
+  if (!hit || hit === 'none') return null;
+  return (
+    <Tag color={hit === 'answer' ? 'gold' : 'blue'} style={{ marginInlineEnd: 8 }}>
+      ⚡ {hit === 'answer' ? '命中缓存·答案直出' : '命中缓存·证据回放'}
+    </Tag>
+  );
 }
 
 function TurnBlock({ turn }: { turn: ChatTurn }) {
@@ -221,6 +240,7 @@ function TurnBlock({ turn }: { turn: ChatTurn }) {
           )}
           {finished && (
             <div className="answer-meta">
+              {cacheBadge(turn.cacheHit)}
               检索 {turn.toolRounds ?? 0} 轮 · {turn.toolCalls ?? 0} 次工具调用 ·{' '}
               {((turn.elapsedMs ?? 0) / 1000).toFixed(1)}s
             </div>
@@ -238,6 +258,8 @@ function TurnBlock({ turn }: { turn: ChatTurn }) {
 export default function AgentChat() {
   const turns = useChatStore((s) => s.turns);
   const streaming = useChatStore((s) => s.streaming);
+  const sessionId = useChatStore((s) => s.sessionId);
+  const sessions = useChatStore((s) => s.sessions);
   const startTurn = useChatStore((s) => s.startTurn);
   const setStatus = useChatStore((s) => s.setStatus);
   const setThinking = useChatStore((s) => s.setThinking);
@@ -246,7 +268,10 @@ export default function AgentChat() {
   const appendChunk = useChatStore((s) => s.appendChunk);
   const finishTurn = useChatStore((s) => s.finishTurn);
   const failTurn = useChatStore((s) => s.failTurn);
-  const clear = useChatStore((s) => s.clear);
+  const setSessionId = useChatStore((s) => s.setSessionId);
+  const setSessions = useChatStore((s) => s.setSessions);
+  const loadSession = useChatStore((s) => s.loadSession);
+  const newSession = useChatStore((s) => s.newSession);
 
   const [input, setInput] = useState('');
   const abortRef = useRef<AbortController | null>(null);
@@ -263,27 +288,37 @@ export default function AgentChat() {
     turns[turns.length - 1]?.thinkingLog.length,
   ]);
 
-  const buildHistory = (): ChatMessage[] => {
-    const msgs: ChatMessage[] = [];
-    for (const t of turns) {
-      if (t.status === 'done' && t.answer) {
-        msgs.push({ role: 'user', content: t.question });
-        msgs.push({ role: 'assistant', content: t.answer });
-      }
-    }
-    return msgs.slice(-12);
+  const refreshSessions = () => {
+    listSessions().then(setSessions).catch(() => {});
   };
 
-  const handleSend = () => {
-    if (streaming) return;
-    const q = input.trim();
-    if (!q) return;
+  // 初始化：加载会话列表 + 恢复 localStorage 里的当前会话
+  useEffect(() => {
+    refreshSessions();
+    const saved = localStorage.getItem(LS_KEY);
+    if (saved) {
+      getSessionMessages(saved)
+        .then((msgs) => {
+          setSessionId(saved);
+          loadSession(saved, msgs);
+        })
+        .catch(() => {
+          // 会话已被删/失效 → 重置为新会话
+          localStorage.removeItem(LS_KEY);
+          newSession();
+        });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    setInput('');
-    startTurn(q);
-    const messages: ChatMessage[] = [...buildHistory(), { role: 'user', content: q }];
-
-    abortRef.current = agentChatStream(messages, {
+  const streamWith = (sid: string, q: string) => {
+    abortRef.current = agentChatStream(q, sid, {
+      onSession: (actual) => {
+        if (actual !== sid) {
+          setSessionId(actual);
+          localStorage.setItem(LS_KEY, actual);
+        }
+      },
       onStatus: (status, message, round) => {
         if (status === 'thinking') {
           setThinking(round ?? 1, message);
@@ -294,15 +329,41 @@ export default function AgentChat() {
       onToolCall: (ev) => addToolCall(ev),
       onToolResult: (ev) => setToolResult(ev),
       onChunk: (text) => appendChunk(text),
-      onDone: (ev) =>
+      onDone: (ev) => {
         finishTurn(ev.answer, {
           toolRounds: ev.tool_rounds,
           toolCalls: ev.tool_calls,
           elapsedMs: ev.elapsed_ms,
-        }),
+          cacheHit: ev.cache_hit,
+        });
+        refreshSessions();
+      },
       onError: (message) => failTurn(message),
     });
     setTimeout(() => textareaRef.current?.focus(), 0);
+  };
+
+  const handleSend = () => {
+    if (streaming) return;
+    const q = input.trim();
+    if (!q) return;
+
+    setInput('');
+    startTurn(q);
+
+    if (sessionId) {
+      streamWith(sessionId, q);
+      return;
+    }
+    // 无会话 → 先创建，拿到 id 再流式
+    createSession('', q.slice(0, 30))
+      .then((res) => {
+        const sid = res.session_id;
+        setSessionId(sid);
+        localStorage.setItem(LS_KEY, sid);
+        streamWith(sid, q);
+      })
+      .catch(() => failTurn('创建会话失败，请重试'));
   };
 
   const handleCancel = () => {
@@ -311,10 +372,36 @@ export default function AgentChat() {
     failTurn('已取消');
   };
 
-  const handleClear = () => {
+  const handleNewChat = () => {
     abortRef.current?.abort();
     abortRef.current = null;
-    clear();
+    localStorage.removeItem(LS_KEY);
+    newSession();
+    refreshSessions();
+  };
+
+  const handleSelectSession = async (sid: string) => {
+    if (streaming) return; // 正在回答时不切换
+    abortRef.current?.abort();
+    abortRef.current = null;
+    try {
+      const msgs = await getSessionMessages(sid);
+      setSessionId(sid);
+      localStorage.setItem(LS_KEY, sid);
+      loadSession(sid, msgs);
+    } catch {
+      failTurn('加载会话失败');
+    }
+  };
+
+  const handleDeleteSession = async (sid: string) => {
+    try {
+      await deleteSession(sid);
+      setSessions(sessions.filter((s: SessionInfo) => s.id !== sid));
+      if (sid === sessionId) handleNewChat();
+    } catch {
+      // 静默：删除失败不打断
+    }
   };
 
   return (
@@ -365,9 +452,6 @@ export default function AgentChat() {
                 {streaming ? 'Agent 正在处理，可随时停止...' : '支持多轮追问，回答会标注引用来源章节'}
               </Text>
               <Space>
-                <Button icon={<ClearOutlined />} onClick={handleClear} disabled={streaming}>
-                  清空
-                </Button>
                 {streaming ? (
                   <Button danger icon={<StopOutlined />} onClick={handleCancel}>
                     停止
@@ -387,7 +471,7 @@ export default function AgentChat() {
           </div>
         </Content>
 
-        {/* ── 右侧：对话历史 ─────────────────────────────── */}
+        {/* ── 右侧：会话列表 ─────────────────────────────── */}
         <Sider
           width={260}
           theme="light"
@@ -397,28 +481,55 @@ export default function AgentChat() {
             borderLeft: '1px solid #f0f0f0',
           }}
         >
-          <Title level={5} style={{ marginBottom: 16 }}>
-            <HistoryOutlined style={{ marginRight: 8 }} />
-            对话历史
-          </Title>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <Title level={5} style={{ marginBottom: 0 }}>
+              <HistoryOutlined style={{ marginRight: 8 }} />
+              会话
+            </Title>
+            <Button size="small" type="text" icon={<PlusOutlined />} onClick={handleNewChat}>
+              新建
+            </Button>
+          </div>
           <List
             size="small"
-            dataSource={turns}
-            locale={{ emptyText: '暂无对话' }}
-            renderItem={(t) => (
-              <List.Item style={{ padding: '8px 0' }}>
-                <Space direction="vertical" size={2} style={{ width: '100%' }}>
-                  <Text strong ellipsis style={{ fontSize: 13, maxWidth: 200 }}>
-                    {t.question}
-                  </Text>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {t.status === 'done'
-                      ? `${t.toolCalls ?? 0} 次工具调用 · ${((t.elapsedMs ?? 0) / 1000).toFixed(1)}s`
-                      : t.status === 'error'
-                        ? '失败'
-                        : '进行中...'}
-                  </Text>
-                </Space>
+            dataSource={sessions}
+            locale={{ emptyText: '暂无会话' }}
+            renderItem={(s) => (
+              <List.Item
+                key={s.id}
+                onClick={() => handleSelectSession(s.id)}
+                style={{
+                  padding: '8px 10px',
+                  cursor: 'pointer',
+                  borderRadius: 6,
+                  background: s.id === sessionId ? '#e6f4ff' : undefined,
+                }}
+                actions={[
+                  <Button
+                    key="del"
+                    type="text"
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteSession(s.id);
+                    }}
+                  />,
+                ]}
+              >
+                <List.Item.Meta
+                  title={
+                    <Text strong ellipsis style={{ fontSize: 13, maxWidth: 170 }} title={s.title}>
+                      {s.title || '未命名会话'}
+                    </Text>
+                  }
+                  description={
+                    <Text type="secondary" style={{ fontSize: 11 }}>
+                      {s.updated_at.replace('T', ' ').slice(0, 16)}
+                    </Text>
+                  }
+                />
               </List.Item>
             )}
           />

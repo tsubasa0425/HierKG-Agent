@@ -17,8 +17,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from app.config import load_llm_config
-from app.routers import chat, graph  # noqa: E402
+from app.config import load_chat_config, load_llm_config
+from app.routers import chat, graph, sessions
+from app.services import chat_store
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger("hierkg-web")
@@ -34,10 +35,16 @@ app.add_middleware(
 
 app.include_router(graph.router)
 app.include_router(chat.router)
+app.include_router(sessions.router)
 
 # 懒加载单例（构造时会连 Neo4j，故不在启动时建）
 app.state.kg = None
 app.state.registry = None
+
+# 会话/热缓存配置：启动读一次，DB_PATH 非空时覆盖 chat_store 默认路径
+app.state.chat_cfg = load_chat_config()
+if app.state.chat_cfg.get("DB_PATH"):
+    chat_store.set_db_path(app.state.chat_cfg["DB_PATH"])
 
 # LLM 配置启动时读一次（缺配置启动即报错，便于快速暴露）
 try:

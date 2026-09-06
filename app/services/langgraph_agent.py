@@ -176,6 +176,35 @@ def _is_real_answer(text: str) -> bool:
     return bool(text.strip()) and not _is_meta_non_answer(text)
 
 
+def _collect_ids(value: Any, acc: set) -> None:
+    """递归收集工具结果里的 node/evidence id（热缓存证据足迹）。
+
+    覆盖的键形态：node_id / evidence_id / concept_id / entity_id 单值，
+    以及 evidence_ids / node_ids 数组。证据节点以 node_id=ev_xxx 形式出现，
+    一并收进 acc，按前缀拆分由调用方决定（ev_* → 证据，其余 → 节点）。
+    """
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if k in ("node_id", "evidence_id", "concept_id", "entity_id"):
+                if isinstance(v, str) and v:
+                    acc.add(v)
+            elif k in ("evidence_ids", "node_ids"):
+                if isinstance(v, (list, tuple)):
+                    for x in v:
+                        if isinstance(x, str) and x:
+                            acc.add(x)
+            else:
+                _collect_ids(v, acc)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _collect_ids(item, acc)
+
+
+def _evidence_ids_from_answer(text: str) -> List[str]:
+    """从最终答案里解析 [ev_xxx] 引用，作为证据足迹的补充（工具结果之外的兜底）。"""
+    return sorted(set(re.findall(r"\[(ev_[^\]]+)\]", text or "")))
+
+
 # ---------------------------------------------------------------------------
 # LangGraph State 与节点
 # ---------------------------------------------------------------------------
@@ -189,6 +218,7 @@ class AgentState(MessagesState, total=False):
     tool_calls_count: int  # 累计工具调用次数（发 done 用）
     last_thinking_ms: int  # 上一轮 LLM 推理耗时（agent → tools 传递）
     forced: bool           # 到轮数上限被迫进入回答轮
+    touched_ids: list[str]  # 本轮检索触碰过的 node/evidence id（热缓存证据足迹）
 
 
 class _AgentAbort(Exception):
@@ -244,6 +274,7 @@ async def tools(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
 
     tool_msgs: List[AnyMessage] = []
     count = 0
+    touched = set(state.get("touched_ids") or [])
     for tc in last.tool_calls:
         name = tc["name"]
         args = tc.get("args") or {}
@@ -267,38 +298,34 @@ async def tools(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
             result = ToolResult(tool_name=name, success=False, message=f"{type(exc).__name__}: {exc}")
 
         writer({"event": "tool_result", "data": {**compact_summary(result), "id": tc["id"], "name": name}})
+        if result.success:
+            _collect_ids(result.data, touched)     # 证据足迹：成功检索触碰过的 id
         tool_msgs.append(ToolMessage(
             content=truncate_tool_result(result),  # 喂 LLM 的截断文本
             tool_call_id=tc["id"], name=name,
         ))
-    return {"messages": tool_msgs, "tool_calls_count": state.get("tool_calls_count", 0) + count}
+    return {
+        "messages": tool_msgs,
+        "tool_calls_count": state.get("tool_calls_count", 0) + count,
+        "touched_ids": sorted(touched),
+    }
 
 
-async def answer(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
-    """回答轮：stream=True 转发 token（不带 tools，保证纯文本），结尾发 done。
+async def stream_final_answer(
+    messages: List[AnyMessage],
+    cfg: Dict[str, Any],
+    writer: Callable[[Dict[str, Any]], None],
+) -> str:
+    """回答轮流式生成（供 answer 节点与缓存 L2 回放复用）。
 
     防呆三件事：
     1. deepseek 偶尔在回答轮仍把工具调用以 <tool_calls> XML 文本输出 ——
-       转发前逐段清洗，前端看不到原始 XML；done 里再整体剥一次兜底。
+       转发前逐段清洗，前端看不到原始 XML；结束再整体剥一次兜底。
     2. 若整段只有工具调用 XML 没有文字 → 追加 nudge 重试一轮，仍无则给兜底文案。
     3. 相邻 token 间隔超时（LLM_CHUNK_TIMEOUT）→ 判死流并报错，避免无限挂起。
+    返回最终清洗后的答案文本（失败时抛 _AgentAbort，由调用方决定收尾）。
     """
-    writer = get_stream_writer()
-    cfg = config["configurable"]
-    llm_plain, max_rounds, t0 = cfg["llm_plain"], cfg["max_rounds"], cfg["t0"]
-
-    if state.get("forced"):
-        writer({"event": "status", "data": {"status": "answering",
-            "message": f"已进行 {max_rounds} 轮检索，基于已有信息生成回答..."}})
-    else:
-        writer({"event": "status", "data": {"status": "answering", "message": "检索完成，正在生成回答..."}})
-
-    # 检索阶段已结束：换掉工具导向的系统提示词，模型只以"最终作答"身份输出文字，
-    # 从源头避免把工具调用写成 <tool_calls> XML 文本（只影响回答轮，不污染 agent 轮）。
-    messages = [SystemMessage(content=ANSWER_SYSTEM_PROMPT)] + [
-        m for m in state["messages"] if not isinstance(m, SystemMessage)
-    ]
-    stripped = ""
+    llm_plain = cfg["llm_plain"]
     for attempt in range(2):
         final = ""
         emitted = 0                                # 已转发（清洗后）的字符数
@@ -329,7 +356,7 @@ async def answer(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
 
         stripped = _strip_think(final)
         if _is_real_answer(stripped):
-            break                                 # 有实质文字且非元描述，直接用
+            return stripped                        # 有实质文字且非元描述，直接用
         # 空答案 或 只写了"还要检索"的元描述 → nudge 让它给文字回答，最多重试一轮
         nudge = HumanMessage(content=(
             "注意：上面你输出了工具调用格式，或只是表达了继续检索的意图，没有给出实际回答。"
@@ -338,14 +365,41 @@ async def answer(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
             "不要输出 XML 标签（tool_calls / invoke / parameter / DSML），"
             "也不要写'让我 / 再搜索 / 补充证据'之类的话。"))
         messages = [*messages, nudge]
+    return "模型未能给出文字回答，请换个问法重试。"
+
+
+async def answer(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
+    """回答轮：调 stream_final_answer 流式生成，结尾发 done（含证据足迹）。"""
+    writer = get_stream_writer()
+    cfg = config["configurable"]
+    max_rounds, t0 = cfg["max_rounds"], cfg["t0"]
+
+    if state.get("forced"):
+        writer({"event": "status", "data": {"status": "answering",
+            "message": f"已进行 {max_rounds} 轮检索，基于已有信息生成回答..."}})
     else:
-        stripped = "模型未能给出文字回答，请换个问法重试。"
+        writer({"event": "status", "data": {"status": "answering", "message": "检索完成，正在生成回答..."}})
+
+    # 检索阶段已结束：换掉工具导向的系统提示词，模型只以"最终作答"身份输出文字，
+    # 从源头避免把工具调用写成 <tool_calls> XML 文本（只影响回答轮，不污染 agent 轮）。
+    messages = [SystemMessage(content=ANSWER_SYSTEM_PROMPT)] + [
+        m for m in state["messages"] if not isinstance(m, SystemMessage)
+    ]
+    stripped = await stream_final_answer(messages, cfg, writer)
+
+    # 证据足迹：工具结果收集 + 答案 [ev_xxx] 引用兜底，按前缀拆成证据/节点
+    touched = set(state.get("touched_ids") or [])
+    touched |= set(_evidence_ids_from_answer(stripped))
+    evidence_ids = sorted({x for x in touched if x.startswith("ev_")})
+    node_ids = sorted({x for x in touched if not x.startswith("ev_")})
 
     writer({"event": "done", "data": {
         "answer": stripped,
         "tool_rounds": state.get("rounds", 0),
         "tool_calls": state.get("tool_calls_count", 0),
         "elapsed_ms": round((time.perf_counter() - t0) * 1000),
+        "evidence_ids": evidence_ids,
+        "node_ids": node_ids,
     }})
     return {"messages": [AIMessage(content=stripped)], "final_answer": stripped}
 
