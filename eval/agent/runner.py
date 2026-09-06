@@ -16,7 +16,7 @@ from eval.common import CITATION_RE, call_tool, extract_evidence_ids
 
 async def run_agent_once(registry, cfg: Dict[str, Any], question: str, max_rounds: int = 8):
     """跑一次 run_agent，返回 (events, wall_ms)。"""
-    from app.services.langgraph_agent import run_agent
+    from app.services.agentscope_agent import run_agent
     events: List[Dict[str, Any]] = []
     t0 = time.perf_counter()
     async for ev in run_agent(registry, None, cfg,

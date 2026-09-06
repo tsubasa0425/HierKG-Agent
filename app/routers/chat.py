@@ -1,14 +1,20 @@
 # -*- coding: utf-8 -*-
 """Agent 对话接口 —— POST /api/chat/stream（SSE 流式，会话式）。
 
-请求体（新格式）：
-    { "message": str, "session_id": str | null, "user_id": str }
-  - session_id 为空 → 服务端创建新会话，回复 SSE 中不显式带 id（前端可用
-    /api/sessions 查询最新会话），会话消息落 SQLite。
-  - 向后兼容：请求体仍含 messages 数组且无 message 时走旧逻辑（不持久化）。
+SSE 协议（原生事件直通，前端只按 data.type 分派）：
+    event: message
+    data:  {type: "REPLY_START" | "TEXT_BLOCK_*" | "THINKING_BLOCK_*" | ...,
+            ...}          ← AgentScope 原生事件（reply_id/block_id/tool_call_id 归组）
+    data:  {type: "session", session_id}                      ← 回传实际会话 id
+    data:  {type: "TURN_DONE", data: {answer, tool_rounds, tool_calls,
+            elapsed_ms, cache_hit, evidence_ids, node_ids}}   ← 一次回复权威收尾
+    data:  {type: "ERROR", data: {message}}                   ← 模型失败/超时
 
-流程：加载会话历史 → 编排层（热缓存 L1/L2/L3 + run_agent）流式输出 →
-      完成后持久化 user/assistant 消息与检索统计 meta。
+向后兼容：请求体含 messages 数组且无 message → 走旧格式直跑（不持久化），
+事件名沿用旧词表（status/tool_call/...），供无会话历史脚本/测试使用。
+
+会话流程：加载会话历史 → 编排层（热缓存 + AgentScope）流式输出 →
+          TURN_DONE/ERROR 收敛后由 finally 按 result 持久化消息与 meta。
 """
 from __future__ import annotations
 
@@ -24,14 +30,14 @@ from pydantic import BaseModel
 from app.config import make_client
 from app.dependencies import get_registry
 from app.services import chat_store
+from app.services.agentscope_agent import run_agent
 from app.services.chat_service import run_agent_chat
-from app.services.langgraph_agent import run_agent
 
 logger = logging.getLogger("hierkg-web.chat")
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
-HISTORY_LIMIT = 10  # 喂给 agent 的多轮历史条数（与 langgraph_agent.HISTORY_LIMIT 对齐）
+HISTORY_LIMIT = 10  # 喂给 agent 的多轮历史条数（正序，截断最后 N 条）
 
 
 class ChatMessage(BaseModel):
@@ -52,9 +58,14 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+def _sse_message(frame: dict) -> str:
+    """主协议：event 名统一 message，前端只按 data.type 分派。"""
+    return _sse("message", frame)
+
+
 def _sse_error(message: str) -> StreamingResponse:
     return StreamingResponse(
-        iter([_sse("error", {"message": message})]),
+        iter([_sse_message({"type": "ERROR", "data": {"message": message}})]),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -75,7 +86,6 @@ async def chat_stream(req: ChatRequest, request: Request):
         return _sse_error("消息不能为空")
 
     registry = get_registry(request)
-    client = make_client(cfg)
     chat_cfg = getattr(request.app.state, "chat_cfg", {}) or {}
 
     # 会话归属：session_id 为空或不存在 → 创建新会话
@@ -91,15 +101,15 @@ async def chat_stream(req: ChatRequest, request: Request):
 
     async def gen():
         # 回传实际使用的 session_id（前端陈旧 id 被重建时更新本地）
-        yield _sse("session", {"session_id": session_id})
+        yield _sse_message({"type": "session", "session_id": session_id})
         # 先落用户消息：流中断也保留问题
         await asyncio.to_thread(chat_store.append_message, session_id, "user", message, {})
         try:
-            async for ev in run_agent_chat(registry, client, cfg, message, history, result, chat_cfg):
-                yield _sse(ev["event"], ev["data"])
+            async for frame in run_agent_chat(registry, cfg, message, history, result, chat_cfg):
+                yield _sse_message(frame)
         except Exception as exc:
             logger.exception("chat stream error")
-            yield _sse("error", {"message": str(exc)})
+            yield _sse_message({"type": "ERROR", "data": {"message": str(exc)}})
         finally:
             answer = result.get("answer", "")
             if answer:
@@ -116,9 +126,9 @@ async def chat_stream(req: ChatRequest, request: Request):
 
 
 def _legacy_stream(request: Request, cfg: dict, messages: List[ChatMessage]) -> StreamingResponse:
-    """旧格式（messages 数组）直跑 run_agent，不持久化、无热缓存。"""
+    """旧格式（messages 数组）直跑 run_agent：兼容适配器仍出旧事件词表，不持久化、无热缓存。"""
     registry = get_registry(request)
-    client = make_client(cfg)
+    client = make_client(cfg)   # run_agent 兼容签名保留（已不用）
     history = [m.model_dump() for m in messages]
 
     async def gen():
