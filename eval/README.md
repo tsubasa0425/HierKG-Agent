@@ -93,4 +93,4 @@ eval/
   runs/               # 运行产物（git 忽略）
 ```
 
-`eval/` 只读使用现有代码（`app.services.langgraph_agent`、`app.config`、`src.KGRetrieve`），不 import `app.main`，不改动运行时。
+`eval/` 只读使用现有代码（`app.services.agentscope_agent`（其 `run_agent` 兼容适配仍输出旧事件词表）、`app.config`、`src.KGRetrieve`），不 import `app.main`，不改动运行时。

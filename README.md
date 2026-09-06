@@ -196,7 +196,7 @@ HierKG-Agent/
 │   ├── config.py                     # LLM 配置加载（复用 KGBuild config.yaml）
 │   ├── dependencies.py               # 懒加载单例（KGDBMemory / ToolRegistry）
 │   ├── routers/                      # chat.py（SSE Agent 对话）+ graph.py（图谱可视化）
-│   ├── services/                     # langgraph_agent.py（LangGraph StateGraph 循环）+ agent_loop.py（兼容 shim）+ graph_service.py
+│   ├── services/                     # agentscope_agent.py（AgentScope 2.0.7 编排，原生事件帧流）+ chat_service.py（热缓存编排）+ chat_store.py/qa_cache.py/kg_version.py + graph_service.py
 │   └── frontend/                     # React/Vite/AntD/sigma.js 前端（:5777）
 ├── eval/                         # 评测子系统（25 题黄金数据集 + 检索层消融 + LLM-as-judge）
 ├── requirements.txt
@@ -209,12 +209,12 @@ HierKG-Agent/
 
 | 页面 | 功能 |
 |------|------|
-| **Agent 对话**（`/chat`） | 与检索 Agent 多轮对话；实时展示可折叠的**工具调用轨迹**（工具名/耗时/参数/结果），回答 Markdown 流式输出并引用 `[ev_xxx]` 证据；支持中途停止、清空、历史回顾 |
+| **Agent 对话**（`/chat`） | 与检索 Agent 多轮对话；实时展示可折叠的**思考片段**与**工具调用轨迹**（推理/工具名/耗时/参数/结果），回答 Markdown 流式输出并引用 `[ev_xxx]` 证据；支持中途停止、清空、历史回顾 |
 | **知识图谱**（`/graph`） | L1 概念（蓝）/ L2 实体（绿）/ L3 证据（橙）分层配色的力导向图；挂载即加载全图采样，支持层级筛选、名称搜索、双击展开 2 跳邻域、单击查看节点/关系详情 |
 
 ### 技术栈
 
-- 后端：FastAPI + SSE 流式（`app/routers/`），Agent 循环基于 LangGraph StateGraph（`app/services/langgraph_agent.py`，`agent_loop.py` 为兼容 shim），LLM 复用 `src/KGBuild/config/config.yaml` 的 API 配置
+- 后端：FastAPI + SSE 流式（`app/routers/`），Agent 引擎为 AgentScope 2.0.7 统一 Agent（`app/services/agentscope_agent.py`，编排层逐事件转发原生事件帧），LLM 复用 `src/KGBuild/config/config.yaml` 的 API 配置
 - 前端：React 19 + Vite + AntD 6 + Zustand + sigma.js/graphology（`app/frontend/`）
 
 ## 效果验证

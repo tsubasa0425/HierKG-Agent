@@ -134,8 +134,5 @@ websocket-client==1.9.0
 websockets==16.0
 zipp==3.23.0
 
-# LangGraph agent loop（手写 ReAct → StateGraph 改造）
-# 注：langchain 系更新快，用区间而非精确锁版；需 Python >= 3.10（TreeKG env 为 3.12.13）
-langgraph>=1.0,<2
-langchain-core>=1.0,<2
-langchain-openai>=1.0,<2
+# Agent 引擎（AgentScope 2.0.7 统一 Agent 驱动，替代 LangGraph 自研循环）
+agentscope==2.0.7
