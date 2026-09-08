@@ -62,6 +62,10 @@ _TOOL_CALLS_RE = re.compile(
 _CACHE_TOOL_NAME = "check_qa_cache"
 # 缓存判定时不视为「真实检索」的工具：check 本身 + 按 id 组装上下文的 assemble_context
 _CACHE_NEUTRAL_TOOLS = {_CACHE_TOOL_NAME, "assemble_context"}
+# 保持串行的工具：assemble_context 是收尾聚合（语义上应最后单独调用）。
+# 其余 14 个 registry 工具只读无状态，翻 is_concurrency_safe=True 让引擎把它们并成
+# 并发批（asyncio.gather）执行；足迹经 sorted() 输出、结果按 tool_call_id 配对，仍确定。
+_SEQUENTIAL_TOOLS = {"assemble_context"}
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +93,10 @@ def build_system_prompt(registry) -> str:
 </workflow>
 <tool_policy>
 - 各检索工具带 limit 参数，控制单次拉取量。
-- assemble_context 取不到节点（图谱已更新）时回到检索工具补取。
+- 多个独立检索可并行：一个问题需要多个关键词/多个角度时，在同一轮一次发起多个检索
+  工具调用（search_concepts / search_entities / search_evidences / semantic_search /
+  get_*_by_id / get_relations 等），并行拿回后统一汇总，避免串行等待。
+- assemble_context 作为收尾单独调用；取不到节点（图谱已更新）时回到检索工具补取。
 - 若用户问题与图谱检索无关（闲聊 / 自我介绍），不要调用任何检索工具，直接作答；
   介绍自己时基于上方可用工具说明身份、检索能力与作答方式，不必强行引用证据。
 </tool_policy>
@@ -261,7 +268,8 @@ def _make_registry_tool(registry, name: str, ctx: Dict[str, Any]) -> _AutoAllowT
         name=schema["name"],
         description=schema["description"],
         input_schema=schema["parameters"],
-        is_concurrency_safe=False,   # 顺序执行，保证 ctx.results 与事件流一一对应
+        is_concurrency_safe=name not in _SEQUENTIAL_TOOLS,
+        # 只读检索工具放行引擎并发批（见 _SEQUENTIAL_TOOLS 注释）；足迹/结果仍确定。
     )
 
 
@@ -404,6 +412,11 @@ async def stream_reply(
     t0 = time.perf_counter()
     tool_rounds, tool_calls = 0, 0
     in_tool_phase = False
+    llm_calls = 0                      # 每次模型调用一份 usage（MODEL_CALL_END）
+    prompt_tokens = 0
+    completion_tokens = 0
+    cache_input_tokens = 0
+    cache_creation_tokens = 0
     final_msg: Optional[Msg] = None
     answer = ""
     gen = agent.reply_stream(inputs, yield_final_msg=True)
@@ -438,6 +451,14 @@ async def stream_reply(
                 in_tool_phase = False
 
             frame = chunk.model_dump(mode="json")
+
+            if etype == "MODEL_CALL_END":          # 每次模型调用一份 usage（token 为整数）
+                llm_calls += 1
+                prompt_tokens += frame.get("input_tokens") or 0
+                completion_tokens += frame.get("output_tokens") or 0
+                cache_input_tokens += frame.get("cache_input_tokens") or 0
+                cache_creation_tokens += frame.get("cache_creation_input_tokens") or 0
+
             yield frame                            # 原生事件直通
 
             if etype == "REPLY_END":
@@ -476,6 +497,13 @@ async def stream_reply(
         "cache_hit": _classify_cache(ctx),
         "evidence_ids": evidence_ids,
         "node_ids": node_ids,
+        "usage": {
+            "calls": llm_calls,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "cache_input_tokens": cache_input_tokens,
+            "cache_creation_tokens": cache_creation_tokens,
+        },
     }}
 
 

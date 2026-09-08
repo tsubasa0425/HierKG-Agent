@@ -1,5 +1,11 @@
 import { create } from 'zustand';
-import type { AgentFrame, SessionInfo, StoredMessage, TurnDoneData } from '../services/api';
+import type {
+  AgentFrame,
+  SessionInfo,
+  StoredMessage,
+  TurnDoneData,
+  UsageInfo,
+} from '../services/api';
 
 /** 一段 Agent 推理（原生 THINKING_BLOCK_*，用 block_id 归组累积）。 */
 export interface ThinkingBlock {
@@ -39,6 +45,8 @@ export interface ChatTurn {
   elapsedMs?: number;
   /** 热缓存命中层级（none/evidence/answer），答案 meta 徽章 */
   cacheHit?: string;
+  /** LLM 用量（calls/tokens；L1 直出为全 0，历史会话从 meta 恢复） */
+  usage?: UsageInfo;
 }
 
 interface ChatStore {
@@ -109,6 +117,7 @@ export const useChatStore = create<ChatStore>((set) => ({
             toolCalls: (m.meta?.tool_calls as number) ?? 0,
             elapsedMs: (m.meta?.elapsed_ms as number) ?? 0,
             cacheHit: (m.meta?.cache_hit as string) || undefined,
+            usage: (m.meta?.usage as UsageInfo) || undefined,
           });
           pendingQ = '';
         }
@@ -274,6 +283,7 @@ export const useChatStore = create<ChatStore>((set) => ({
         toolCalls: data.tool_calls,
         elapsedMs: data.elapsed_ms,
         cacheHit: data.cache_hit || undefined,
+        usage: data.usage || undefined,
       };
       return {
         current: updated,

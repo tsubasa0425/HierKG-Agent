@@ -107,6 +107,15 @@ export interface AgentFrame {
   [k: string]: unknown;
 }
 
+/** 一次回复的 LLM 用量（stream_reply 在 MODEL_CALL_END 上聚合；L1 直出为全 0）。 */
+export interface UsageInfo {
+  calls: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  cache_input_tokens: number;
+  cache_creation_tokens: number;
+}
+
 /** TURN_DONE 权威收尾：answer + 检索统计（chat.py finally 据此持久化）。 */
 export interface TurnDoneData {
   answer: string;
@@ -117,6 +126,8 @@ export interface TurnDoneData {
   cache_hit?: string;
   evidence_ids?: string[];
   node_ids?: string[];
+  /** LLM 用量（无模型调用时为 undefined / 全 0） */
+  usage?: UsageInfo;
 }
 
 export interface AgentStreamCallbacks {

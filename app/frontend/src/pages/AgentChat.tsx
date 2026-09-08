@@ -31,6 +31,7 @@ import {
   type AgentFrame,
   type SessionInfo,
   type TurnDoneData,
+  type UsageInfo,
 } from '../services/api';
 import { useChatStore, type ChatTurn, type Phase, type ToolStep } from '../stores/chatStore';
 import type { TextAreaRef } from 'antd/es/input/TextArea';
@@ -93,6 +94,19 @@ function cacheBadge(hit: string | undefined) {
       ⚡ {hit === 'answer' ? '命中缓存·答案直出' : '命中缓存·证据回放'}
     </Tag>
   );
+}
+
+function fmtTokens(n: number): string {
+  if (n <= 0) return '0';
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`;
+  return String(n);
+}
+
+/** 用量行片段：「· N 次模型调用 · M tokens」。无模型调用（如 L1 直出）返回空串。 */
+function usageLine(usage: UsageInfo | undefined): string {
+  if (!usage || !usage.calls) return '';
+  const total = (usage.prompt_tokens || 0) + (usage.completion_tokens || 0);
+  return ` · ${usage.calls} 次模型调用 · ${fmtTokens(total)} tokens`;
 }
 
 function phaseCaption(phase: Phase, runningTool?: ToolStep): string | null {
@@ -197,8 +211,12 @@ function TurnBlock({ turn }: { turn: ChatTurn }) {
           {finished && (
             <div className="answer-meta">
               {cacheBadge(turn.cacheHit)}
-              检索 {turn.toolRounds ?? 0} 轮 · {turn.toolCalls ?? 0} 次工具调用 ·{' '}
-              {((turn.elapsedMs ?? 0) / 1000).toFixed(1)}s
+              <span>
+                检索 {turn.toolRounds ?? 0} 轮 · {turn.toolCalls ?? 0} 次工具调用
+                {usageLine(turn.usage)}
+                {' · '}
+                {((turn.elapsedMs ?? 0) / 1000).toFixed(1)}s
+              </span>
             </div>
           )}
         </div>

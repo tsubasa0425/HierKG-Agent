@@ -70,6 +70,9 @@ async def run_agent_chat(
                 "answer": answer, "tool_rounds": 0, "tool_calls": 0,
                 "elapsed_ms": round((time.perf_counter() - t0) * 1000),
                 "cache_hit": "answer",
+                # L1 直出不调模型：零用量
+                "usage": {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0,
+                          "cache_input_tokens": 0, "cache_creation_tokens": 0},
             })
             yield {"type": "TURN_DONE", "data": dict(result)}
             return
@@ -93,7 +96,8 @@ async def run_agent_chat(
         if ftype == "TURN_DONE":
             data = frame["data"]
             result.update({k: data.get(k) for k in (
-                "answer", "tool_rounds", "tool_calls", "elapsed_ms", "cache_hit")})
+                "answer", "tool_rounds", "tool_calls", "elapsed_ms", "cache_hit",
+                "usage")})
             # 只缓存真检索过的全量回合（preload 命中本身已存在于缓存）
             if (enabled and preload is None
                     and data.get("tool_calls", 0) > 0 and data.get("answer")):
