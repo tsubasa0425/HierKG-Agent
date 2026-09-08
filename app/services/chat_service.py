@@ -64,12 +64,19 @@ async def run_agent_chat(
     if hit is not None:
         qa_cache.mark_hit(hit.entry["id"])
         if hit.level == "answer":
-            # L1 答案直出：连 LLM 都不调，0 轮 0 调用
+            # L1 答案直出：连 LLM 都不调，0 轮 0 调用；证据足迹取回缓存条目内 id
             answer = hit.entry.get("answer") or ""
+            try:
+                l1_node_ids = json.loads(hit.entry.get("node_ids") or "[]")
+                l1_evidence_ids = json.loads(hit.entry.get("evidence_ids") or "[]")
+            except (json.JSONDecodeError, TypeError):
+                l1_node_ids, l1_evidence_ids = [], []
             result.update({
                 "answer": answer, "tool_rounds": 0, "tool_calls": 0,
                 "elapsed_ms": round((time.perf_counter() - t0) * 1000),
                 "cache_hit": "answer",
+                "evidence_ids": l1_evidence_ids,
+                "node_ids": l1_node_ids,
                 # L1 直出不调模型：零用量
                 "usage": {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0,
                           "cache_input_tokens": 0, "cache_creation_tokens": 0},
@@ -98,6 +105,9 @@ async def run_agent_chat(
             result.update({k: data.get(k) for k in (
                 "answer", "tool_rounds", "tool_calls", "elapsed_ms", "cache_hit",
                 "usage")})
+            # 证据/节点足迹也写入 result（chat.py 据此落 messages.meta，供前端溯源）
+            result.update(
+                {k: data.get(k) or [] for k in ("evidence_ids", "node_ids")})
             # 只缓存真检索过的全量回合（preload 命中本身已存在于缓存）
             if (enabled and preload is None
                     and data.get("tool_calls", 0) > 0 and data.get("answer")):

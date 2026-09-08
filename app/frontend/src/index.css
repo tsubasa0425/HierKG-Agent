@@ -204,4 +204,125 @@ body {
   margin-top: 8px;
   font-size: 12px;
   color: #8c8c8c;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.answer-meta-stats {
+  margin-right: 8px;
+}
+.prov-open-btn {
+  padding: 0 4px;
+  font-size: 12px;
+}
+.prov-open-btn .anticon {
+  font-size: 12px;
+}
+
+/* 证据来源徽章：已完成的回答可点击打开溯源 */
+.ev-ref.ev-ref-link {
+  cursor: pointer;
+}
+.ev-ref.ev-ref-link:hover {
+  border-color: #1677ff;
+  color: #1677ff;
+  background: #e6effb;
+}
+
+/* ── 答题溯源 Drawer ───────────────────────────────── */
+.prov-section-label {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #595959;
+  margin: 4px 0 10px;
+}
+.prov-graph {
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.prov-graph-toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: rgba(18, 18, 40, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+}
+.prov-graph-toolbar .ant-btn {
+  color: #d6d6e6;
+}
+.prov-graph-toolbar .ant-btn:hover {
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.1);
+}
+.prov-graph-empty {
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a1a2e;
+  color: #8c8c8c;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.prov-group {
+  margin-bottom: 18px;
+}
+.prov-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.prov-evidence {
+  border: 1px solid #eef0f4;
+  border-left: 3px solid #d9d9d9;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  cursor: pointer;
+  margin-bottom: 8px;
+  transition: border-color 0.15s;
+}
+.prov-evidence:hover {
+  border-color: #ffd591;
+}
+.prov-evidence.active {
+  border-left-color: #fa8c16;
+  background: #fffbf0;
+}
+.prov-evidence-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.prov-snippet {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #595959;
+  background: #fafbfc;
+  border-radius: 6px;
+  padding: 10px 12px;
+  max-height: 300px;
+  overflow: auto;
+}
+.prov-truncated-note {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #bfbfbf;
+  text-align: right;
 }

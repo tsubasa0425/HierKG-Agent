@@ -47,6 +47,10 @@ export interface ChatTurn {
   cacheHit?: string;
   /** LLM 用量（calls/tokens；L1 直出为全 0，历史会话从 meta 恢复） */
   usage?: UsageInfo;
+  /** 本次回答引用的 L3 证据 id（TURN_DONE/历史 meta；旧会话从 answer 原文兜底解析） */
+  evidenceIds?: string[];
+  /** 本次回答触及的其他节点 id（概念/实体，检索足迹） */
+  nodeIds?: string[];
 }
 
 interface ChatStore {
@@ -97,7 +101,6 @@ export const useChatStore = create<ChatStore>((set) => ({
   loadSession: (sid, messages) =>
     set(() => {
       const turns: ChatTurn[] = [];
-      let id = 0;
       let pendingQ = '';
       for (const m of messages) {
         if (m.role === 'user') {
@@ -106,7 +109,7 @@ export const useChatStore = create<ChatStore>((set) => ({
         }
         if (m.role === 'assistant' && pendingQ) {
           turns.push({
-            id: id++,
+            id: turns.length,
             question: pendingQ,
             thinking: [],
             steps: [],
@@ -118,6 +121,8 @@ export const useChatStore = create<ChatStore>((set) => ({
             elapsedMs: (m.meta?.elapsed_ms as number) ?? 0,
             cacheHit: (m.meta?.cache_hit as string) || undefined,
             usage: (m.meta?.usage as UsageInfo) || undefined,
+            evidenceIds: (m.meta?.evidence_ids as string[]) || undefined,
+            nodeIds: (m.meta?.node_ids as string[]) || undefined,
           });
           pendingQ = '';
         }
@@ -125,7 +130,7 @@ export const useChatStore = create<ChatStore>((set) => ({
       // 末尾还有未配对的 user 消息（中断/未答完）
       if (pendingQ) {
         turns.push({
-          id: id++,
+          id: turns.length,
           question: pendingQ,
           thinking: [],
           steps: [],
@@ -284,6 +289,8 @@ export const useChatStore = create<ChatStore>((set) => ({
         elapsedMs: data.elapsed_ms,
         cacheHit: data.cache_hit || undefined,
         usage: data.usage || undefined,
+        evidenceIds: data.evidence_ids || undefined,
+        nodeIds: data.node_ids || undefined,
       };
       return {
         current: updated,

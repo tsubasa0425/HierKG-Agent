@@ -44,6 +44,26 @@ export interface GraphSearchResult {
   description: string;
 }
 
+/** 溯源里一条被引 L3 证据的原文详情（snippet 为全文，超长时 truncated=true）。 */
+export interface ProvenanceDetail {
+  id: string;
+  name: string;
+  doc_id: string;
+  section_id: string;
+  section_path: string;
+  section_level: string;
+  snippet: string;
+  truncated: boolean;
+}
+
+/** GET /api/graph/provenance：种子邻域子图 + 被引证据原文。used=命中的种子 id（高亮）。 */
+export interface ProvenanceResponse {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  used: string[];
+  details: Record<string, ProvenanceDetail>;
+}
+
 // 全图分层采样（types = concept/entity/evidence 逗号分隔）
 export const getGraphData = (types?: string[], limit?: number): Promise<GraphDataResponse> =>
   api.get('/graph', { params: { types: types?.join(','), limit: limit ?? 200 } }).then(r => r.data);
@@ -58,6 +78,10 @@ export const getEntityNeighborhood = (entityId: string, depth = 2): Promise<Grap
 // 名称/别名模糊搜节点
 export const searchEntities = (query: string, limit = 20): Promise<GraphSearchResult[]> =>
   api.get('/graph/search', { params: { q: query, limit } }).then(r => r.data.results);
+
+// 答题溯源：按证据/节点 id 拉邻域子图 + 证据原文
+export const getGraphProvenance = (ids: string[], depth = 1): Promise<ProvenanceResponse> =>
+  api.get('/graph/provenance', { params: { ids: ids.join(','), depth } }).then(r => r.data);
 
 // ---------------------------------------------------------------------------
 // 会话管理

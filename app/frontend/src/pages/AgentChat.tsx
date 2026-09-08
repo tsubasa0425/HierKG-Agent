@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Button,
+  Drawer,
   Empty,
   Input,
   Layout,
   List,
   Space,
+  Spin,
   Tag,
   Typography,
 } from 'antd';
@@ -20,19 +22,24 @@ import {
   CommentOutlined,
   PlusOutlined,
   DeleteOutlined,
+  NodeIndexOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   agentChatStream,
   deleteSession,
+  getGraphProvenance,
   getSessionMessages,
   listSessions,
   type AgentFrame,
+  type ProvenanceResponse,
   type SessionInfo,
   type TurnDoneData,
   type UsageInfo,
 } from '../services/api';
+import ProvenanceGraph from '../components/ProvenanceGraph';
 import { useChatStore, type ChatTurn, type Phase, type ToolStep } from '../stores/chatStore';
 import type { TextAreaRef } from 'antd/es/input/TextArea';
 
@@ -109,6 +116,63 @@ function usageLine(usage: UsageInfo | undefined): string {
   return ` · ${usage.calls} 次模型调用 · ${fmtTokens(total)} tokens`;
 }
 
+// ---------------------------------------------------------------------------
+// 答题溯源：答案原文里的 [ev_xxx] ↔ 证据 id / 章节号 映射
+// ---------------------------------------------------------------------------
+
+/** 恢复精确 ev id：含 #序号（ev_1.1.1#2），去掉引号外层仅剩 id 本身。 */
+const EV_ID_RE = /\[(ev_[0-9.]+(?:#[0-9]+)?)\]/g;
+/** 从原始 answer 按出现顺序恢复被引证据 id（去重）。store 存的是原文，仍含 [ev_xxx]。 */
+function citedEvidenceIds(answer: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  if (!answer) return out;
+  for (const m of answer.matchAll(EV_ID_RE)) {
+    if (!seen.has(m[1])) {
+      seen.add(m[1]);
+      out.push(m[1]);
+    }
+  }
+  return out;
+}
+
+/** turn 种子集合：answer 引用序优先，检索足迹 evidenceIds 兜底（历史会话无 meta 时纯靠解析）。 */
+function resolveSeeds(turn: ChatTurn): string[] {
+  const list = citedEvidenceIds(turn.answer ?? '');
+  const seen = new Set(list);
+  for (const id of turn.evidenceIds ?? []) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      list.push(id);
+    }
+  }
+  return list;
+}
+
+/** ev_1.1.1#2 → '1.1.1'（与徽章 §sec 对齐）；非 ev_ 前缀返回 ''。 */
+function secOf(evId: string): string {
+  return evId.startsWith('ev_') ? evId.slice(3).split('#')[0] : '';
+}
+
+/** 按章节号组匹配（同章节多条，如 ev_1.1.1 与 ev_1.1.1#2）。 */
+function matchBySec(seeds: string[], sec: string): string[] {
+  return seeds.filter((id) => secOf(id) === sec);
+}
+
+/** 溯源 Drawer 面板状态（组件局部，瞬态 UI 不进 zustand）。 */
+type ProvState = {
+  open: boolean;
+  turnId: number;
+  seeds: string[];
+  data: ProvenanceResponse | null;
+  loading: boolean;
+  /** 图 + 原文列表当前高亮的证据 id 集合 */
+  highlight: string[];
+  /** 打开后要滚动到的那条证据 id（来自 §徽章/列表点击；整块打开时为 null） */
+  scrollTo?: string | null;
+  failed: boolean;
+} | null;
+
 function phaseCaption(phase: Phase, runningTool?: ToolStep): string | null {
   switch (phase) {
     case 'connecting':
@@ -130,10 +194,18 @@ function phaseCaption(phase: Phase, runningTool?: ToolStep): string | null {
 
 type Activity = { kind: 'think'; order: number; blockId: string } | { kind: 'tool'; order: number; step: ToolStep };
 
-function TurnBlock({ turn }: { turn: ChatTurn }) {
+function TurnBlock({
+  turn,
+  onProvenance,
+}: {
+  turn: ChatTurn;
+  onProvenance?: (turn: ChatTurn, focusSec?: string) => void;
+}) {
   const finished = turn.status === 'done';
   const isError = turn.status === 'error';
   const streaming = turn.status === 'streaming';
+  // 有被引证据才有「溯源」入口
+  const seeds = resolveSeeds(turn);
 
   // 思考块与工具步骤按真实到达序穿插成时间线（原生事件无轮号，用自增 order）
   const act: Activity[] = [
@@ -185,10 +257,17 @@ function TurnBlock({ turn }: { turn: ChatTurn }) {
                 components={{
                   code({ className, children, ...props }) {
                     const text = String(children ?? '');
-                    // `§1.1.1` 内联代码（由 formatAnswer 生成）→ 渲染为来源徽章
+                    // `§1.1.1` 内联代码（由 formatAnswer 生成）→ 渲染为来源徽章；
+                    // 已完成的回答可点击 → 打开溯源 Drawer 定位该章节证据
                     if (!className && text.startsWith('§')) {
+                      const sec = text.slice(1);
+                      const clickable = finished && seeds.length > 0;
                       return (
-                        <span className="ev-ref" title="证据来源章节">
+                        <span
+                          className={`ev-ref ${clickable ? 'ev-ref-link' : ''}`}
+                          title={clickable ? `查看章节 §${sec} 证据原文` : '证据来源章节'}
+                          onClick={clickable ? () => onProvenance?.(turn, sec) : undefined}
+                        >
                           {text}
                         </span>
                       );
@@ -211,12 +290,23 @@ function TurnBlock({ turn }: { turn: ChatTurn }) {
           {finished && (
             <div className="answer-meta">
               {cacheBadge(turn.cacheHit)}
-              <span>
+              <span className="answer-meta-stats">
                 检索 {turn.toolRounds ?? 0} 轮 · {turn.toolCalls ?? 0} 次工具调用
                 {usageLine(turn.usage)}
                 {' · '}
                 {((turn.elapsedMs ?? 0) / 1000).toFixed(1)}s
               </span>
+              {seeds.length > 0 && (
+                <Button
+                  type="link"
+                  size="small"
+                  className="prov-open-btn"
+                  icon={<NodeIndexOutlined />}
+                  onClick={() => onProvenance?.(turn)}
+                >
+                  查看答题溯源
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -313,14 +403,29 @@ export default function AgentChat() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<TextAreaRef | null>(null);
 
+  // ---- 答题溯源 Drawer（组件局部状态）----
+  const [prov, setProv] = useState<ProvState>(null);
+  const provRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // §徽章/列表点击要定位到的原文卡片滚动到可见（等数据渲染后再滚）
+  useEffect(() => {
+    if (!prov?.open || !prov.scrollTo) return;
+    const el = provRefs.current[prov.scrollTo];
+    const t = window.setTimeout(() => {
+      el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, 80);
+    return () => window.clearTimeout(t);
+  }, [prov]);
+
   // auto-scroll to bottom on new content
+  const lastTurn = turns[turns.length - 1];
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [
     turns,
-    turns[turns.length - 1]?.answer,
-    turns[turns.length - 1]?.thinking.length,
-    turns[turns.length - 1]?.steps.length,
+    lastTurn?.answer,
+    lastTurn?.thinking.length,
+    lastTurn?.steps.length,
   ]);
 
   const refreshSessions = () => {
@@ -416,6 +521,57 @@ export default function AgentChat() {
     }
   };
 
+  // ---- 答题溯源：打开 / 聚焦 ----
+  const openProvenance = (turn: ChatTurn, focusSec?: string) => {
+    const evSeeds = resolveSeeds(turn);
+    // 高亮请求：证据种子 + 足迹触及的实体/概念（nodeIds）也一起高亮为"答题路径"
+    const reqIds = [...evSeeds];
+    for (const nid of turn.nodeIds ?? []) {
+      if (!reqIds.includes(nid)) reqIds.push(nid);
+    }
+    if (evSeeds.length === 0) {
+      // 纯闲聊无引用：空态即可
+      setProv({ open: true, turnId: turn.id, seeds: reqIds, data: null, loading: false, highlight: [], failed: false });
+      return;
+    }
+    setProv({ open: true, turnId: turn.id, seeds: reqIds, data: null, loading: true, highlight: [], scrollTo: null, failed: false });
+    getGraphProvenance(reqIds, 1)
+      .then((res) => {
+        setProv((p) => {
+          if (!p || !p.open || p.turnId !== turn.id) return p;
+          const used = res.used ?? [];
+          const focus = focusSec ? matchBySec(used, focusSec) : [];
+          const highlight = focus.length > 0 ? focus : used;
+          // §徽章定位 → 滚到该章节第一条原文；整块打开不滚
+          const scrollTo = focus.length > 0 ? highlight[0] : null;
+          return { ...p, data: res, loading: false, highlight, scrollTo };
+        });
+      })
+      .catch(() => {
+        setProv((p) =>
+          p && p.open && p.turnId === turn.id ? { ...p, data: null, loading: false, failed: true } : p,
+        );
+      });
+  };
+
+  /** 图/列表里聚焦某组证据（单个高亮 + 滚到对应卡片）。 */
+  const focusEvidence = (ids: string[]) => {
+    setProv((p) => (p ? { ...p, highlight: ids, scrollTo: ids[0] ?? null } : p));
+  };
+
+  // 按章节分组引用证据（同章节多条时给 chips 切换）
+  const provGroups: Array<{ sec: string; ids: string[] }> = [];
+  if (prov?.data) {
+    const bySec = new Map<string, string[]>();
+    for (const id of prov.data.used) {
+      if (!prov.data.details[id]) continue; // 只列证据
+      const sec = secOf(id);
+      if (!bySec.has(sec)) bySec.set(sec, []);
+      bySec.get(sec)!.push(id);
+    }
+    for (const [sec, ids] of bySec) provGroups.push({ sec, ids });
+  }
+
   return (
     <div style={{ margin: -24, height: 'calc(100vh - 64px)' }}>
       <Layout style={{ height: '100%' }}>
@@ -439,7 +595,7 @@ export default function AgentChat() {
                 style={{ marginTop: 80 }}
               />
             ) : (
-              turns.map((t) => <TurnBlock key={t.id} turn={t} />)
+              turns.map((t) => <TurnBlock key={t.id} turn={t} onProvenance={openProvenance} />)
             )}
             <div ref={bottomRef} />
           </div>
@@ -547,6 +703,140 @@ export default function AgentChat() {
           />
         </Sider>
       </Layout>
+
+      {/* ── 答题溯源 Drawer：路径图谱高亮 + 引用证据原文 ─────────── */}
+      <Drawer
+        title={
+          <Space>
+            <NodeIndexOutlined style={{ color: '#fa8c16' }} />
+            答题溯源
+            {prov?.data && Object.keys(prov.data.details).length > 0 && (
+              <Tag color="orange" style={{ marginInlineEnd: 0 }}>
+                {Object.keys(prov.data.details).length} 处引用
+              </Tag>
+            )}
+          </Space>
+        }
+        width={720}
+        open={!!prov?.open}
+        onClose={() => setProv(null)}
+        destroyOnClose
+      >
+        {prov?.loading && (
+          <div style={{ textAlign: 'center', padding: '56px 0' }}>
+            <Spin tip="正在载入答题路径..." />
+          </div>
+        )}
+
+        {prov?.failed && (
+          <Alert
+            type="error"
+            showIcon
+            message="无法加载溯源"
+            description="图谱服务不可用，请稍后重试。"
+            style={{ marginTop: 8 }}
+          />
+        )}
+
+        {prov && !prov.loading && !prov.failed && !prov.data && (
+          <Empty description="本条回答未引用图谱证据" style={{ marginTop: 72 }} />
+        )}
+
+        {prov?.data && (
+          <>
+            <div className="prov-section-label">
+              <NodeIndexOutlined style={{ marginRight: 6, color: '#fa8c16' }} />
+              答题路径图谱
+              <Text type="secondary" style={{ fontSize: 12, fontWeight: 400, marginLeft: 8 }}>
+                {prov.highlight.length > 0 ? `命中 ${prov.highlight.length} 个节点` : '该回答未命中可高亮节点'}
+              </Text>
+            </div>
+
+            <div className="prov-graph">
+              {prov.data.nodes.length === 0 ? (
+                <div className="prov-graph-empty">暂无相关图谱节点</div>
+              ) : (
+                <ProvenanceGraph
+                  nodes={prov.data.nodes}
+                  edges={prov.data.edges}
+                  highlightIds={prov.highlight}
+                  height="42vh"
+                  onNodeClick={(id) => focusEvidence([id])}
+                />
+              )}
+            </div>
+
+            <div className="prov-section-label">
+              <FileTextOutlined style={{ marginRight: 6, color: '#fa8c16' }} />
+              引用证据原文
+              <Text type="secondary" style={{ fontSize: 12, fontWeight: 400, marginLeft: 8 }}>
+                点击卡片可在上方图谱定位
+              </Text>
+            </div>
+
+            {provGroups.length === 0 ? (
+              <Empty description="没有可展示的证据原文" style={{ marginTop: 24 }} />
+            ) : (
+              provGroups.map((g) => (
+                <div key={g.sec} className="prov-group">
+                  <div className="prov-group-head">
+                    <Tag color="orange">章节 §{g.sec}</Tag>
+                    {g.ids.length > 1 && (
+                      <Space size={4} wrap>
+                        {g.ids.map((id, i) => {
+                          const active = prov?.highlight.includes(id) ?? false;
+                          return (
+                            <Tag
+                              key={id}
+                              color={active ? 'blue' : 'default'}
+                              style={{ cursor: 'pointer', marginInlineEnd: 0 }}
+                              onClick={() => focusEvidence([id])}
+                            >
+                              #{i + 1}
+                              {active ? ' ✓' : ''}
+                            </Tag>
+                          );
+                        })}
+                      </Space>
+                    )}
+                  </div>
+                  {g.ids.map((id) => {
+                    const d = prov?.data?.details[id];
+                    if (!d) return null;
+                    const active = prov?.highlight.includes(id) ?? false;
+                    return (
+                      <div
+                        key={id}
+                        ref={(el) => {
+                          provRefs.current[id] = el;
+                        }}
+                        className={`prov-evidence ${active ? 'active' : ''}`}
+                        onClick={() => focusEvidence([id])}
+                      >
+                        <div className="prov-evidence-head">
+                          <Space size={6}>
+                            <FileTextOutlined style={{ color: '#fa8c16' }} />
+                            <Text strong style={{ fontSize: 13 }}>
+                              {d.name || id}
+                            </Text>
+                          </Space>
+                          {d.section_path && <Tag style={{ marginInlineEnd: 0 }}>{d.section_path}</Tag>}
+                        </div>
+                        <pre className="prov-snippet">{d.snippet || '（该证据无原文）'}</pre>
+                        {d.truncated && (
+                          <div className="prov-truncated-note">
+                            原文过长，已截断显示前 {d.snippet.length} 字符
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))
+            )}
+          </>
+        )}
+      </Drawer>
     </div>
   );
 }

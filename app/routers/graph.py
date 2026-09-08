@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 
 from app.dependencies import get_kg
-from app.services.graph_service import build_graph_data, search_results
+from app.services.graph_service import build_graph_data, provenance_graph, search_results
 
 router = APIRouter(prefix="/api/graph", tags=["graph"])
 
@@ -36,3 +36,15 @@ async def neighborhood(request: Request, entity: str, depth: int = 2):
 async def graph_search(request: Request, q: str, limit: int = 20):
     """图谱页搜索框：名称/别名模糊搜节点。"""
     return {"results": search_results(get_kg(request), q, limit=min(limit, 50))}
+
+
+@router.get("/provenance")
+async def graph_provenance(request: Request, ids: str, depth: int = 1):
+    """答题溯源：按证据/节点 id 取邻域子图 + 被引证据原文（聊天页「查看答题溯源」）。
+
+    ids 为逗号分隔 node_id；used 只含存活种子，details 只含 L3 证据（全文 snippet）。
+    """
+    id_list = [i for i in (ids or "").split(",") if i.strip()][:20]
+    if not id_list:
+        return {"nodes": [], "edges": [], "used": [], "details": {}}
+    return provenance_graph(get_kg(request), id_list, depth=min(depth, 2))

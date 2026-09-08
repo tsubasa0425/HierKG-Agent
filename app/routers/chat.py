@@ -115,7 +115,7 @@ async def chat_stream(req: ChatRequest, request: Request):
             if answer:
                 meta = {k: result.get(k) for k in
                         ("tool_rounds", "tool_calls", "elapsed_ms", "cache_hit",
-                         "usage")}
+                         "usage", "evidence_ids", "node_ids")}
                 await asyncio.to_thread(chat_store.append_message, session_id, "assistant", answer, meta)
             await asyncio.to_thread(chat_store.touch_session, session_id)
 
