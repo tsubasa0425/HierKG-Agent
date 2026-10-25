@@ -338,6 +338,11 @@ def build_toolkit(registry, ctx: Dict[str, Any], theta_exact: float,
 _MODEL_CACHE: Dict[tuple, Any] = {}
 
 
+def clear_model_cache() -> None:
+    """配置热更新后丢弃已构造的客户端（缓存 key 不含 API_KEY）。"""
+    _MODEL_CACHE.clear()
+
+
 def _build_model(cfg: Dict[str, Any]):
     key = (cfg.get("API_BASE"), cfg.get("MODEL_NAME"),
            cfg.get("TIMEOUT_SECS"), cfg.get("RETRIES"))

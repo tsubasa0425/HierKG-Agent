@@ -11,6 +11,8 @@ from src.KGRetrieve import KGDBMemory, ToolRegistry
 
 
 def get_kg(request: Request) -> KGDBMemory:
+    if getattr(request.app.state, "kg_maintenance", False):
+        raise HTTPException(status_code=503, detail="图谱正在导入，请稍后再试")
     if request.app.state.kg is None:
         try:
             request.app.state.kg = KGDBMemory()

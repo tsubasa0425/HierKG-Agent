@@ -21,3 +21,4 @@ include_files:
   - "aggr.yaml"
   - "dedup.yaml"
   - "pred.yaml"
+  - "emb.yaml"

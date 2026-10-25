@@ -19,11 +19,14 @@ db_backend —— Neo4j + ChromaDB 数据库后端
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
+import os
 import re
 import sys
 import time
+from datetime import datetime
 from collections import deque
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
@@ -34,6 +37,27 @@ from neo4j import GraphDatabase
 from .models import Edge, Node
 
 logger = logging.getLogger(__name__)
+
+# Web 端消费的结构化事件协议（与 src/KGBuild/pipeline.py 保持一致）
+_EVENT_PREFIX = "@@HIERKG_EVENT@@"
+_EMIT_EVENTS = False
+
+
+def _now_iso() -> str:
+    return datetime.now().isoformat(timespec="milliseconds")
+
+
+def _emit(type_: str, **data: Any) -> None:
+    """输出一条结构化事件；仅在 --json-events 模式下生效。"""
+    if not _EMIT_EVENTS:
+        return
+    payload = {"v": 1, "ts": _now_iso(), "type": type_, **data}
+    line = f"{_EVENT_PREFIX} {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}\n"
+    try:
+        os.write(sys.stdout.fileno(), line.encode("utf-8", errors="replace"))
+    except (AttributeError, OSError, ValueError):
+        sys.stdout.write(line)
+        sys.stdout.flush()
 
 # ---------------------------------------------------------------------------
 # 配置
@@ -632,20 +656,100 @@ def _dedupe_evidence_ids(evidences: List[Dict[str, Any]]) -> List[Dict[str, Any]
     return out
 
 
-def import_kg(kg_path: Optional[str] = None) -> None:
-    """把 final_kg.json 导入到 Neo4j + ChromaDB"""
-    config = _load_config()
+def _preflight_import(config: Dict[str, Any], path: Path, kg: Dict[str, Any]) -> Dict[str, Any]:
+    """在任何破坏性操作之前验证 KG 文件、Neo4j、Ollama 与 Chroma 目录。"""
+    checks: List[Dict[str, Any]] = []
+    ok = True
+
+    def add(cid: str, label: str, passed: bool, detail: str, fix: str = "") -> None:
+        nonlocal ok
+        checks.append({"id": cid, "label": label, "ok": bool(passed),
+                       "detail": detail, "fix": fix})
+        if not passed:
+            ok = False
+
+    missing_keys = [k for k in ("L1_concepts", "L2_entities", "L3_evidences", "edges")
+                    if k not in kg]
+    add("kg_file", "图谱文件", not missing_keys,
+        f"{path}" if not missing_keys else f"{path} 缺少字段 {missing_keys}",
+        "先完成一次成功的构建")
+
+    neo = config["neo4j"]
+    try:
+        driver = GraphDatabase.driver(
+            neo["uri"], auth=(neo["username"], neo["password"]),
+            connection_timeout=3,
+        )
+        try:
+            with driver.session(database=neo["database"]) as sess:
+                sess.run("RETURN 1").consume()
+        finally:
+            driver.close()
+        add("neo4j", "Neo4j", True, f"{neo['uri']} 可连接")
+    except Exception as exc:  # noqa: BLE001
+        add("neo4j", "Neo4j", False, f"{neo['uri']} 连接失败：{exc}",
+            "检查 storage.yaml 与 Neo4j 服务")
+
+    chroma = config["chroma"]
+    try:
+        import httpx
+        host = str(chroma["ollama_host"]).rstrip("/")
+        model = chroma["embedding_model"]
+        resp = httpx.post(f"{host}/api/embeddings",
+                          json={"model": model, "prompt": "ping"}, timeout=10.0)
+        if resp.status_code != 200:
+            raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
+        if not resp.json().get("embedding"):
+            raise RuntimeError("响应中没有 embedding")
+        add("ollama", "Ollama 嵌入", True, f"{host} / {model} 可用")
+    except Exception as exc:  # noqa: BLE001
+        add("ollama", "Ollama 嵌入", False,
+            f"{chroma['ollama_host']} / {chroma['embedding_model']} 不可用：{exc}",
+            "启动 Ollama 并拉取 bge-m3")
+
+    try:
+        persist = Path(chroma["persist_directory"])
+        persist.mkdir(parents=True, exist_ok=True)
+        probe = persist / ".write_probe"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        add("chroma_dir", "Chroma 目录", True, str(persist.resolve()))
+    except Exception as exc:  # noqa: BLE001
+        add("chroma_dir", "Chroma 目录", False,
+            f"{chroma['persist_directory']} 不可写：{exc}",
+            "检查 storage.yaml 的 PERSIST_DIRECTORY")
+
+    return {"ok": ok, "checks": checks}
+
+
+def import_kg(kg_path: Optional[str] = None, *, check_only: bool = False) -> bool:
+    """把 final_kg.json 导入到 Neo4j + ChromaDB。返回是否成功。"""
+    try:
+        config = _load_config()
+    except Exception as exc:  # noqa: BLE001
+        msg = f"配置加载失败: {exc}"
+        print(f"❌ {msg}")
+        _emit("import_error", code="config_missing", message=msg)
+        return False
     kg_path = kg_path or config["kg_file"]
     path = Path(kg_path)
     if not path.is_absolute():
         path = Path(__file__).resolve().parents[2] / kg_path
     if not path.exists():
-        print(f"❌ KG 文件不存在: {path}")
-        sys.exit(1)
+        msg = f"KG 文件不存在: {path}"
+        print(f"❌ {msg}")
+        _emit("import_error", code="kg_missing", message=msg, path=str(path))
+        return False
 
     print(f"📂 加载 KG 文件: {path}")
-    with open(path, "r", encoding="utf-8") as f:
-        kg = json.load(f)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            kg = json.load(f)
+    except Exception as exc:  # noqa: BLE001
+        msg = f"KG 文件解析失败: {exc}"
+        print(f"❌ {msg}")
+        _emit("import_error", code="kg_invalid", message=msg, path=str(path))
+        return False
 
     concepts = kg.get("L1_concepts", [])
     entities = kg.get("L2_entities", [])
@@ -653,15 +757,46 @@ def import_kg(kg_path: Optional[str] = None) -> None:
     edges = kg.get("edges", [])
     # 证据 ID 可能撞名（同一 section_id 的多个小节），重命名后保证唯一
     evidences = _dedupe_evidence_ids(evidences)
-    print(f"   L1 概念: {len(concepts)}, L2 实体: {len(entities)}, L3 证据: {len(evidences)}, 边: {len(edges)}")
+    counts = {"concepts": len(concepts), "entities": len(entities),
+              "evidences": len(evidences), "edges": len(edges)}
+    print(f"   L1 概念: {counts['concepts']}, L2 实体: {counts['entities']}, "
+          f"L3 证据: {counts['evidences']}, 边: {counts['edges']}")
 
-    # —— 1. Neo4j 导入 ——
-    _import_to_neo4j(config, concepts, entities, evidences, edges)
+    pre = _preflight_import(config, path, kg)
+    _emit("import_preflight", ok=pre["ok"], checks=pre["checks"],
+          counts=counts, kg_path=str(path))
+    if not pre["ok"]:
+        msg = "导入预检失败，未执行任何破坏性操作"
+        print(f"❌ {msg}")
+        for c in pre["checks"]:
+            print(f"  [{'✔' if c['ok'] else '✘'}] {c['label']}: {c['detail']}")
+        _emit("import_error", code="preflight_failed", message=msg, checks=pre["checks"])
+        return False
 
-    # —— 2. ChromaDB 导入 ——
-    _import_to_chroma(config, concepts, entities, evidences, edges)
+    if check_only:
+        print("✅ 预检通过（--check），未导入任何数据。")
+        _emit("import_done", ok=True, check_only=True, counts=counts)
+        return True
+
+    _emit("import_start", counts=counts, kg_path=str(path))
+
+    try:
+        # —— 1. Neo4j 导入 ——
+        _import_to_neo4j(config, concepts, entities, evidences, edges)
+
+        # —— 2. ChromaDB 导入 ——
+        _import_to_chroma(config, concepts, entities, evidences, edges)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("导入失败")
+        msg = f"导入失败: {exc}"
+        print(f"\n❌ {msg}")
+        _emit("import_error", code="import_failed", message=msg, partial=True,
+              counts=counts)
+        return False
 
     print("\n✅ 导入完成！")
+    _emit("import_done", ok=True, check_only=False, counts=counts)
+    return True
 
 
 def _import_to_neo4j(config, concepts, entities, evidences, edges):
@@ -669,121 +804,147 @@ def _import_to_neo4j(config, concepts, entities, evidences, edges):
     neo = config["neo4j"]
     driver = GraphDatabase.driver(neo["uri"], auth=(neo["username"], neo["password"]))
 
-    with driver.session(database=neo["database"]) as sess:
-        # 清空旧数据
-        print("🧹 清空旧数据...")
-        sess.run("MATCH (n) DETACH DELETE n")
+    node_total = len(concepts) + len(entities) + len(evidences)
+    edge_total = len(edges)
 
-        # 创建索引
-        print("📋 创建索引...")
-        for label in ("Concept", "Entity", "Evidence"):
-            sess.run(f"CREATE INDEX IF NOT EXISTS FOR (n:{label}) ON (n.node_id)")
-            sess.run(f"CREATE INDEX IF NOT EXISTS FOR (n:{label}) ON (n.name)")
+    try:
+        with driver.session(database=neo["database"]) as sess:
+            # —— 清空旧数据 + 建索引 ——
+            _emit("import_phase_start", phase="neo4j_wipe")
+            print("🧹 清空旧数据...")
+            sess.run("MATCH (n) DETACH DELETE n")
 
-        # 导入 L1 概念
-        print(f"📥 导入 L1 概念 ({len(concepts)} 条)...")
-        for c in concepts:
-            sess.run("""
-                CREATE (n:Concept {
-                    node_id: $node_id, name: $name, type: $type,
-                    description: $description, aliases: $aliases,
-                    concept_id: $concept_id, evidence_ids: $evidence_ids
-                })
-            """,
-                node_id=c["concept_id"],
-                name=c.get("name", ""),
-                type=c.get("type", ""),
-                description=c.get("description", ""),
-                aliases=c.get("aliases", []),
-                concept_id=c["concept_id"],
-                evidence_ids=c.get("evidence_ids", []),
-            )
+            print("📋 创建索引...")
+            for label in ("Concept", "Entity", "Evidence"):
+                sess.run(f"CREATE INDEX IF NOT EXISTS FOR (n:{label}) ON (n.node_id)")
+                sess.run(f"CREATE INDEX IF NOT EXISTS FOR (n:{label}) ON (n.name)")
+            _emit("import_phase_end", phase="neo4j_wipe", ok=True)
 
-        # 导入 L2 实体
-        print(f"📥 导入 L2 实体 ({len(entities)} 条)...")
-        for e in entities:
-            sess.run("""
-                CREATE (n:Entity {
-                    node_id: $node_id, name: $name, type: $type,
-                    description: $description, aliases: $aliases,
-                    concept_id: $concept_id, evidence_ids: $evidence_ids,
-                    attributes: $attributes
-                })
-            """,
-                node_id=e["entity_id"],
-                name=e.get("name", ""),
-                type=e.get("type", ""),
-                description=e.get("description", ""),
-                aliases=e.get("aliases", []),
-                concept_id=e.get("concept_id", ""),
-                evidence_ids=e.get("evidence_ids", []),
-                attributes=json.dumps(e.get("attributes", {}) or {}, ensure_ascii=False),
-            )
+            # —— 节点 ——
+            _emit("import_phase_start", phase="neo4j_nodes", total=node_total)
+            done = 0
 
-        # 导入 L3 证据
-        print(f"📥 导入 L3 证据 ({len(evidences)} 条)...")
-        for ev in evidences:
-            sess.run("""
-                CREATE (n:Evidence {
-                    node_id: $node_id, name: $name, type: $type,
-                    doc_id: $doc_id, section_id: $section_id,
-                    section_path: $section_path, section_level: $section_level,
-                    snippet: $snippet, entities_in_section: $entities_in_section
-                })
-            """,
-                node_id=ev["evidence_id"],
-                name=ev.get("title", ev.get("section_id", "")),
-                type=ev.get("section_level", ""),
-                doc_id=ev.get("doc_id", ""),
-                section_id=ev.get("section_id", ""),
-                section_path=ev.get("section_path", ""),
-                section_level=ev.get("section_level", ""),
-                snippet=ev.get("snippet", ev.get("content", "")),
-                entities_in_section=ev.get("entities_in_section", []),
-            )
-
-        # 导入边
-        print(f"📥 导入边 ({len(edges)} 条)...")
-        t0 = time.perf_counter()
-        success = 0
-        failed = 0
-        for edge in edges:
-            rel_type = _edge_type_to_rel_type(edge.get("type", "related"))
-            try:
-                result = sess.run(f"""
-                    MATCH (s {{node_id: $src}}), (t {{node_id: $tgt}})
-                    CREATE (s)-[r:`{rel_type}` {{
-                        layer: $layer, description: $desc, keywords: $kw,
-                        edge_type: $et
-                    }}]->(t)
-                    RETURN r
+            print(f"📥 导入 L1 概念 ({len(concepts)} 条)...")
+            for c in concepts:
+                sess.run("""
+                    CREATE (n:Concept {
+                        node_id: $node_id, name: $name, type: $type,
+                        description: $description, aliases: $aliases,
+                        concept_id: $concept_id, evidence_ids: $evidence_ids
+                    })
                 """,
-                    src=edge["source"],
-                    tgt=edge["target"],
-                    layer=edge.get("layer", ""),
-                    desc=edge.get("description", ""),
-                    kw=edge.get("keywords", []),
-                    et=edge.get("type", "related"),
+                    node_id=c["concept_id"],
+                    name=c.get("name", ""),
+                    type=c.get("type", ""),
+                    description=c.get("description", ""),
+                    aliases=c.get("aliases", []),
+                    concept_id=c["concept_id"],
+                    evidence_ids=c.get("evidence_ids", []),
                 )
-                if result.single():
-                    success += 1
-                else:
+                done += 1
+                if done % 500 == 0:
+                    _emit("import_progress", phase="neo4j_nodes", done=done, total=node_total)
+
+            print(f"📥 导入 L2 实体 ({len(entities)} 条)...")
+            for e in entities:
+                sess.run("""
+                    CREATE (n:Entity {
+                        node_id: $node_id, name: $name, type: $type,
+                        description: $description, aliases: $aliases,
+                        concept_id: $concept_id, evidence_ids: $evidence_ids,
+                        attributes: $attributes
+                    })
+                """,
+                    node_id=e["entity_id"],
+                    name=e.get("name", ""),
+                    type=e.get("type", ""),
+                    description=e.get("description", ""),
+                    aliases=e.get("aliases", []),
+                    concept_id=e.get("concept_id", ""),
+                    evidence_ids=e.get("evidence_ids", []),
+                    attributes=json.dumps(e.get("attributes", {}) or {}, ensure_ascii=False),
+                )
+                done += 1
+                if done % 500 == 0:
+                    _emit("import_progress", phase="neo4j_nodes", done=done, total=node_total)
+
+            print(f"📥 导入 L3 证据 ({len(evidences)} 条)...")
+            for ev in evidences:
+                sess.run("""
+                    CREATE (n:Evidence {
+                        node_id: $node_id, name: $name, type: $type,
+                        doc_id: $doc_id, section_id: $section_id,
+                        section_path: $section_path, section_level: $section_level,
+                        snippet: $snippet, entities_in_section: $entities_in_section
+                    })
+                """,
+                    node_id=ev["evidence_id"],
+                    name=ev.get("title", ev.get("section_id", "")),
+                    type=ev.get("section_level", ""),
+                    doc_id=ev.get("doc_id", ""),
+                    section_id=ev.get("section_id", ""),
+                    section_path=ev.get("section_path", ""),
+                    section_level=ev.get("section_level", ""),
+                    snippet=ev.get("snippet", ev.get("content", "")),
+                    entities_in_section=ev.get("entities_in_section", []),
+                )
+                done += 1
+                if done % 500 == 0:
+                    _emit("import_progress", phase="neo4j_nodes", done=done, total=node_total)
+
+            _emit("import_progress", phase="neo4j_nodes", done=node_total, total=node_total)
+            _emit("import_phase_end", phase="neo4j_nodes", ok=True, done=node_total)
+
+            # —— 边 ——
+            _emit("import_phase_start", phase="neo4j_edges", total=edge_total)
+            print(f"📥 导入边 ({len(edges)} 条)...")
+            t0 = time.perf_counter()
+            success = 0
+            failed = 0
+            for edge in edges:
+                rel_type = _edge_type_to_rel_type(edge.get("type", "related"))
+                try:
+                    result = sess.run(f"""
+                        MATCH (s {{node_id: $src}}), (t {{node_id: $tgt}})
+                        CREATE (s)-[r:`{rel_type}` {{
+                            layer: $layer, description: $desc, keywords: $kw,
+                            edge_type: $et
+                        }}]->(t)
+                        RETURN r
+                    """,
+                        src=edge["source"],
+                        tgt=edge["target"],
+                        layer=edge.get("layer", ""),
+                        desc=edge.get("description", ""),
+                        kw=edge.get("keywords", []),
+                        et=edge.get("type", "related"),
+                    )
+                    if result.single():
+                        success += 1
+                    else:
+                        failed += 1
+                except Exception as exc:
                     failed += 1
-            except Exception as exc:
-                failed += 1
-                if failed <= 3:
-                    logger.warning("边导入失败: %s → %s (%s): %s",
-                                   edge.get("source"), edge.get("target"), rel_type, exc)
-        elapsed = time.perf_counter() - t0
-        print(f"   ✅ 成功 {success} 条, 失败 {failed} 条 ({elapsed:.1f}s)")
+                    if failed <= 3:
+                        logger.warning("边导入失败: %s → %s (%s): %s",
+                                       edge.get("source"), edge.get("target"), rel_type, exc)
+                if (success + failed) % 250 == 0:
+                    _emit("import_progress", phase="neo4j_edges",
+                          done=success + failed, total=edge_total)
+            elapsed = time.perf_counter() - t0
+            print(f"   ✅ 成功 {success} 条, 失败 {failed} 条 ({elapsed:.1f}s)")
+            _emit("import_progress", phase="neo4j_edges",
+                  done=success + failed, total=edge_total)
+            _emit("import_phase_end", phase="neo4j_edges", ok=True,
+                  done=success + failed, success=success, failed=failed)
 
-        # 统计
-        stats = sess.run("MATCH (n) RETURN labels(n)[0] as label, count(n) as cnt")
-        print("   数据库统计:")
-        for r in stats:
-            print(f"     {r['label']}: {r['cnt']}")
-
-    driver.close()
+            # —— 统计 ——
+            stats = sess.run("MATCH (n) RETURN labels(n)[0] as label, count(n) as cnt")
+            print("   数据库统计:")
+            for r in stats:
+                print(f"     {r['label']}: {r['cnt']}")
+    finally:
+        driver.close()
 
 
 def _import_to_chroma(config, concepts, entities, evidences, edges):
@@ -799,6 +960,7 @@ def _import_to_chroma(config, concepts, entities, evidences, edges):
         settings=Settings(allow_reset=True, anonymized_telemetry=False),
     )
     # 清空旧集合
+    _emit("import_phase_start", phase="chroma_reset")
     for name in (cfg["node_collection"], cfg["edge_collection"], cfg["evidence_collection"]):
         try:
             client.delete_collection(name)
@@ -808,6 +970,7 @@ def _import_to_chroma(config, concepts, entities, evidences, edges):
     node_col = client.get_or_create_collection(name=cfg["node_collection"])
     edge_col = client.get_or_create_collection(name=cfg["edge_collection"])
     ev_col = client.get_or_create_collection(name=cfg["evidence_collection"])
+    _emit("import_phase_end", phase="chroma_reset", ok=True)
 
     ollama_client = ollama.Client(host=cfg["ollama_host"])
     model = cfg["embedding_model"]
@@ -828,6 +991,10 @@ def _import_to_chroma(config, concepts, entities, evidences, edges):
                           {"node_id": e["entity_id"], "node_type": "entity",
                            "name": e.get("name", ""), "type": e.get("type", "")}))
 
+    vector_total = len(all_nodes) + len(evidences) + len(edges)
+    vector_done = 0
+    _emit("import_phase_start", phase="chroma_vectors", total=vector_total)
+
     print(f"📥 导入节点向量 ({len(all_nodes)} 条)...")
     t0 = time.perf_counter()
     for i in range(0, len(all_nodes), 50):
@@ -837,6 +1004,9 @@ def _import_to_chroma(config, concepts, entities, evidences, edges):
         metas = [b[3] for b in batch]
         embs = [embed(d) for d in docs]
         node_col.add(ids=ids, documents=docs, metadatas=metas, embeddings=embs)
+        vector_done += len(batch)
+        _emit("import_progress", phase="chroma_vectors",
+              done=vector_done, total=vector_total)
         print(f"   {min(i+50, len(all_nodes))}/{len(all_nodes)}", end="\r")
     print(f"   ✅ 节点向量导入完成 ({time.perf_counter()-t0:.1f}s)")
 
@@ -852,6 +1022,9 @@ def _import_to_chroma(config, concepts, entities, evidences, edges):
                   "section_path": ev.get("section_path", "")} for ev in batch]
         embs = [embed(d) for d in docs]
         ev_col.add(ids=ids, documents=docs, metadatas=metas, embeddings=embs)
+        vector_done += len(batch)
+        _emit("import_progress", phase="chroma_vectors",
+              done=vector_done, total=vector_total)
         print(f"   {min(i+20, len(evidences))}/{len(evidences)}", end="\r")
     print(f"   ✅ 证据向量导入完成 ({time.perf_counter()-t0:.1f}s)")
 
@@ -867,8 +1040,13 @@ def _import_to_chroma(config, concepts, entities, evidences, edges):
                   "type": e.get("type", ""), "layer": e.get("layer", "")} for e in batch]
         embs = [embed(d) for d in docs]
         edge_col.add(ids=ids, documents=docs, metadatas=metas, embeddings=embs)
+        vector_done += len(batch)
+        _emit("import_progress", phase="chroma_vectors",
+              done=vector_done, total=vector_total)
         print(f"   {min(i+50, len(edges))}/{len(edges)}", end="\r")
     print(f"   ✅ 边向量导入完成 ({time.perf_counter()-t0:.1f}s)")
+    _emit("import_phase_end", phase="chroma_vectors", ok=True,
+          done=vector_done, total=vector_total)
 
 
 # ===========================================================================
@@ -876,9 +1054,29 @@ def _import_to_chroma(config, concepts, entities, evidences, edges):
 # ===========================================================================
 
 if __name__ == "__main__":
+    # Windows 控制台默认 GBK，日志里的 emoji 会触发 UnicodeEncodeError
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            try:
+                _stream.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:  # noqa: BLE001
+                pass
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    if len(sys.argv) > 1 and sys.argv[1] == "import":
-        import_kg()
-    else:
-        print("用法: python -m src.KGRetrieve.db_backend import")
-        print("  import  把 final_kg.json 导入到 Neo4j + ChromaDB")
+    parser = argparse.ArgumentParser(
+        prog="python -m src.KGRetrieve.db_backend",
+        description="把 final_kg.json 导入到 Neo4j + ChromaDB",
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+    p_import = sub.add_parser("import", help="把 final_kg.json 导入到 Neo4j + ChromaDB")
+    p_import.add_argument("--json-events", action="store_true",
+                          help="stdout 输出机器可读事件（Web 端使用）")
+    p_import.add_argument("--check", action="store_true",
+                          help="只做导入预检，不写入任何数据")
+    p_import.add_argument("--kg", default=None,
+                          help="KG 文件路径（默认取 storage.yaml 的 KG_FILE）")
+    args = parser.parse_args()
+
+    if args.command == "import":
+        _EMIT_EVENTS = bool(args.json_events)
+        ok = import_kg(args.kg, check_only=args.check)
+        sys.exit(0 if ok else 1)

@@ -635,9 +635,11 @@ class SemanticSearchTool(BaseTool):
 # 用 bge-reranker-v2-m3 做精排：把 query 和每个候选拼成 pair 一起过 transformer，
 # 模型能看见两者的逐词交互，比 bi-encoder（bge-m3）的向量相似度准得多。
 # 只在候选集（top 20~50）上跑，CPU 也可接受。
-# 权重默认放本地 models/bge-reranker-v2-m3（从 ModelScope 下载，见 _download_reranker.py），
+# 权重默认放本地 models/bge-reranker-v2-m3（从 ModelScope / HF 镜像下载），
 # 本地缺失时才走 HF 镜像（huggingface.co 在国内常被墙，HF_ENDPOINT 指向 hf-mirror.com）。
+# 镜像不支持 Xet 协议，开启 hf-xet 会留下 0 字节的 .incomplete，强制走普通 HTTP。
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 
 _RERANKER: Optional[Any] = None
 _RERANKER_LOCK = threading.Lock()

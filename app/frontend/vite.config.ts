@@ -25,7 +25,8 @@ export default defineConfig({
       '/api': {
         // 用 127.0.0.1 而非 localhost：Windows 上 localhost 优先解析 ::1，
         // 而后端只绑 127.0.0.1，每个连接都会触发 IPv6→IPv4 回退延迟(~2s)。
-        target: 'http://127.0.0.1:8777',
+        // 默认对接 uvicorn 的默认端口 8000；需要换端口时设置 VITE_API_TARGET 即可。
+        target: process.env.VITE_API_TARGET || 'http://127.0.0.1:8000',
         changeOrigin: true,
         // SSE support: disable buffering & socket timeout
         configure: (proxy) => {

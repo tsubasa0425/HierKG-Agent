@@ -1,0 +1,16 @@
+# config/emb.yaml
+# 向量嵌入阶段配置（Embedding.py）—— 用 Ollama 嵌入模型生成 node_embeddings.pkl
+EmbConfig:
+  # —— I/O —— #
+  INPUT_NAME: "conv_entities.json"
+  OUTPUT_NAME: "node_embeddings.pkl"
+
+  # —— 模型 —— #
+  # 留空 = 复用 src/KGRetrieve/config/storage.yaml 的 ChromaConfig
+  # （OLLAMA_HOST / EMBEDDING_MODEL）；显式填写则覆盖。
+  OLLAMA_HOST: ""
+  EMBEDDING_MODEL: ""
+
+  # —— 运行参数 —— #
+  BATCH_SIZE: 16        # 每次请求提交的文本条数
+  TIMEOUT_SECS: 120     # 单次 embedding 请求超时

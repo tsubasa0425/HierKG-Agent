@@ -3,6 +3,7 @@ import { ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import AppLayout from './pages/Layout';
 import AgentChat from './pages/AgentChat';
+import BuildView from './pages/BuildView';
 import GraphView from './pages/GraphView';
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
             <Route index element={<Navigate to="/chat" replace />} />
             <Route path="chat" element={<AgentChat />} />
             <Route path="graph" element={<GraphView />} />
+            <Route path="build" element={<BuildView />} />
           </Route>
         </Routes>
       </BrowserRouter>

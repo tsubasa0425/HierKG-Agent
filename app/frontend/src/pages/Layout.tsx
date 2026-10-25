@@ -1,12 +1,13 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu } from 'antd';
-import { CommentOutlined, NodeIndexOutlined } from '@ant-design/icons';
+import { BuildOutlined, CommentOutlined, NodeIndexOutlined } from '@ant-design/icons';
 
 const { Sider, Content, Header } = Layout;
 
 const menuItems = [
   { key: '/chat', icon: <CommentOutlined />, label: 'Agent 对话' },
   { key: '/graph', icon: <NodeIndexOutlined />, label: '知识图谱' },
+  { key: '/build', icon: <BuildOutlined />, label: '图谱构建' },
 ];
 
 export default function AppLayout() {

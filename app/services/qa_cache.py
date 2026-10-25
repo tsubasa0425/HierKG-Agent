@@ -37,6 +37,14 @@ _ollama_model = ""
 _embed_ok = False  # 连接过 Ollama 且成功，才允许后续查询
 
 
+def reset_ollama_client() -> None:
+    """存储配置热更新后丢弃旧客户端与「连接成功」闩锁。"""
+    global _ollama_client, _ollama_model, _embed_ok
+    _ollama_client = None
+    _ollama_model = ""
+    _embed_ok = False
+
+
 def _load_storage_cfg() -> Dict[str, Any]:
     raw = {}
     if _STORAGE_CFG.exists():

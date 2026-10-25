@@ -14,15 +14,42 @@
 
 ### 1. 安装依赖
 
+本项目用 [uv](https://docs.astral.sh/uv/) 管理环境：Python 版本固定在 `.python-version`（3.12），依赖版本锁定在 `uv.lock`。
+
 ```bash
-pip install -r requirements.txt
+uv sync
+```
+
+`uv sync` 会创建 `.venv/` 并按 `uv.lock` 精确安装。依赖包含 `sentence-transformers` 与 CPU 版 `torch`（供 `rank_results` 精排使用，无需 CUDA）。
+
+国内网络可加镜像加速：
+
+```bash
+UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple uv sync
+```
+
+之后有两种用法，任选其一：
+
+```bash
+# 方式一：用 uv run 执行（自动使用项目环境，无需激活）
+uv run python -m uvicorn app.main:app    # 默认监听 127.0.0.1:8000
+
+# 方式二：先激活虚拟环境，后续沿用下面文档里的 python 命令
+source .venv/Scripts/activate    # Windows bash
+.venv\Scripts\activate           # cmd / PowerShell
 ```
 
 ### 2. 准备数据
 
 - 将教材源文件（.docx）放到：`src/KGBuild/doc/`
-- 将 BERT 模型文件夹放到：`src/KGBuild/model/bert-base-chinese/`
-  （内含 `config.json`、`model.safetensors`、`vocab.txt` 等）
+- 启动 Ollama 并拉取嵌入模型（建图第 7 步与检索侧共用同一模型）：
+
+  ```bash
+  ollama serve            # 或直接运行 Ollama 桌面端
+  ollama pull bge-m3
+  ```
+
+- （可选）`rank_results` 的精排模型 `bge-reranker-v2-m3` 约 2.2GB：放到 `src/KGRetrieve/models/bge-reranker-v2-m3/` 可离线使用；缺失时首次调用会自动从 HF 镜像下载到缓存。
 
 ### 3. 配置
 
@@ -30,7 +57,7 @@ pip install -r requirements.txt
 cp src/KGBuild/config/config.yaml.example src/KGBuild/config/config.yaml
 ```
 
-编辑 `config.yaml` 填写 LLM API 密钥。流水线各阶段配置（`extraction` / `text` / `conv` / `aggr` / `dedup` / `pred`）通过 `include_files` 自动合并。
+编辑 `config.yaml` 填写 LLM API 密钥。流水线各阶段配置（`extraction` / `text` / `conv` / `aggr` / `dedup` / `pred` / `emb`）通过 `include_files` 自动合并；`schema.yaml`（L0 本体）由各阶段直接读取。
 
 ### 4. 构建知识图谱
 
@@ -45,13 +72,15 @@ python src/KGBuild/pipeline.py --check  # 只预检各步骤输入文件，不�
 
 输出：`src/KGBuild/output/final_kg.json`
 
+以上步骤也可在 Web 端「图谱构建」（`/build`）完成：上传或选择 docx、在线编辑 LLM/存储配置与各阶段 YAML（含 `schema.yaml`）、实时查看 10 步进度与日志、取消/续跑，并在二次确认后导入 Neo4j。若还没有 `config.yaml`，可直接在该页「编辑配置」中填写，无需手动复制模板。
+
 ### 5. 启动 Web UI
 
 前置：Neo4j 已启动，并已导入图谱数据（`python -m src.KGRetrieve.db_backend import`）。
 
 ```bash
-# 后端（:8777）
-python -m uvicorn app.main:app --port 8777
+# 后端（默认 :8000）
+python -m uvicorn app.main:app
 
 # 前端（:5777）
 cd app/frontend
@@ -59,7 +88,7 @@ npm install          # 首次
 npm run dev
 ```
 
-浏览器打开 `http://localhost:5777`。
+浏览器打开 `http://localhost:5777`。前端通过 Vite 把 `/api` 代理到 `http://127.0.0.1:8000`；若后端换了端口，启动前端时用 `VITE_API_TARGET=http://127.0.0.1:<端口> npm run dev` 覆盖，无需改代码。
 
 ## 工作原理
 
@@ -156,7 +185,7 @@ search_evidences        →  get_evidence_by_id（取证据原文）
 | `search_entities` | 按名称/语义模糊搜索 L2 实体 |
 | `search_evidences` | 按关键词搜索 L3 证据 |
 | `semantic_search` | 跨层语义搜索（bge-m3 向量 + 名称混合） |
-| `rank_results` | 对候选 node_id 用 bge-reranker-v2-m3 做 cross-encoder 精排 |
+| `rank_results` | 对候选 node_id 用 bge-reranker-v2-m3 做 cross-encoder 精排，模型不可用时自动降级为关键词重叠 |
 | `assemble_context` | 把收集到的 ID 组装成带溯源标注、可粘贴的 context 块 |
 
 后端为 `KGDBMemory`（Neo4j + ChromaDB + Ollama），可通过 `python -m src.KGRetrieve.mcp_server` 暴露为 MCP server，供 Pi Agent / Claude 等 Agent 直连调用。
@@ -172,61 +201,49 @@ HierKG-Agent/
 │   │   ├── toc_graph.py            # 构建 toc_graph.json
 │   │   ├── Conv.py                 # 结果格式转换
 │   │   ├── Aggr.py                 # concept/entity 分层判定
-│   │   ├── Embedding.py            # BERT 嵌入
+│   │   ├── Embedding.py            # Ollama 向量化 → node_embeddings.pkl
 │   │   ├── Dedup.py                # 概念去重（调用 dedup/ 子包）
 │   │   ├── Pred.py                 # 关系预测
 │   │   ├── FinalKG.py              # 四层 KG 装配 → final_kg.json
 │   │   ├── pipeline.py              # 一键串联全部构图步骤
 │   │   ├── evidence_builder.py      # L3 证据构建
 │   │   ├── dedup/                   # 去重子包（knn / llm / name_similarity）
-│   │   ├── model/                   # BERT 编码器 + bert-base-chinese 权重
 │   │   ├── doc/                     # 输入文件（.docx 教材原文）
 │   │   ├── config/                  # 流水线各阶段 YAML 配置 + schema.yaml
 │   │   ├── output/                  # 构建产物（final_kg.json 等）
 │   │   └── logs/                    # 运行日志
 │   ├── KGRetrieve/             # 检索层 —— 15 个 Agent 原子工具
-│   │   ├── tools.py                 # ToolRegistry + 15 个工具 + cross-encoder 重排
+│   │   ├── tools.py                 # ToolRegistry + 15 个工具 + 可选 cross-encoder 重排
 │   │   ├── models.py                # 共享数据模型：Node / Edge
 │   │   ├── db_backend.py            # KGDBMemory（Neo4j + ChromaDB 后端）+ 导入脚本
 │   │   ├── mcp_server.py            # MCP server（Pi Agent / Claude 直连）
 │   │   └── TOOLS.md                 # 工具文档
 │   └── (schema.yaml 已移入 KGBuild/config/)
 ├── app/                         # Web UI：FastAPI 后端 + React 前端
-│   ├── main.py                       # FastAPI 入口（:8777）
+│   ├── main.py                       # FastAPI 入口（默认 :8000）
 │   ├── config.py                     # LLM 配置加载（复用 KGBuild config.yaml）
 │   ├── dependencies.py               # 懒加载单例（KGDBMemory / ToolRegistry）
 │   ├── routers/                      # chat.py（SSE Agent 对话）+ graph.py（图谱可视化）
 │   ├── services/                     # agentscope_agent.py（AgentScope 2.0.7 编排，原生事件帧流）+ chat_service.py（热缓存编排）+ chat_store.py/qa_cache.py/kg_version.py + graph_service.py
 │   └── frontend/                     # React/Vite/AntD/sigma.js 前端（:5777）
-├── eval/                         # 评测子系统（25 题黄金数据集 + 检索层消融 + LLM-as-judge）
-├── requirements.txt
+├── eval/                         # 评测子系统
+├── pyproject.toml                # 依赖声明（uv 管理）
+├── uv.lock                       # 锁定版本，保证可复现
+├── .python-version               # Python 3.12
 └── README.md
 ```
 
 ## Web UI
 
-内置两页式 Web 界面，直接调用 `KGDBMemory` + `ToolRegistry`，走浏览器即可对话和看图。
+内置三页式 Web 界面，直接调用 `KGDBMemory` + `ToolRegistry`，走浏览器即可建图、对话和看图。
 
 | 页面 | 功能 |
 |------|------|
 | **Agent 对话**（`/chat`） | 与检索 Agent 多轮对话；实时展示可折叠的**思考片段**与**工具调用轨迹**（推理/工具名/耗时/参数/结果），回答 Markdown 流式输出并引用 `[ev_xxx]` 证据；支持中途停止、清空、历史回顾 |
 | **知识图谱**（`/graph`） | L1 概念（蓝）/ L2 实体（绿）/ L3 证据（橙）分层配色的力导向图；挂载即加载全图采样，支持层级筛选、名称搜索、双击展开 2 跳邻域、单击查看节点/关系详情 |
+| **图谱构建**（`/build`） | 在线编辑 LLM / Neo4j / Ollama 配置与各阶段 YAML（含 L0 `schema.yaml`，服务端校验后原子写入）；选择或上传 docx，带心跳的 SSE 实时进度与日志；取消、从失败步骤重试；导入前强制确认（会清空 Neo4j 并重建 Chroma collection，预检失败不会执行任何破坏性操作） |
 
 ### 技术栈
 
 - 后端：FastAPI + SSE 流式（`app/routers/`），Agent 引擎为 AgentScope 2.0.7 统一 Agent（`app/services/agentscope_agent.py`，编排层逐事件转发原生事件帧），LLM 复用 `src/KGBuild/config/config.yaml` 的 API 配置
 - 前端：React 19 + Vite + AntD 6 + Zustand + sigma.js/graphology（`app/frontend/`）
-
-## 效果验证
-
-25题数据集（定义 / 事实 / 关系 / 属性 / 溯源 5 类问题），检索层与 Agent 层实测：
-
-| 指标 | 结果 |
-|------|------|
-| KG 证据召回 Recall@10 | **86.7%** |
-| 扁平向量 RAG 基线（消融对照） | 68.7% |
-| 图谱结构增益（Δ） | **+18pp** |
-| 引用覆盖率 | 84% |
-| 引用 grounding | 100% |
-
-可复现：`python -m eval.run --mode all --baseline --judge`；只看检索层用 `python -m eval.run --mode retrieval --baseline`（零 LLM 成本，约 1 分钟）。

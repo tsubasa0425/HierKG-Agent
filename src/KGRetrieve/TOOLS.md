@@ -24,7 +24,7 @@
 | Neo4j | 图结构持久化（节点 / 边 / 多跳遍历） |
 | ChromaDB | 语义向量检索 |
 | Ollama（bge-m3） | 检索侧 embedding |
-| sentence-transformers + bge-reranker-v2-m3 | `rank_results` 的精排模型（本地 models/，从 ModelScope 下载，可 GPU 推理） |
+| sentence-transformers + bge-reranker-v2-m3 | `rank_results` 的精排模型（本地 models/，从 ModelScope / HF 镜像下载）。Python 依赖随 `uv sync` 默认安装；模型缺失或加载失败时 `rank_results` 自动降级为关键词重叠打分 |
 
 ### 初始化
 
@@ -465,7 +465,7 @@ reg.call("multi_hop_traverse", {
 对前几步检索返回的候选节点列表做二次精排。
 
 **两种模式**：
-- **精排模式**（推荐）：传入 `node_ids` + `intent_query`，用本地 **bge-reranker-v2-m3（cross-encoder）** 对 query × 每个候选打分，按相关度降序返回 top_n。模型能看到 query 与候选的逐词交互，比向量相似度准得多。模型放本地 `models/bge-reranker-v2-m3/`（约 2.2GB，从 ModelScope 下载，断点续传脚本见仓库根 `_download_reranker.py`），本地缺失时才回退走 HF 镜像（`HF_ENDPOINT=hf-mirror.com` 已在 tools.py 默认设置）
+- **精排模式**（推荐）：传入 `node_ids` + `intent_query`，用本地 **bge-reranker-v2-m3（cross-encoder）** 对 query × 每个候选打分，按相关度降序返回 top_n。模型能看到 query 与候选的逐词交互，比向量相似度准得多。模型可放本地 `models/bge-reranker-v2-m3/`（约 2.2GB，可从 ModelScope / HF 镜像下载）；本地缺失时会自动从 HF 镜像拉取到 Hugging Face 缓存（`HF_ENDPOINT=hf-mirror.com` 已在 tools.py 默认设置）。**依赖默认安装**（`sentence-transformers` 与 CPU 版 `torch`，随 `uv sync` 一起装好）；模型或依赖不可用时自动降级为关键词重叠打分
 - **手动挑选模式**：只传 `node_ids` 不传 `intent_query`，按原顺序截取 top_n
 
 **参数**
