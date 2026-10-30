@@ -1,6 +1,6 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu } from 'antd';
-import { BuildOutlined, CommentOutlined, NodeIndexOutlined } from '@ant-design/icons';
+import { BuildOutlined, CommentOutlined, NodeIndexOutlined, ReadOutlined } from '@ant-design/icons';
 
 const { Sider, Content, Header } = Layout;
 
@@ -8,6 +8,7 @@ const menuItems = [
   { key: '/chat', icon: <CommentOutlined />, label: 'Agent 对话' },
   { key: '/graph', icon: <NodeIndexOutlined />, label: '知识图谱' },
   { key: '/build', icon: <BuildOutlined />, label: '图谱构建' },
+  { key: '/docs', icon: <ReadOutlined />, label: '文档说明' },
 ];
 
 export default function AppLayout() {

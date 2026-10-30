@@ -4,6 +4,7 @@ import zhCN from 'antd/locale/zh_CN';
 import AppLayout from './pages/Layout';
 import AgentChat from './pages/AgentChat';
 import BuildView from './pages/BuildView';
+import DocsView from './pages/DocsView';
 import GraphView from './pages/GraphView';
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
             <Route path="chat" element={<AgentChat />} />
             <Route path="graph" element={<GraphView />} />
             <Route path="build" element={<BuildView />} />
+            <Route path="docs" element={<DocsView />} />
           </Route>
         </Routes>
       </BrowserRouter>
