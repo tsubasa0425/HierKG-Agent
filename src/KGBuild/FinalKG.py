@@ -57,6 +57,7 @@ DEFAULTS: Dict[str, Any] = {
     "DEDUP_NAME": "dedup_result.json",
     "PRED_NAME": "pred_result.json",
     "EVIDENCE_NAME": "evidence.json",
+    "AGGR_NAME": "aggr_entities.json",
     "OUT_NAME": "final_kg.json",
     "MANIFEST_NAME": "build_manifest.json",
     "EXCLUDE_DERIVED_FROM_PROJECTION": True,
@@ -390,7 +391,7 @@ def assemble(dedup_path: Optional[Path] = None, pred_path: Optional[Path] = None
         section_hashes.setdefault(ev.section_id, _sha1_bytes(ev.text.encode("utf-8")))
     config_hashes = {}
     for name in ("schema.v2.yaml", "extraction.yaml", "conv.yaml", "aggr.yaml",
-                 "emb.yaml", "dedup.yaml", "pred.yaml"):
+                 "layer_overrides.yaml", "emb.yaml", "dedup.yaml", "pred.yaml"):
         p = CONFIG_DIR / name
         if p.exists():
             config_hashes[name] = _file_sha1(p)
@@ -413,6 +414,16 @@ def assemble(dedup_path: Optional[Path] = None, pred_path: Optional[Path] = None
     payload_for_hash = json.dumps(kg_dict, ensure_ascii=False, sort_keys=True).encode("utf-8")
     doc_text_path = ev_doc.get("doc_text_path")
     doc_hash = _file_sha1(Path(doc_text_path)) if doc_text_path else _file_sha1(evidence_path)
+
+    # Aggr 的分层质量统计与登记表指纹透传到构建清单（缺失时跳过，不阻断装配）
+    aggr_path = OUT_DIR / str(CFG.get("AGGR_NAME") or "aggr_entities.json")
+    aggr_doc = _read_json(aggr_path, required=False) or {}
+    if not isinstance(aggr_doc, dict):
+        aggr_doc = {}
+    aggr_stats = aggr_doc.get("stats") or {}
+    if not isinstance(aggr_stats, dict):
+        aggr_stats = {}
+
     manifest = {
         "schema_version": SCHEMA.version,
         "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -446,6 +457,10 @@ def assemble(dedup_path: Optional[Path] = None, pred_path: Optional[Path] = None
             "warnings": len(validation.get("warnings") or []),
         },
     }
+    if isinstance(aggr_stats.get("layer_stats"), dict):
+        manifest["layer_stats"] = aggr_stats["layer_stats"]
+    if isinstance(aggr_doc.get("layer_registry"), dict):
+        manifest["layer_registry"] = aggr_doc["layer_registry"]
     kg_dict["build_manifest"] = manifest
 
     out_path.parent.mkdir(parents=True, exist_ok=True)

@@ -542,6 +542,8 @@ BuildManifest:
   notes:
     - "section_hashes 用于跳过未变化小节的抽取"
     - "config_hashes / prompt_versions / model_ids 任一变化，相关阶段必须失效重跑"
+    - "layer_stats / layer_registry 由 aggr 产出并透传：记录兜底率、规则命中与 L1/L2 翻转"
+    - "layer_registry.json 为环境本地缓存（gitignore）；layer_overrides.yaml 进 git 供评审"
 
 # ============================================================
 # 11. 流程契约（10 步固定，只允许改实现）

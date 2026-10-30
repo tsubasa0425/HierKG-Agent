@@ -612,6 +612,12 @@ def _validate_stage(file_id: str, section: Dict[str, Any],
         num("WORKERS", 1, 256, True)
         num("PARENT_MIN_SCORE", 0, 100)
         num("INSTANCE_OF_CONFIDENCE", 0, 1)
+        num("FALLBACK_RATE_WARN", 0, 1)
+        num("FALLBACK_RATE_FAIL", 0, 1)
+        warn_rate = _as_number(section.get("FALLBACK_RATE_WARN"))
+        fail_rate = _as_number(section.get("FALLBACK_RATE_FAIL"))
+        if warn_rate is not None and fail_rate is not None and warn_rate > fail_rate:
+            _warn(warnings, "FALLBACK_RATE_WARN 高于 FALLBACK_RATE_FAIL，告警阈值应不高于失败阈值")
         if not isinstance(section.get("PROMPT_USER_TEMPLATE"), str):
             _warn(warnings, "PROMPT_USER_TEMPLATE 缺失，Aggr 将使用代码内默认提示词")
     elif file_id == "dedup":

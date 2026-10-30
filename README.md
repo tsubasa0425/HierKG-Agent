@@ -103,6 +103,16 @@ npm run dev
 
 层间关系通过 `edges` 数组中的 `layer` 字段标注：同层（L1-L1、L2-L2）和跨层（L2→L1、L1→L3 `described_by`、L2→L3 `appears_in`）。跨层边的类型还编码了证据引用强度（`rel`），见下方[证据引用加权](#证据引用加权)。
 
+### 分层决策：规则优先 + 登记表复用
+
+L1/L2 判定按固定优先级执行：**硬约束（待定 → excluded）> 人工覆写 > 规则 > LLM/登记表**。
+
+- **规则每次重新求值**：改 `schema.v2.yaml` 的 `LayerPolicy` / `SignalDetectors` 后，下一次构建立即生效
+- **LLM 决策复用**：灰区判定写入 `src/KGBuild/output/layer_registry.json`，只有 `policy_hash` / `prompt_version` / `model_id` 三项指纹一致时才复用；换模型、改提示词或改分层规则都会让旧 LLM 决策失效（规则决策不缓存）
+- **人工覆写**：`src/KGBuild/config/layer_overrides.yaml`（进 git、可评审），按规范名（可选 `type`）钉死 L1/L2；「待定」类型不能靠覆写强行入图
+- **变更可见**：每次构建产出 `layer_stats`（兜底率、各规则命中数、LLM 调用数、缓存命中数），并检测 L1↔L2 翻转——翻转会改变节点 ID 前缀，写入 `build_manifest.json` 并打印告警
+- **兜底率阈值**：`FALLBACK_RATE_WARN`（默认 15%）只告警；`FAIL_ON_FALLBACK_RATE` 默认关闭，开启后才按 `FALLBACK_RATE_FAIL` 阻断构建
+
 ### 证据引用加权（rel）
 
 跨层边（L1/L2 → L3）的类型编码了证据的**引用强度**，`get_evidences_of_node` 返回时以 `rel` 字段标注：

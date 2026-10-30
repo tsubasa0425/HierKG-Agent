@@ -90,6 +90,9 @@ app/frontend/dist/
 app/data/
 # 已导入图谱的版本戳（每个环境导入后各自生成）
 src/KGBuild/output/kg_version.txt
+# 分层决策登记表（构建期缓存/审计，随环境生成，不进 git）
+src/KGBuild/output/layer_registry.json
+src/KGBuild/output/layer_registry.json.tmp
 
 
 docs/interview-notes.md

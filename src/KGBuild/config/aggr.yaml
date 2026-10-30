@@ -15,6 +15,17 @@ AggrConfig:
   MAX_TOKENS: 300
   PROMPT_VERSION: "aggr.v2"
 
+  # —— 决策登记表 / 人工覆写 / 质量告警 —— #
+  # 规则每次重新求值；只有 LLM 决策会在 policy/prompt/model 三项指纹一致时复用
+  REGISTRY_ENABLED: true
+  LAYER_REGISTRY_NAME: "layer_registry.json"
+  LAYER_OVERRIDES_NAME: "layer_overrides.yaml"   # 相对 config/ 目录，进 git 可评审
+
+  # 兜底率 = (LLM + 缓存 + 启发式) / (规则 + LLM + 缓存 + 启发式)，不含人工覆写
+  FALLBACK_RATE_WARN: 0.15      # 超过只告警
+  FALLBACK_RATE_FAIL: 0.35      # 配合 FAIL_ON_FALLBACK_RATE 使用
+  FAIL_ON_FALLBACK_RATE: false  # 默认不阻断构建
+
   # —— 分层辅助 —— #
   # 这些类型天然是“具体实例”，直接归 L2（仍会写 layer_rule=proper_instance）
   PROPER_INSTANCE_TYPES: [工具, 人工物, 人物, 组织, 事件]

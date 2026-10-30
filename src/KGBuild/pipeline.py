@@ -58,7 +58,7 @@ STEP_META: List[Dict[str, object]] = [
     {"name": "toc_graph", "label": "目录图", "desc": "构建 toc_graph.json", "ordinal": 3},
     {"name": "evidence", "label": "证据层构建", "desc": "toc → L3 证据 evidence.json", "ordinal": 4},
     {"name": "conv", "label": "实体归并", "desc": "同义实体合并 + 信号/邻域 + 定义补全", "ordinal": 5},
-    {"name": "aggr", "label": "分层归属", "desc": "LayerPolicy 规则分层 + L2 概念归属", "ordinal": 6},
+    {"name": "aggr", "label": "分层归属", "desc": "LayerPolicy 规则分层 + 登记表复用 + L2 概念归属", "ordinal": 6},
     {"name": "embedding", "label": "向量嵌入", "desc": "L1/L2 节点向量化（Ollama → node_embeddings.pkl）", "ordinal": 7},
     {"name": "dedup", "label": "同层去重", "desc": "别名 + 向量近邻 + LLM 复核", "ordinal": 8},
     {"name": "pred", "label": "关系补全", "desc": "拓扑候选 + 向量相似 + LLM 复核", "ordinal": 9},

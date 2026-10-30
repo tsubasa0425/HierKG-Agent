@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -301,6 +302,19 @@ class Schema:
                 )
                 return LayerDecision(layer, rule.id, default_conf)
         return LayerDecision(None, "no_match", 0.0, needs_llm=True)
+
+    def policy_hash(self) -> str:
+        """LayerPolicy + SignalDetectors 的指纹。
+
+        只包含影响分层判定的本体片段；节点类型/关系类型调整不应让历史
+        LLM 分层决策失效。登记表用该指纹判断 LLM 决策是否还能复用。
+        """
+        payload = {
+            "LayerPolicy": self.raw.get("LayerPolicy"),
+            "SignalDetectors": self.raw.get("SignalDetectors"),
+        }
+        blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+        return hashlib.sha1(blob.encode("utf-8")).hexdigest()
 
     # ------------------------------------------------------------------
     # schema 自检
