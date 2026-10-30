@@ -1,9 +1,9 @@
 # config/emb.yaml
-# 向量嵌入阶段配置（Embedding.py）—— 用 Ollama 嵌入模型生成 node_embeddings.pkl
+# 向量嵌入阶段配置（Embedding.py）—— 用 Ollama 为 L1/L2 节点生成向量
 EmbConfig:
   # —— I/O —— #
-  INPUT_NAME: "conv_entities.json"
-  OUTPUT_NAME: "node_embeddings.pkl"
+  INPUT_NAME: "aggr_entities.json"   # 只嵌入已分层的 L1/L2 节点
+  OUTPUT_NAME: "node_embeddings.pkl" # {node_id: normalized_vector}
 
   # —— 模型 —— #
   # 留空 = 复用 src/KGRetrieve/config/storage.yaml 的 ChromaConfig

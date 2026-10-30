@@ -1,0 +1,615 @@
+# ============================================================
+# HierKG L0 Ontology — Schema v2（草案，尚未接入流水线）
+# ------------------------------------------------------------
+# 与 v1 的关键区别：
+#   1. NodeTypes 不再携带 layer_hint —— 「是什么类型」与「在哪一层」解耦
+#   2. 新增 LayerPolicy：层级由规则优先判定，模糊情况才调 LLM
+#   3. RelationTypes 收为闭集，规范名用 snake_case，显式声明方向/逆关系/端点约束
+#   4. EvidenceSchema 支持 block 级（段落/表格/图/公式）与字符偏移
+#   5. 节点与边统一带 confidence / salience / provenance
+#   6. 产物必须带 schema_version，并提供 ValidationRules 做构建后校验
+#
+# 设计原则：
+#   - type 回答「它是什么」，layer 回答「它在图里扮演什么角色」，两者正交
+#   - 同一 type 的节点可以落在不同 layer（例如「算法」既可能是 L1 概念，也可能是 L2 具体实例）
+#   - 关系只存一个方向，逆关系由序列化层派生，避免同一语义出现两条边
+#   - 所有阈值都是可调参数，不是本体的一部分
+# ============================================================
+
+schema_version: "2.0"
+ontology_name: "HierKG L0"
+status: draft
+updated_at: "2026-10-30"
+description: >
+  面向有结构文档（教材、技术手册等）的四层知识图谱本体。
+  L0 只定义「节点类型、关系类型、层级判定策略、证据结构与数据契约」；
+  具体领域词汇通过 domain_packs 扩展，核心本体保持稳定。
+
+# ============================================================
+# 1. 节点类型（只描述语义类别，不决定层级）
+# ============================================================
+NodeTypes:
+  core:
+    概念:
+      description: 抽象术语、理论、范式、范畴；不指代具体实例
+      examples: [强化学习, 先验知识, 效用函数, 世界模型]
+
+    方法:
+      description: 算法、技术手段、工程方法、流程
+      examples: [提示工程, 思维链, 梯度下降, 感知-思考-行动循环]
+
+    人工物:
+      description: 人造的具体对象、系统、模型、产品、文档
+      examples: [AlphaGo, BERT, GPT-4, 本书]
+
+    工具:
+      parent: 人工物
+      description: 具体的软件工具、框架、库、平台
+      examples: [LangChain, LlamaIndex, Cursor, Trae]
+
+    人物:
+      description: 具体的人
+      examples: [马文·明斯基, 李工]
+
+    组织:
+      description: 机构、公司、团队
+      examples: [OpenAI, 算法团队]
+
+    指标:
+      description: 评估指标、度量、评分标准
+      examples: [准确率, 召回率, F1]
+
+    属性:
+      description: 参数、配置项、特征、属性
+      examples: [temperature, top_k, max_tokens, 权重]
+
+    任务:
+      description: 目标、任务、应用场景
+      examples: [路径规划, 文本分类, 多轮对话]
+
+    事件:
+      description: 有明确时空边界的事件、会议、发布
+      examples: [AlphaGo 战胜李世石, 2023 年大模型发布潮]
+
+    待定:
+      description: 抽取时无法归类；进入待清洗池，不参与建图
+      resolved: false
+
+  domain_packs:
+    ai_textbook:
+      display_name: "AI / Agent 教材"
+      description: 面向智能体、机器学习教材的领域扩展
+      types:
+        智能体类型:
+          parent: 概念
+          description: 智能体的分类范式
+          examples: [反射智能体, 基于目标的智能体, 基于效用的智能体, 学习型智能体]
+
+        学习方法:
+          parent: 方法
+          description: 学习范式 / 训练方式
+          examples: [监督学习, 自监督学习, 强化学习机制]
+
+        数学概念:
+          parent: 概念
+          description: 数学基础概念
+          examples: [梯度, 损失函数, 概率分布]
+
+        算法:
+          parent: 方法
+          description: 具体算法
+          examples: [A* 算法, 反向传播, 蒙特卡洛树搜索]
+
+        提示词:
+          parent: 人工物
+          description: 具体的提示词模板 / 提示词资产
+          examples: [思维链提示模板, Few-shot 提示]
+
+# ============================================================
+# 2. 层级判定策略（layer 与 type 正交）
+# ============================================================
+LayerPolicy:
+  description: >
+    层级是节点在图中的角色，不是语义类型。L1 = 跨文档/跨章节复用的抽象节点；
+    L2 = 具体实例、命名实体、具体配置值；L3 只用于证据，不参与本策略。
+    规则按顺序匹配，命中即停；匹配到 llm 时才调用模型兜底。
+
+  layers:
+    L1: "抽象概念或方法；可跨章节复用，通常有定义性表述"
+    L2: "具体实例、命名实体、具体配置值；通常只在少数章节出现"
+    excluded: "待定或低显著性节点，不进入检索层"
+
+  signals:
+    cross_section_coverage: "节点出现的不同小节数"
+    occurrence_count: "出现总次数"
+    definitional_cue: "原文是否存在定义性措辞（是指 / 定义为 / 称为 / 是一种 / 指的是）"
+    has_definition: "抽取阶段是否得到可用定义句（原文定义或证据化补全）"
+    heading_presence: "是否出现在章 / 节 / 小节标题"
+    proper_instance: "是否为专有实例（版本号、产品名、编号、具体配置值）"
+    degree: "图谱中的度数"
+
+  rules:
+    - id: unresolved
+      when: {type: 待定}
+      layer: llm
+      confidence: 0.5
+
+    - id: proper_instance
+      when: {proper_instance: true}
+      layer: L2
+      confidence: 0.9
+
+    - id: defined_and_reused
+      when:
+        all:
+          - {definitional_cue: true}
+          - {cross_section_coverage: {gte: 2}}
+      layer: L1
+      confidence: 0.95
+
+    - id: reused
+      when:
+        all:
+          - {cross_section_coverage: {gte: 2}}
+          - {occurrence_count: {gte: 2}}
+      layer: L1
+      confidence: 0.85
+
+    - id: heading_or_definition
+      when:
+        any:
+          - {heading_presence: true}
+          - {definitional_cue: true}
+          - {has_definition: true}
+      layer: L1
+      confidence: 0.8
+
+    - id: default
+      when: {}
+      layer: llm
+      confidence: 0.5
+
+  llm_fallback:
+    enabled: true
+    trigger: "rule.layer == 'llm'"
+    prompt_ref: "aggr.yaml#PROMPTS.system"
+    allowed_outputs: [L1, L2]
+    confidence_default: 0.7
+
+  drop_policy:
+    enabled: true
+    when: "layer == excluded or (type == 待定 and llm_failed)"
+    action: "不进入 L1/L2，保留在待清洗池"
+
+# ------------------------------------------------------------
+# 2.1 信号检测器（建议实现，可替换但语义必须一致）
+# ------------------------------------------------------------
+SignalDetectors:
+  definitional_cue:
+    patterns: ["是指", "定义为", "称为", "是一种", "指的是", "所谓", "即"]
+    window: "同一 block 内，name 前后 80 字"
+    notes: "命中任一模式即视为有定义性表述"
+
+  heading_presence:
+    source: "TOC 节点的 title"
+    match: "name 是 title 的子串，或与其别名相同"
+
+  proper_instance:
+    patterns:
+      - "[A-Za-z][A-Za-z0-9_.-]{2,}"            # 英文专名 / 产品名
+      - "v?\\d+(\\.\\d+)+"                       # 版本号
+      - "第[一二三四五六七八九十0-9]+[章节条]"     # 编号
+      - "[A-Z]{2,}[A-Za-z0-9-]*"                # 缩写
+    notes: "命中任一模式视为专有实例；中文普通名词不应命中"
+
+  cross_section_coverage:
+    source: "occurrences[].section_id 去重计数"
+
+  occurrence_count:
+    source: "occurrences 长度"
+
+  degree:
+    source: "构建完成后统计的节点入度 + 出度"
+
+# ============================================================
+# 3. 关系类型（闭集）
+# ------------------------------------------------------------
+# direction: directed / symmetric
+# inverse: 逆关系名；store_inverse=false 表示只在序列化时派生，不重复存边
+# endpoint_policy: same_layer / cross_layer / layer_constraint / type_constraint
+# ============================================================
+RelationTypes:
+  core:
+    part_of:
+      direction: directed
+      inverse: has_part
+      store_inverse: false
+      endpoint_policy: same_layer
+      layers: [L1-L1, L2-L2]
+      description: A 是 B 的组成部分或子概念
+      examples: ["感知-思考-行动循环 --part_of--> 智能体运行机制"]
+
+    prerequisite:
+      direction: directed
+      inverse: null
+      endpoint_policy: same_layer
+      layers: [L1-L1, L2-L2]
+      description: 掌握 A 是理解 B 的必要条件
+      examples: ["梯度下降 --prerequisite--> 反向传播"]
+
+    applies_to:
+      direction: directed
+      inverse: null
+      endpoint_policy: same_layer
+      layers: [L1-L1, L2-L2]
+      description: A（方法 / 算法 / 工具）用于 B（对象 / 任务 / 场景）
+      examples: ["提示工程 --applies_to--> 大语言模型"]
+
+    example_of:
+      direction: directed
+      inverse: has_example
+      store_inverse: false
+      endpoint_policy: layer_constraint
+      layers: [L2-L1]
+      description: A 是 B 的实例或典型代表
+      examples: ["AlphaGo --example_of--> 强化学习"]
+
+    synonym:
+      direction: symmetric
+      endpoint_policy: same_layer
+      layers: [L1-L1, L2-L2]
+      description: 严格同义或别名
+
+    contrasts_with:
+      direction: symmetric
+      endpoint_policy: same_layer
+      layers: [L1-L1, L2-L2]
+      description: 在用途、性质上形成对比
+
+    related:
+      direction: symmetric
+      endpoint_policy: same_layer
+      layers: [L1-L1, L2-L2]
+      description: 相关但不满足更强语义（兜底）
+      is_fallback: true
+      min_confidence: 0.5
+
+  cross_layer:
+    instance_of:
+      direction: directed
+      inverse: null
+      endpoint_policy: layer_constraint
+      layers: [L2-L1]
+      description: L2 实体归属某个 L1 概念
+      examples: ["AlphaGo --instance_of--> 强化学习"]
+
+    described_by:
+      direction: directed
+      inverse: null
+      endpoint_policy: layer_constraint
+      layers: [L1-L3]
+      description: L1 概念由某条 L3 证据定义 / 解释（强引用）
+
+    appears_in:
+      direction: directed
+      inverse: null
+      endpoint_policy: layer_constraint
+      layers: [L1-L3, L2-L3]
+      description: 节点出现在某条 L3 证据中（弱引用）
+
+  derived_inverses:
+    has_part: {inverse_of: part_of}
+    has_example: {inverse_of: example_of}
+
+# ============================================================
+# 4. 关系名归一化（只处理书写变体，不承担 v1 迁移）
+# ============================================================
+RelationAliases:
+  part-of: {canonical: part_of}
+  applies-to: {canonical: applies_to}
+  example-of: {canonical: example_of}
+  contrasts-with: {canonical: contrasts_with}
+  related_to: {canonical: related}
+  synonym_of: {canonical: synonym}
+  part of: {canonical: part_of}
+  applies to: {canonical: applies_to}
+  example of: {canonical: example_of}
+  contrasts with: {canonical: contrasts_with}
+
+# ============================================================
+# 5. 证据结构（L3）
+# ============================================================
+EvidenceSchema:
+  description: L3 证据是原文中可定位的片段；v2 支持 block 级和字符偏移
+
+  section_level:
+    enum: [chapter, section, subsection, subsubsection, block, unknown]
+
+  block_type:
+    enum: [paragraph, table, figure, formula, code, list, unknown]
+
+  required: [id, doc_id, section_id, section_path, section_level, title, text]
+  optional: [block_id, block_type, char_start, char_end, entities_in_section, derived]
+
+  id_format: "ev_{doc_id}:{section_id}[:{block_id}]"
+  notes:
+    - "char_start / char_end 相对原始文档；优先使用解析器给出的绝对偏移"
+    - "derived=true 的导语证据只进图导航，不进检索投影（沿用 v1 不变量）"
+    - "block 级证据是可选增强；没有 block 信息时退化为 section 级"
+
+# ============================================================
+# 6. 记录契约（构建产物必须满足的字段）
+# ============================================================
+Records:
+  Node:
+    required: [id, name, type, layer, aliases, definition, confidence, provenance]
+    optional: [salience, attributes]
+    fields:
+      id:
+        type: string
+        pattern: "^(concept|ent)_[0-9a-f]{8,}$"
+      name:
+        type: string
+        min_length: 1
+      type:
+        enum_from: "NodeTypes.core + NodeTypes.domain_packs.*.types"
+      layer:
+        enum: [L1, L2, excluded]
+      aliases:
+        type: array
+        items: string
+      definition:
+        type: string
+        description: "优先取原文定义句；无定义时再使用 LLM 概述"
+      confidence:
+        type: number
+        min: 0
+        max: 1
+      salience:
+        occurrence_count: integer
+        section_coverage: integer
+        degree: integer
+        definitional: boolean
+        score: number
+      provenance:
+        type: array
+        items:
+          doc_id: string
+          section_id: string
+          block_id: string
+          char_start: integer
+          char_end: integer
+          extractor: string
+          model: string
+          prompt_version: string
+
+  Relation:
+    required: [source, target, type, layer, confidence, provenance]
+    optional: [description, keywords, evidence_ids, strength]
+    fields:
+      source: {type: string, ref: Node.id}
+      target: {type: string, ref: Node.id}
+      type:
+        enum_from: "RelationTypes.core + RelationTypes.cross_layer"
+      layer:
+        enum: [L1-L1, L2-L2, L1-L2, L2-L1, L1-L3, L2-L3]
+      confidence:
+        type: number
+        min: 0
+        max: 1
+      strength:
+        type: integer
+        min: 0
+        max: 10
+        deprecated: "用 confidence 取代；迁移期保留"
+      evidence_ids:
+        type: array
+        items: string
+      provenance:
+        type: array
+        items:
+          doc_id: string
+          section_id: string
+          extractor: string
+          model: string
+          prompt_version: string
+
+  Evidence:
+    required: [id, doc_id, section_id, section_path, section_level, title, text]
+    optional: [block_id, block_type, char_start, char_end, entities_in_section, derived]
+
+# ============================================================
+# 7. 置信度与显著性
+# ============================================================
+ConfidencePolicy:
+  extraction:
+    grounded_in_source: 1.0
+    alias_grounded: 0.9
+    not_grounded: 0.3
+  relation:
+    from_strength: "strength / 10"
+    llm_default: 0.5
+    rule_derived: 1.0
+  layer:
+    rule_match: 1.0
+    llm_fallback: 0.7
+  evidence:
+    exact_span: 1.0
+    section_span: 0.8
+
+SaliencePolicy:
+  fields: [occurrence_count, section_coverage, degree, definitional, score]
+  score: >
+    0.4 * min(section_coverage / 3, 1)
+    + 0.3 * min(occurrence_count / 5, 1)
+    + 0.2 * definitional
+    + 0.1 * min(degree / 10, 1)
+  notes:
+    - "score 只用于排序与降权，不直接决定 layer"
+    - "建议检索侧对 score < 0.2 的节点降权，而不是直接删除"
+
+# ============================================================
+# 8. 校验规则（构建后必须通过）
+# ============================================================
+ValidationRules:
+  node:
+    - rule: type_in_schema
+      severity: error
+    - rule: layer_valid
+      severity: error
+    - rule: id_unique
+      severity: error
+    - rule: no_unresolved_in_graph
+      when: "type == 待定 and layer != excluded"
+      severity: error
+    - rule: node_has_evidence
+      when: "layer in [L1, L2]"
+      severity: error
+
+  relation:
+    - rule: type_in_schema
+      severity: error
+    - rule: no_self_loop
+      severity: error
+    - rule: endpoint_policy
+      severity: error
+    - rule: symmetric_canonical
+      when: "direction == symmetric"
+      severity: warning
+    - rule: no_duplicate
+      severity: error
+    - rule: confidence_range
+      severity: error
+    - rule: evidence_backed
+      when: "type not in [instance_of]"
+      severity: warning
+
+  evidence:
+    - rule: offsets_valid
+      when: "char_start is not null"
+      severity: error
+    - rule: text_nonempty
+      severity: error
+
+  graph:
+    - rule: edge_endpoints_exist
+      severity: error
+    - rule: evidence_projection_consistent
+      severity: error
+    - rule: no_orphan_evidence
+      severity: warning
+
+# ============================================================
+# 9. ID 策略
+# ============================================================
+IdPolicy:
+  node:
+    concept: "concept_{sha1(name)[:8]}"
+    entity: "ent_{sha1(name)[:8]}"
+    alias_registry: "src/KGBuild/output/node_registry.json"
+    notes:
+      - "ID 由规范名生成；改名/合并通过 node_registry.json 保持身份"
+      - "同一规范名只允许一个 L1/L2 节点"
+
+  evidence:
+    format: "ev_{doc_id}:{section_id}[:{block_id}]"
+    section_id:
+      numbered: "编号路径，例如 1.4.2"
+      unnumbered: "path_{sha1(section_path)[:8]}"
+    notes:
+      - "section_id 必须在同一文档内唯一；重复编号在解析阶段修正，不靠 #2 后缀兜底"
+
+  relation:
+    key: "(source, target, type)"
+    notes:
+      - "逆关系由 derived_inverses 在序列化时派生，不单独存边"
+      - "对称关系的 (source,target) 按字符串序规范化后再写"
+
+# ============================================================
+# 10. 构建清单（增量更新的依据）
+# ============================================================
+BuildManifest:
+  path: "src/KGBuild/output/build_manifest.json"
+  required:
+    - schema_version
+    - built_at
+    - doc_hashes
+    - section_hashes
+    - config_hashes
+    - prompt_versions
+    - model_ids
+    - final_kg_sha1
+  notes:
+    - "section_hashes 用于跳过未变化小节的抽取"
+    - "config_hashes / prompt_versions / model_ids 任一变化，相关阶段必须失效重跑"
+
+# ============================================================
+# 11. 流程契约（10 步固定，只允许改实现）
+# ============================================================
+PipelineContract:
+  stages:
+    - name: textseg
+      output: toc_structure.json
+      uses: [EvidenceSchema, IdPolicy.evidence]
+    - name: extraction
+      output: toc_with_entities_and_relations.json
+      uses: [NodeTypes, RelationTypes, Records.Node, Records.Relation]
+    - name: toc_graph
+      output: toc_graph.json
+      uses: [EvidenceSchema]
+    - name: evidence
+      output: evidence.json
+      uses: [EvidenceSchema, IdPolicy.evidence]
+    - name: conv
+      output: conv_entities.json
+      uses: [Records.Node, ConfidencePolicy]
+    - name: aggr
+      output: aggr_entities.json
+      uses: [NodeTypes, LayerPolicy, SignalDetectors, Records.Node]
+    - name: embedding
+      output: node_embeddings.pkl
+      uses: [Records.Node]
+    - name: dedup
+      output: dedup_result.json
+      uses: [Records.Node, IdPolicy.node]
+    - name: pred
+      output: pred_result.json
+      uses: [RelationTypes, Records.Relation]
+    - name: final
+      output: final_kg.json
+      uses: [all, ValidationRules]
+
+# ============================================================
+# 12. 层级总览
+# ============================================================
+LayerModel:
+  L0:
+    name: 本体层
+    content: 节点类型、关系类型、层级策略、证据结构
+    storage: schema.v2.yaml
+  L1:
+    name: 概念层
+    content: 跨文档/跨章节复用的抽象节点
+    id_prefix: concept_
+  L2:
+    name: 实体层
+    content: 具体实例、命名实体、具体配置
+    id_prefix: ent_
+  L3:
+    name: 证据层
+    content: 可定位的原文片段
+    id_prefix: ev_
+
+# ============================================================
+# 13. 变更记录
+# ============================================================
+Changelog:
+  - version: "2.0"
+    date: "2026-10-30"
+    changes:
+      - "NodeTypes 与 LayerPolicy 解耦，移除 layer_hint"
+      - "关系闭集改为 snake_case，声明方向 / 逆关系 / 端点约束"
+      - "Evidence 支持 block 级与字符偏移"
+      - "增加 confidence / salience / provenance 字段契约"
+      - "增加 ValidationRules、IdPolicy、BuildManifest、PipelineContract"
+      - "删除 v1 迁移与兼容层；v2 从头构建"

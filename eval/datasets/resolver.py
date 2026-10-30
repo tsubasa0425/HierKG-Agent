@@ -2,7 +2,7 @@
 """GoldenResolver：从 final_kg.json 把名称解析成 node_id，镜像导入时的证据去重。
 
 纯函数，不碰 Neo4j/ChromaDB。出题约定：数据集里概念/实体写【名称】，ID 由 resolver 生成，
-防手打错别；证据 ID（如 ev_1.1.1）本身就是稳定的章节号，直接写 ID。
+防手打错别；证据 ID 使用 v2 稳定格式 `ev_{doc_id}:{section_id}[:{block_id}]`。
 """
 from __future__ import annotations
 
@@ -21,17 +21,17 @@ _DEFAULT_KG = Path(__file__).resolve().parents[2] / "src" / "KGBuild" / "output"
 def _dedupe_evidence_ids(evidences: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """镜像 src/KGRetrieve/db_backend.py::_dedupe_evidence_ids —— 保证 golden ID 与 Neo4j/ChromaDB 一致。
 
-    同 section_id 出现多个小节时，第一个保持 `ev_1.4`，后续改成 `ev_1.4#2` 等。
+    同 ID 出现多个条目时（v2 证据 ID 正常唯一），第一个保持不变，后续改成 `...#2`。
     """
     seen: Dict[str, int] = {}
     out: List[Dict[str, Any]] = []
     for ev in evidences:
-        eid = ev["evidence_id"]
+        eid = str(ev["id"])
         n = seen.get(eid, 0)
         seen[eid] = n + 1
         if n > 0:
             ev = dict(ev)
-            ev["evidence_id"] = f"{eid}#{n + 1}"
+            ev["id"] = f"{eid}#{n + 1}"
         out.append(ev)
     return out
 
@@ -54,11 +54,11 @@ class GoldenResolver:
         self.evidence_ids_of: Dict[str, List[str]] = {}
 
         for c in self.concepts:
-            self._index(c, c.get("concept_id"), self.concept_by_name)
+            self._index(c, c.get("id"), self.concept_by_name)
         for e in self.entities:
-            self._index(e, e.get("entity_id"), self.entity_by_name)
+            self._index(e, e.get("id"), self.entity_by_name)
         for ev in self.evidences:
-            eid = ev["evidence_id"]
+            eid = ev["id"]
             self.node_index[eid] = ev
             for key in (ev.get("title"), ev.get("section_id"), ev.get("section_path")):
                 self._add_name(self.evidence_by_name, key, eid)

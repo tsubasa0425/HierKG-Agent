@@ -1,453 +1,665 @@
-import os
-import re
-import json
-import time
-import pickle
-import logging
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Dedup v2 —— 同层同类型节点去重（别名快速通道 + 向量近邻 + LLM 复核）。
+
+约束：
+  * 只在同一 layer（L1/L2）内合并，绝不把 L1 概念并进 L2 实例
+  * 默认要求类型一致；别名明确交集时可放宽（类型冲突以代表节点为准）
+  * 代表节点保留自己的 id/name，因此 ID 始终满足 concept_/ent_ 前缀与名称哈希规则
+  * 合并后重定向 relations / neighbors，并输出 id_map 供下游使用
+
+输入：aggr_entities.json + node_embeddings.pkl（{node_id: vector}）
+输出：dedup_result.json
+{
+  "schema_version": "2.0", "doc_id": "...",
+  "entities": [...], "relations": [...],
+  "clusters": [...], "merge_map": {...}, "id_map": {...},
+  "decisions": [...], "stats": {...}
+}
+"""
+from __future__ import annotations
+
 import argparse
-from typing import Dict, List, Tuple, Any
+import json
+import logging
+import pickle
+import re
+import sys
+import threading
+import time
+from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import numpy as np
-from tqdm import tqdm
 import yaml
 
-# === 外部模块（保持不变） ===
-from KGBuild.dedup.data_structures import Occurrence, Neighbor, EntityItem
-from KGBuild.dedup.knn import knn_topk
-from KGBuild.dedup.llm import llm_is_same, _normalize_name
-from KGBuild.dedup.name_similarity import _name_jaccard_mode
+try:
+    from .schema_loader import get_schema
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from KGBuild.schema_loader import get_schema
+
+try:
+    from .dedup.knn import knn_topk
+    from .dedup.name_similarity import _name_jaccard_mode
+except ImportError:
+    from KGBuild.dedup.knn import knn_topk
+    from KGBuild.dedup.name_similarity import _name_jaccard_mode
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+CONFIG_DIR = SCRIPT_DIR / "config"
+OUT_DIR = SCRIPT_DIR / "output"
+SCHEMA = get_schema()
+
+logger = logging.getLogger("Dedup")
+if not logger.handlers:
+    h = logging.StreamHandler(sys.stdout)
+    h.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
+    logger.addHandler(h)
+logger.setLevel(logging.INFO)
+
+DEFAULTS: Dict[str, Any] = {
+    "ENTITIES_AGGR_NAME": "aggr_entities.json",
+    "EMBEDDINGS_NAME": "node_embeddings.pkl",
+    "RESULT_NAME": "dedup_result.json",
+    "KNN_NEIGHBORS": 15,
+    "SIM_THRESHOLD": 0.86,
+    "AUTO_MERGE_SIM": 0.95,
+    "NO_LLM_MERGE_SIM": 0.92,
+    "LLM_MERGE": True,
+    "MUTUAL_KNN": True,
+    "STRICT_SAME_TYPE": True,
+    "USE_ALIAS_FASTPATH": True,
+    "USE_NAME_JACCARD": False,
+    "NAME_JACCARD_MIN": 0.2,
+    "NAME_CONTAINMENT_GUARD": True,
+    "NAME_MODE": "auto",
+    "PER_NODE_CAP": 20,
+    "DRY_RUN": False,
+    "TEMPERATURE": 0.0,
+    "MAX_TOKENS": 200,
+    "PROMPT_VERSION": "dedup.v2",
+    "LOG_DECISIONS_MAX": 5000,
+    "LLM_SYSTEM_PROMPT": "",
+    "LLM_USER_PROMPT": "",
+}
+API_DEFAULTS: Dict[str, Any] = {
+    "API_KEY": "", "API_BASE": "", "MODEL_NAME": "",
+    "TIMEOUT_SECS": 120, "RETRIES": 3, "RETRY_BACKOFF_BASE": 2,
+    "RATE_LIMIT_QPS": 0, "CHAT_COMPLETIONS_PATH": "/chat/completions",
+    "WORKERS": 8,
+}
+DEFINITION_CUES = ("是指", "定义为", "称为", "是一种", "指的是", "所谓", "即")
 
 
-# ===========配置加载（主配置 + include_files）===========
-def load_config_with_includes(main_cfg_path: Path) -> Dict[str, Any]:
-    with main_cfg_path.open("r", encoding="utf-8") as f:
-        base = yaml.safe_load(f) or {}
-    includes = base.get("include_files", []) or []
-    merged = dict(base)
-    for rel in includes:
-        inc = (main_cfg_path.parent / rel).resolve()
-        with inc.open("r", encoding="utf-8") as ff:
-            sub = yaml.safe_load(ff) or {}
-        merged.update(sub)
-    return merged
+# ---------------------------------------------------------------------------
+# 配置 / 工具
+# ---------------------------------------------------------------------------
+
+def _load_yaml(p: Path) -> Dict[str, Any]:
+    with p.open("r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
 
 
-# ==========I/O 工具函数==========
-def read_entities(infile: str) -> Dict[str, EntityItem]:
-    with open(infile, "r", encoding="utf-8") as f:
-        raw = json.load(f)
-    entities: Dict[str, EntityItem] = {}
-    for name, d in raw.items():
-        entities[name] = EntityItem(
-            name=name,
-            alias=d.get("alias", []),
-            type=d.get("type", ""),
-            original=d.get("original", ""),
-            updated_description=d.get("updated_description", ""),
-            role=d.get("role", d.get("local_role", "")),
-            layer=d.get("layer", ""),
-            concept_id=d.get("concept_id", ""),
-            occurrences=[Occurrence(**o) for o in d.get("occurrences", [])],
-            neighbors=[Neighbor(**n) for n in d.get("neighbors", [])],
-        )
-    logging.info(f"载入实体 {len(entities)} 个：{os.path.basename(infile)}")
-    return entities
+def _as_bool(v: Any) -> bool:
+    if isinstance(v, str):
+        return v.strip().lower() in ("1", "true", "yes", "on")
+    return bool(v)
 
 
-def read_embeddings(pkl_path: str) -> Tuple[List[str], np.ndarray]:
-    with open(pkl_path, "rb") as f:
-        emb_dict = pickle.load(f)
-    names = list(emb_dict.keys())
-    embs = np.vstack([emb_dict[n] for n in names]).astype("float32")
-    logging.info(f"载入嵌入 {embs.shape[0]} x {embs.shape[1]}：{os.path.basename(pkl_path)}")
-    return names, embs
+def _load_config() -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    cfg_path = CONFIG_DIR / "config.yaml"
+    merged: Dict[str, Any] = {}
+    if cfg_path.exists():
+        merged = dict(_load_yaml(cfg_path))
+        for rel in merged.get("include_files", []) or []:
+            p = (CONFIG_DIR / str(rel)).resolve()
+            if p.exists():
+                merged.update(_load_yaml(p))
+    if "DedupConfig" not in merged:
+        merged.update(_load_yaml(CONFIG_DIR / "dedup.yaml"))
+    cfg = dict(DEFAULTS)
+    cfg.update(merged.get("DedupConfig") or {})
+    cfg["DRY_RUN"] = _as_bool(cfg.get("DRY_RUN"))
+    cfg["LLM_MERGE"] = _as_bool(cfg.get("LLM_MERGE"))
+    api = dict(API_DEFAULTS)
+    api.update(merged.get("APIConfig") or {})
+    return cfg, api
 
 
-# ==========并查集==========
-class DSU:
-    def __init__(self, n: int):
-        self.fa = list(range(n))
-        self.sz = [1] * n
+CFG, API = _load_config()
+_rate_lock = threading.Lock()
+_last_ts = 0.0
+
+
+def _rate_limit() -> None:
+    qps = float(API.get("RATE_LIMIT_QPS") or 0)
+    if qps <= 0:
+        return
+    global _last_ts
+    with _rate_lock:
+        delta = time.time() - _last_ts
+        if delta < 1.0 / qps:
+            time.sleep(1.0 / qps - delta)
+        _last_ts = time.time()
+
+
+def call_llm(system_prompt: str, user_prompt: str) -> str:
+    if CFG["DRY_RUN"] or not API.get("API_BASE") or not API.get("MODEL_NAME"):
+        return ""
+    import requests
+
+    headers = {"Content-Type": "application/json"}
+    if API.get("API_KEY"):
+        headers["Authorization"] = f"Bearer {API['API_KEY']}"
+    payload = {
+        "model": API["MODEL_NAME"],
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "temperature": float(CFG["TEMPERATURE"]),
+        "max_tokens": int(CFG["MAX_TOKENS"]),
+    }
+    for k in range(max(1, int(API["RETRIES"]))):
+        try:
+            _rate_limit()
+            url = API["API_BASE"].rstrip("/") + API.get("CHAT_COMPLETIONS_PATH", "/chat/completions")
+            resp = requests.post(url, headers=headers, json=payload,
+                                 timeout=float(API["TIMEOUT_SECS"]))
+            resp.raise_for_status()
+            text = resp.json()["choices"][0]["message"]["content"].strip()
+            return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"LLM 调用失败({k + 1}/{API['RETRIES']})：{e}")
+            time.sleep(float(API["RETRY_BACKOFF_BASE"]) ** k)
+    return ""
+
+
+def _norm(s: str) -> str:
+    s = (s or "").lower().strip()
+    return re.sub(r"\s+", "", s)
+
+
+def _variants(e: Dict[str, Any]) -> Set[str]:
+    return {_norm(x) for x in [e.get("name", "")] + list(e.get("aliases") or []) if _norm(x)}
+
+
+class _DSU:
+    def __init__(self, n: int) -> None:
+        self.parent = list(range(n))
+        self.size = [1] * n
 
     def find(self, x: int) -> int:
-        while self.fa[x] != x:
-            self.fa[x] = self.fa[self.fa[x]]
-            x = self.fa[x]
+        while self.parent[x] != x:
+            self.parent[x] = self.parent[self.parent[x]]
+            x = self.parent[x]
         return x
 
     def union(self, a: int, b: int) -> bool:
         ra, rb = self.find(a), self.find(b)
         if ra == rb:
             return False
-        if self.sz[ra] < self.sz[rb]:
+        if self.size[ra] < self.size[rb]:
             ra, rb = rb, ra
-        self.fa[rb] = ra
-        self.sz[ra] += self.sz[rb]
+        self.parent[rb] = ra
+        self.size[ra] += self.size[rb]
         return True
 
-# ==========主流程==========
-def run():
-    # —— 路径根：KGBuild/ —— #
-    script_dir = Path(__file__).resolve().parent
-    cfg_path = script_dir / "config" / "config.yaml"
-    cfg = load_config_with_includes(cfg_path)
 
-    # —— 取子配置 —— #
-    api = cfg["APIConfig"]                # 若 Dedup.llm 用得到，可在该模块内部读取你的 YAML
-    dcfg = cfg["DedupConfig"]
+# ---------------------------------------------------------------------------
+# LLM 判定
+# ---------------------------------------------------------------------------
 
-    # —— 目录与文件名 —— #
-    output_dir = script_dir / "output"
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    ent_aggr = output_dir / dcfg["ENTITIES_AGGR_NAME"]
-    ent_conv = output_dir / dcfg["ENTITIES_CONV_NAME"]
-    emb_path = output_dir / dcfg["EMBEDDINGS_NAME"]
-    out_path = output_dir / dcfg["RESULT_NAME"]
-
-    # —— 实体文件优先级：aggr > conv —— #
-    if ent_aggr.exists():
-        entities_path = ent_aggr
-    elif ent_conv.exists():
-        entities_path = ent_conv
-    else:
-        raise FileNotFoundError(
-            f"未找到实体文件：\n 1) {ent_aggr}\n 2) {ent_conv}\n（至少存在一个）"
-        )
-
-    if not emb_path.exists():
-        raise FileNotFoundError(f"未找到嵌入文件：{emb_path}")
-
-    # —— 日志 —— #
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(levelname)s: %(message)s",
-        handlers=[logging.StreamHandler()]
-    )
-    logger = logging.getLogger("Dedup")
-
-    t0 = time.time()
-    logger.info("📘 [1/5] 加载实体与嵌入文件...")
-    entities = read_entities(str(entities_path))
-    names_all, embs_all = read_embeddings(str(emb_path))
-    name2idx = {n: i for i, n in enumerate(names_all)}
-
-    # 四层模型：只对 concept 做去重合并，entity 原样通过
-    concept_names_set = {n for n, e in entities.items() if getattr(e, "layer", "") == "concept"}
-    entity_names_set  = {n for n, e in entities.items() if getattr(e, "layer", "") != "concept"}
-    logger.info(f"📌 四层模型：concept={len(concept_names_set)} 个参与去重；entity={len(entity_names_set)} 个原样通过")
-
-    # 对齐实体（KNN 只包含 concept）
-    names_concept = [n for n in names_all if n in concept_names_set]
-    names_entity_pass = [n for n in names_all if n in entity_names_set]
-    names = names_concept + names_entity_pass
-    if not names:
-        raise ValueError("实体与嵌入文件无交集，请检查输入文件")
-    idx_keep = np.array([name2idx[n] for n in names_concept], dtype=np.int64) if names_concept else np.zeros((0,), dtype=np.int64)
-    embs = embs_all[idx_keep].astype("float32") if len(idx_keep) > 0 else np.zeros((0, embs_all.shape[1]), dtype="float32")
-    if len(embs) > 0:
-        embs /= (np.linalg.norm(embs, axis=1, keepdims=True) + 1e-12)
-    N_concept = len(names_concept)
-    logger.info(f"✅ 对齐后：参与KNN/候选的concept={N_concept}，原样通过的entity={len(names_entity_pass)}")
-
-    # —— KNN —— #
-    logger.info("📘 [2/5] 开始近邻检索（FAISS/Sklearn）...")
-    topk = int(dcfg["KNN_NEIGHBORS"]) + 1
-    dists, idxs = knn_topk(embs, topk=topk)
-
-    # KNN/候选对/LLM 只在 concept（前 N_concept 个）上运行，entity 不参与
-    ents: List[EntityItem] = [entities[n] for n in names]
-    roles = [e.role or "" for e in ents]
-    dsu = DSU(len(names_concept))  # 只对 concept 做 DSU
-    N = len(names_concept)
-    # 如有概念为空，跳过 KNN 结果
-    if N > 0:
-        nbr_sets = [set(idxs[i, 1:]) for i in range(N)]
-    else:
-        nbr_sets = []
-
-    # —— 规则参数 —— #
-    dist_thresh       = float(dcfg["DIST_THRESHOLD"])
-    mut_knn           = bool(dcfg["MUTUAL_KNN"])
-    rank_top          = int(dcfg["RANK_TOP"])
-    per_node_cap      = int(dcfg["PER_NODE_CAP"])
-    strict_same_role  = bool(dcfg["STRICT_SAME_ROLE"])
-    use_name_jacc     = bool(dcfg["USE_NAME_JACCARD"])
-    name_jacc_min     = float(dcfg["NAME_JACCARD_MIN"])
-    name_mode         = str(dcfg["NAME_MODE"])
-    use_alias_fast    = bool(dcfg["USE_ALIAS_FASTPATH"])
-    trunc_desc        = bool(dcfg["TRUNCATE_DESC"])
-    desc_maxlen       = int(dcfg["DESC_MAXLEN"])
-    workers           = int(api.get("WORKERS", 10))
-
-    # —— 候选过滤 —— #
-    logger.info("📘 [3/5] 候选对过滤（距离阈值 + 角色 + 名称Jaccard + 互近邻 + 排名/配额）...")
-    candidates: List[Tuple[int, int, float]] = []
-    cnt_pairs = 0
-    used = [0] * N
-
-    rej_dist = rej_role = rej_jac = rej_mutual = rej_cap = 0
-    rank_limit = max(2, rank_top)
-
-    for i in range(N):
-        for rank in range(1, min(idxs.shape[1], rank_limit)):
-            j = idxs[i, rank]
-            if j <= i or j >= N:
-                continue
-            cnt_pairs += 1
-            dist = float(dists[i, rank])
-
-            if dist >= dist_thresh:
-                rej_dist += 1
-                continue
-
-            if strict_same_role:
-                if roles[i] != roles[j]:
-                    rej_role += 1
-                    continue
-            else:
-                if roles[i] and roles[j] and roles[i] != roles[j]:
-                    rej_role += 1
-                    continue
-
-            if use_name_jacc:
-                jac = _name_jaccard_mode(ents[i].name, ents[j].name, name_mode)
-                if jac < name_jacc_min:
-                    rej_jac += 1
-                    continue
-
-            if mut_knn and (i not in nbr_sets[j]):
-                rej_mutual += 1
-                continue
-
-            if per_node_cap > 0 and (used[i] >= per_node_cap or used[j] >= per_node_cap):
-                rej_cap += 1
-                continue
-
-            candidates.append((i, j, dist))
-            used[i] += 1
-            used[j] += 1
-
-    logger.info(f"📌 候选对（通过初筛）：{len(candidates)} / 原始对数：{cnt_pairs}")
-    logger.info(f"[诊断] 过滤统计: 距离={rej_dist} 角色={rej_role} 名称Jaccard={rej_jac} 互近邻={rej_mutual} 配额={rej_cap}")
-    if candidates:
-        kept_d = np.array([d for (_, _, d) in candidates], dtype=np.float32)
-        qs = np.percentile(kept_d, [5, 10, 25, 50, 75, 90, 95])
-        logger.info(f"[诊断] 初筛距离分位数 p5..p95: {np.round(qs, 4)}")
-
-    # —— 别名快速合并（可选） —— #
-    rep_fast_merge = 0
-    kept_for_llm: List[Tuple[int, int, float]] = candidates
-    if use_alias_fast:
-        logger.info("📘 [3.5] 快速通道：别名/名称交集直接合并（可选）...")
-
-        def alias_intersect(a: EntityItem, b: EntityItem) -> bool:
-            alias_a = {_normalize_name(x) for x in ([a.name] + a.alias)}
-            alias_b = {_normalize_name(x) for x in ([b.name] + b.alias)}
-            return len(alias_a & alias_b) > 0
-
-        tmp_kept: List[Tuple[int, int, float]] = []
-        for (i, j, dist) in candidates:
-            if alias_intersect(ents[i], ents[j]):
-                if dsu.union(i, j):
-                    rep_fast_merge += 1
-            else:
-                tmp_kept.append((i, j, dist))
-        kept_for_llm = tmp_kept
-        logger.info(f"✅ 快速合并完成：{rep_fast_merge} 条；进入 LLM 的对数：{len(kept_for_llm)}")
-    else:
-        logger.info(f"📘 [3.5] 跳过快速通道；进入 LLM 的对数：{len(kept_for_llm)}")
-
-    # —— LLM 判定（并行） —— #
-    logger.info(f"📘 [4/5] LLM 并行判定（并发={workers}；按距离升序）...")
-    kept_for_llm.sort(key=lambda x: x[2])
-    llm_cache: Dict[Tuple[str, str], Tuple[bool, str]] = {}
-    cnt_llm_calls = cnt_fallback = rep_merged = 0
-    rep_merged += rep_fast_merge
-    merge_decisions: List[Tuple[str, str, bool, float, str]] = []
-
-    def judge_pair(i: int, j: int, dist: float) -> Tuple[int, int, bool, float, str, bool]:
-        ent_i, ent_j = ents[i], ents[j]
-        key = tuple(sorted((ent_i.name, ent_j.name)))
-        if key in llm_cache:
-            is_same, reason = llm_cache[key]
-            return (i, j, is_same, dist, reason, False)
-        is_same, reason, used_fallback = llm_is_same(
-            ent_i, ent_j, truncate_desc=trunc_desc, desc_maxlen=desc_maxlen
-        )
-        llm_cache[key] = (is_same, reason)
-        return (i, j, is_same, dist, reason, used_fallback)
-
-    with ThreadPoolExecutor(max_workers=max(1, workers)) as ex:
-        futures = [ex.submit(judge_pair, i, j, dist) for (i, j, dist) in kept_for_llm]
-        for fut in tqdm(as_completed(futures), total=len(futures), desc="LLM判定中", ncols=80):
-            i, j, is_same, dist, reason, used_fallback = fut.result()
-            if used_fallback:
-                cnt_fallback += 1
-            else:
-                cnt_llm_calls += 1
-            merge_decisions.append((ents[i].name, ents[j].name, is_same, dist, reason))
-            if is_same and dsu.union(i, j):
-                rep_merged += 1
-
-    # —— 聚类与合并 —— #
-    logger.info("📘 [5/5] 构建等价类、合并并写出结果...")
-    clusters: Dict[int, List[int]] = {}
-    for x in range(len(names_concept)):
-        root = dsu.find(x)
-        clusters.setdefault(root, []).append(x)
-
-    def desc_len(e: EntityItem) -> int:
-        return len((e.updated_description or e.original or "").strip())
-
-    def merge_two(base: EntityItem, other: EntityItem) -> None:
-        merged_alias = list(dict.fromkeys(base.alias + other.alias + [other.name]))
-        base.alias = [a for a in merged_alias if a != base.name]
-        occ_seen = {(o.path, o.node_id) for o in base.occurrences}
-        for o in other.occurrences:
-            key = (o.path, o.node_id)
-            if key not in occ_seen:
-                base.occurrences.append(o)
-                occ_seen.add(key)
-        nb_seen = {(n.name, n.snippet) for n in base.neighbors}
-        for n in other.neighbors:
-            if n.name == base.name:
-                continue
-            key = (n.name, n.snippet)
-            if key not in nb_seen:
-                base.neighbors.append(n)
-                nb_seen.add(key)
-        if desc_len(other) > desc_len(base):
-            base.updated_description = other.updated_description or other.original
-
-    rep_map: Dict[str, str] = {}
-    new_entities: Dict[str, EntityItem] = {}
-
-    # concept 合并（clusters 的下标对应 names_concept）
-    for root, members in clusters.items():
-        if len(members) == 1:
-            e = ents[members[0]]
-            new_entities[e.name] = e
-            continue
-        members_sorted = sorted(members, key=lambda idx: desc_len(ents[idx]), reverse=True)
-        rep_idx = members_sorted[0]
-        rep = ents[rep_idx]
-        rep_name = rep.name
-        for idx in members_sorted[1:]:
-            child = ents[idx]
-            if child.name == rep_name:
-                continue
-            merge_two(rep, child)
-            rep_map[child.name] = rep_name
-        new_entities[rep_name] = rep
-
-    # entity 原样通过（下标 N_concept..end 对应 names_entity_pass）
-    for name in names_entity_pass:
-        new_entities[name] = entities[name]
-
-    # 邻居重定向（保留 type）
-    redirect = rep_map.copy()
-    for parent_ent in new_entities.values():
-        new_neighbors: List[Neighbor] = []
-        seen = set()
-        for nb in parent_ent.neighbors:
-            tgt = redirect.get(nb.name, nb.name)
-            if tgt == parent_ent.name:
-                continue
-            key = (tgt, nb.snippet, getattr(nb, "type", ""))
-            if key in seen:
-                continue
-            seen.add(key)
-            new_neighbors.append(Neighbor(name=tgt, snippet=nb.snippet, type=getattr(nb, "type", "")))
-        parent_ent.neighbors = new_neighbors
-
-    # 输出
-    out_entities = {
-        e.name: {
-            "name": e.name,
-            "alias": e.alias,
-            "type": e.type,
-            "layer": getattr(e, "layer", ""),
-            "concept_id": getattr(e, "concept_id", ""),
-            "original": e.original,
-            "updated_description": e.updated_description,
-            "role": e.role,
-            "occurrences": [o.__dict__ for o in e.occurrences],
-            "neighbors": [n.__dict__ for n in e.neighbors],
-        }
-        for e in new_entities.values()
+def _prompt(a: Dict[str, Any], b: Dict[str, Any]) -> str:
+    tpl = CFG.get("LLM_USER_PROMPT") or ""
+    repl = {
+        "{name_a}": a.get("name", ""),
+        "{type_a}": a.get("type", ""),
+        "{layer_a}": a.get("layer", ""),
+        "{alias_a}": "、".join(a.get("aliases") or []) or "（无）",
+        "{desc_a}": (a.get("definition") or "（无定义）")[:300],
+        "{name_b}": b.get("name", ""),
+        "{type_b}": b.get("type", ""),
+        "{layer_b}": b.get("layer", ""),
+        "{alias_b}": "、".join(b.get("aliases") or []) or "（无）",
+        "{desc_b}": (b.get("definition") or "（无定义）")[:300],
     }
-    clusters_names = [[names_concept[i] for i in members] for members in clusters.values()]
-    decisions_list = [
-        {"a": a, "b": b, "is_same": same, "dist": round(float(dist), 6), "reason": reason}
-        for a, b, same, dist, reason in merge_decisions
+    for k, v in repl.items():
+        tpl = tpl.replace(k, v)
+    return tpl
+
+
+def _parse_same(text: str) -> Optional[bool]:
+    if not text:
+        return None
+    try:
+        obj = json.loads(text)
+    except Exception:
+        m = re.search(r"\{.*\}", text, flags=re.S)
+        if not m:
+            return None
+        try:
+            obj = json.loads(m.group(0))
+        except Exception:
+            return None
+    if not isinstance(obj, dict) or "is_same" not in obj:
+        return None
+    return bool(obj["is_same"])
+
+
+def judge_pairs(pairs: List[Tuple[int, int, float]],
+                ents: List[Dict[str, Any]],
+                workers: int) -> Dict[Tuple[int, int], Tuple[bool, str]]:
+    if not pairs:
+        return {}
+    if not CFG.get("LLM_MERGE") or CFG["DRY_RUN"] or not API.get("API_BASE"):
+        out: Dict[Tuple[int, int], Tuple[bool, str]] = {}
+        for i, j, sim in pairs:
+            ok = sim >= float(CFG["NO_LLM_MERGE_SIM"])
+            out[(i, j)] = (ok, "embedding_threshold" if ok else f"embedding_only:{sim:.3f}")
+        return out
+
+    system = CFG.get("LLM_SYSTEM_PROMPT") or ""
+    out = {}
+
+    def work(i: int, j: int) -> Tuple[Tuple[int, int], Tuple[bool, str]]:
+        same = _parse_same(call_llm(system, _prompt(ents[i], ents[j])))
+        if same is None:
+            return (i, j), (False, "llm_unparsed")
+        return (i, j), (same, "llm")
+
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        futs = [pool.submit(work, i, j) for i, j, _ in pairs]
+        for fu in as_completed(futs):
+            key, val = fu.result()
+            out[key] = val
+    return out
+
+
+# ---------------------------------------------------------------------------
+# 合并
+# ---------------------------------------------------------------------------
+
+def _def_score(e: Dict[str, Any]) -> Tuple[int, int, int]:
+    d = e.get("definition") or ""
+    return (int(any(c in d for c in DEFINITION_CUES)), len(d), 1 if d else 0)
+
+
+def _rep_key(e: Dict[str, Any]) -> Tuple[int, int, int, int]:
+    sig = e.get("signals") or {}
+    return (
+        int(sig.get("cross_section_coverage", 0)),
+        _def_score(e)[1],
+        int(sig.get("occurrence_count", 0)),
+        -len(e.get("name") or ""),
+    )
+
+
+def _containment_guard(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
+    """名称存在包含关系时视为上下位，不是同一实体（除非别名明确相交）。"""
+    na, nb = _norm(a.get("name")), _norm(b.get("name"))
+    if not na or not nb or na == nb:
+        return False
+    if na not in nb and nb not in na:
+        return False
+    return not (_variants(a) & _variants(b))
+
+
+def _cluster_conflict(dsu: "_DSU", ents: List[Dict[str, Any]], i: int, j: int) -> bool:
+    """两个待合并簇里只要存在一对上下位名称，就拒绝合并。"""
+    ri, rj = dsu.find(i), dsu.find(j)
+    if ri == rj:
+        return False
+    left = [x for x in range(len(ents)) if dsu.find(x) == ri]
+    right = [x for x in range(len(ents)) if dsu.find(x) == rj]
+    return any(_containment_guard(ents[a], ents[b]) for a in left for b in right)
+
+
+def _merge_cluster(members: List[Dict[str, Any]], name_map: Dict[str, str]
+                   ) -> Dict[str, Any]:
+    if len(members) == 1:
+        return members[0]
+    rep_src = max(members, key=_rep_key)
+    rep = dict(rep_src)
+    rep_name = rep["name"]
+
+    aliases: Set[str] = set(rep.get("aliases") or [])
+    for m in members:
+        if m is not rep_src:
+            aliases.add(m["name"])
+            aliases.update(m.get("aliases") or [])
+    aliases.discard(rep_name)
+    rep["aliases"] = sorted(a for a in aliases if a)
+
+    best = max(members, key=_def_score)
+    if best.get("definition"):
+        rep["definition"] = best["definition"]
+    rep["confidence"] = round(max(float(m.get("confidence", 0)) for m in members), 2)
+
+    occ: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    for m in members:
+        for o in m.get("occurrences") or []:
+            k = (str(o.get("section_id", "")), str(o.get("block_id", "")))
+            if k not in occ:
+                occ[k] = dict(o)
+            else:
+                occ[k]["mention_count"] = max(
+                    int(occ[k].get("mention_count", 1)),
+                    int(o.get("mention_count", 1)))
+                occ[k]["definitional_cue"] = bool(
+                    occ[k].get("definitional_cue") or o.get("definitional_cue"))
+    rep["occurrences"] = sorted(occ.values(), key=lambda o: (
+        str(o.get("section_id", "")), str(o.get("block_id", ""))))
+
+    prov: List[Dict[str, Any]] = []
+    seen: Set[str] = set()
+    for m in members:
+        for p in m.get("provenance") or []:
+            k = json.dumps(p, ensure_ascii=False, sort_keys=True)
+            if k not in seen:
+                seen.add(k)
+                prov.append(p)
+    rep["provenance"] = prov
+
+    rep["merged_from"] = [
+        {"id": m.get("id", ""), "name": m.get("name", ""), "type": m.get("type", "")}
+        for m in members if m is not rep_src
     ]
 
-    t1 = time.time()
-    result = {
-        "meta": {
-            "entities_in": str(entities_path.resolve()),
-            "emb_pkl": str(emb_path.resolve()),
-            "four_layer_model": True,
-            "concept_count_in": len(concept_names_set),
-            "entity_count_in": len(entity_names_set),
-            "k_neighbors": int(dcfg["KNN_NEIGHBORS"]),
-            "dist_thresh": dist_thresh,
-            "workers": workers,
-            "mutual_knn": mut_knn,
-            "rank_top": rank_top,
-            "per_node_cap": per_node_cap,
-            "strict_same_role": strict_same_role,
-            "use_name_jaccard": use_name_jacc,
-            "name_jaccard_min": name_jacc_min,
-            "name_mode": name_mode,
-            "use_alias_fastpath": use_alias_fast,
-            "truncate_desc": trunc_desc,
-            "desc_maxlen": desc_maxlen,
-            "duration_sec": round(t1 - t0, 2),
-        },
-        "summary": {
-            "pairs_raw": cnt_pairs,
-            "pairs_after_filter": len(candidates),
-            "pairs_to_llm": len(kept_for_llm),
-            "llm_calls": cnt_llm_calls,
-            "fallback_calls": rep_merged - rep_fast_merge - cnt_llm_calls,
-            "merged_edges": rep_merged,
-            "entities_before": len(entities),
-            "entities_after": len(new_entities),
-        },
-        "entities": out_entities,
-        "clusters": clusters_names,
-        "merge_map": rep_map,
-        "decisions": decisions_list,
-    }
+    sig = dict(rep.get("signals") or {})
+    sig["cross_section_coverage"] = len({o.get("section_id") for o in rep["occurrences"]})
+    sig["occurrence_count"] = sum(int(o.get("mention_count", 1)) for o in rep["occurrences"])
+    sig["has_definition"] = bool(rep.get("definition"))
+    sig["definitional_cue"] = any(c in (rep.get("definition") or "") for c in DEFINITION_CUES)
+    sig["heading_presence"] = any(m.get("signals", {}).get("heading_presence") for m in members)
+    rep["signals"] = sig
+    return rep
 
+
+def _merge_neighbors(rep: Dict[str, Any], members: List[Dict[str, Any]],
+                     cluster_names: Set[str], name_map: Dict[str, str]) -> None:
+    merged: Dict[str, Dict[str, Any]] = {}
+    for m in members:
+        for nb in m.get("neighbors") or []:
+            target = name_map.get(nb.get("name", ""), nb.get("name", ""))
+            if not target or target in cluster_names:
+                continue
+            cur = merged.get(target)
+            if not cur:
+                merged[target] = {
+                    "name": target,
+                    "weight": int(nb.get("weight", 0)),
+                    "relation": nb.get("relation") or "",
+                    "section_id": nb.get("section_id") or "",
+                    "section_title": nb.get("section_title") or "",
+                }
+            else:
+                cur["weight"] = max(cur["weight"], int(nb.get("weight", 0)))
+                if not cur["relation"] and nb.get("relation"):
+                    cur["relation"] = nb["relation"]
+    rep["neighbors"] = sorted(merged.values(), key=lambda x: (-x["weight"], x["name"]))
+
+
+# ---------------------------------------------------------------------------
+# 主流程
+# ---------------------------------------------------------------------------
+
+def _load_embeddings(path: Path) -> Dict[str, np.ndarray]:
+    with path.open("rb") as f:
+        raw = pickle.load(f)
+    out: Dict[str, np.ndarray] = {}
+    for k, v in (raw or {}).items():
+        if isinstance(v, np.ndarray) and v.size:
+            vec = v.astype(np.float32).reshape(-1)
+            out[str(k)] = vec / max(float(np.linalg.norm(vec)), 1e-12)
+    return out
+
+
+def run(in_path: Optional[Path] = None, emb_path: Optional[Path] = None,
+        out_path: Optional[Path] = None, dry_run: bool = False,
+        workers: int = 8) -> int:
+    in_path = in_path or (OUT_DIR / CFG["ENTITIES_AGGR_NAME"])
+    emb_path = emb_path or (OUT_DIR / CFG["EMBEDDINGS_NAME"])
+    out_path = out_path or (OUT_DIR / CFG["RESULT_NAME"])
+    if not in_path.exists():
+        raise FileNotFoundError(f"未找到实体文件：{in_path}")
+    if not emb_path.exists():
+        raise FileNotFoundError(f"未找到嵌入文件：{emb_path}")
+    if dry_run:
+        CFG["DRY_RUN"] = True
+
+    with in_path.open("r", encoding="utf-8") as f:
+        aggr = json.load(f)
+    if isinstance(aggr, list) or "entities" not in aggr:
+        raise ValueError("输入不是 v2 aggr 产物（需要 {entities:[...]}）")
+    entities = [dict(e) for e in aggr["entities"]]
+    embeddings = _load_embeddings(emb_path)
+
+    n = len(entities)
+    dsu = _DSU(n)
+    methods: Dict[Tuple[int, int], str] = {}
+
+    # —— 1. 别名快速合并（同层） —— #
+    alias_merges = 0
+    if CFG.get("USE_ALIAS_FASTPATH"):
+        buckets: Dict[Tuple[str, str], List[int]] = defaultdict(list)
+        for i, e in enumerate(entities):
+            for v in _variants(e):
+                buckets[(e.get("layer", ""), v)].append(i)
+        for (_, _), idxs in buckets.items():
+            if len(idxs) < 2:
+                continue
+            base = idxs[0]
+            for j in idxs[1:]:
+                if dsu.union(base, j):
+                    alias_merges += 1
+                    methods[(min(base, j), max(base, j))] = "alias"
+
+    # —— 2. 向量近邻候选 —— #
+    vecs = np.array([embeddings.get(str(e.get("id", ""))) for e in entities], dtype=object)
+    candidates: List[Tuple[int, int, float]] = []
+    rej = Counter()
+    per_node = [0] * n
+    auto_merges = 0
+
+    for layer in ("L1", "L2"):
+        idxs = [i for i, e in enumerate(entities)
+                if e.get("layer") == layer and vecs[i] is not None]
+        if len(idxs) < 2:
+            continue
+        mat = np.vstack([vecs[i] for i in idxs]).astype(np.float32)
+        mat = mat / np.maximum(np.linalg.norm(mat, axis=1, keepdims=True), 1e-12)
+        k = min(len(idxs), int(CFG["KNN_NEIGHBORS"]) + 1)
+        _, nbr = knn_topk(mat, k)
+        nbr_sets = [set(int(x) for x in row) for row in nbr]
+
+        seen_pairs: Set[Tuple[int, int]] = set()
+        for a in range(len(idxs)):
+            for b in nbr[a]:
+                b = int(b)
+                if b == a:
+                    continue
+                ai, bi = idxs[a], idxs[b]
+                lo, hi = (ai, bi) if ai < bi else (bi, ai)
+                if (lo, hi) in seen_pairs:
+                    continue
+                seen_pairs.add((lo, hi))
+
+                if CFG.get("MUTUAL_KNN") and b not in nbr_sets[a]:
+                    rej["mutual"] += 1
+                    continue
+                sim = float(np.dot(mat[a], mat[b]))
+                if sim < float(CFG["SIM_THRESHOLD"]):
+                    rej["sim"] += 1
+                    continue
+                ea, eb = entities[lo], entities[hi]
+                if CFG.get("STRICT_SAME_TYPE") and ea.get("type") != eb.get("type") \
+                        and "待定" not in (ea.get("type"), eb.get("type")):
+                    rej["type"] += 1
+                    continue
+                if CFG.get("NAME_CONTAINMENT_GUARD") and _cluster_conflict(dsu, entities, lo, hi):
+                    rej["containment"] += 1
+                    continue
+                if CFG.get("USE_NAME_JACCARD") and sim < float(CFG["AUTO_MERGE_SIM"]):
+                    jac = _name_jaccard_mode(ea["name"], eb["name"], str(CFG["NAME_MODE"]))
+                    if jac < float(CFG["NAME_JACCARD_MIN"]):
+                        rej["name"] += 1
+                        continue
+                cap = int(CFG["PER_NODE_CAP"])
+                if cap > 0 and (per_node[lo] >= cap or per_node[hi] >= cap):
+                    rej["cap"] += 1
+                    continue
+                per_node[lo] += 1
+                per_node[hi] += 1
+
+                if sim >= float(CFG["AUTO_MERGE_SIM"]):
+                    if dsu.union(lo, hi):
+                        auto_merges += 1
+                        methods[(lo, hi)] = "auto"
+                else:
+                    candidates.append((lo, hi, sim))
+
+    # 去掉已被别名/高相似度合并的候选
+    candidates = [(i, j, s) for i, j, s in candidates if dsu.find(i) != dsu.find(j)]
+
+    # —— 3. LLM 复核 —— #
+    llm_pairs = judge_pairs(candidates, entities, workers)
+    llm_merges = 0
+    decisions: List[Dict[str, Any]] = []
+    for (i, j, sim) in sorted(candidates, key=lambda x: -x[2]):
+        same, reason = llm_pairs.get((i, j), (False, "not_judged"))
+        decisions.append({
+            "a": entities[i]["name"], "b": entities[j]["name"],
+            "sim": round(float(sim), 4), "is_same": bool(same), "reason": reason,
+        })
+        if same and dsu.union(i, j):
+            llm_merges += 1
+            methods[(i, j)] = "llm"
+
+    # —— 4. 聚类 / 合并 —— #
+    clusters_idx: Dict[int, List[int]] = defaultdict(list)
+    for i in range(n):
+        clusters_idx[dsu.find(i)].append(i)
+
+    name_map: Dict[str, str] = {}
+    id_map: Dict[str, str] = {}
+    out_entities: List[Dict[str, Any]] = []
+    cluster_records: List[Dict[str, Any]] = []
+
+    # 先算 name_map，邻居重定向需要完整映射
+    for members in clusters_idx.values():
+        rep = max((entities[i] for i in members), key=_rep_key)
+        for i in members:
+            name_map[entities[i]["name"]] = rep["name"]
+            if entities[i].get("id"):
+                id_map[str(entities[i]["id"])] = str(rep.get("id", ""))
+
+    for members in clusters_idx.values():
+        group = [entities[i] for i in members]
+        rep = _merge_cluster(group, name_map)
+        cluster_names = {name_map.get(m["name"], m["name"]) for m in group}
+        _merge_neighbors(rep, group, cluster_names, name_map)
+        out_entities.append(rep)
+        if len(group) > 1:
+            cluster_records.append({
+                "layer": rep.get("layer", ""),
+                "representative": rep["name"],
+                "members": [m["name"] for m in group],
+            })
+
+    # —— 5. 关系重定向 —— #
+    rel_out: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+    for r in aggr.get("relations") or []:
+        src = id_map.get(str(r.get("source", "")), str(r.get("source", "")))
+        tgt = id_map.get(str(r.get("target", "")), str(r.get("target", "")))
+        if not src or not tgt or src == tgt:
+            continue
+        key = (src, tgt, r.get("type", ""))
+        if key not in rel_out:
+            row = dict(r)
+            row["source"], row["target"] = src, tgt
+            row["source_name"] = name_map.get(r.get("source_name", ""), r.get("source_name", ""))
+            row["target_name"] = name_map.get(r.get("target_name", ""), r.get("target_name", ""))
+            rel_out[key] = row
+        else:
+            cur = rel_out[key]
+            cur["confidence"] = max(float(cur.get("confidence", 0)),
+                                    float(r.get("confidence", 0)))
+            cur["provenance"] = list(cur.get("provenance") or []) + list(r.get("provenance") or [])
+
+    # 度数重算
+    degree: Dict[str, int] = defaultdict(int)
+    for (src, tgt, _) in rel_out:
+        degree[src] += 1
+        degree[tgt] += 1
+    for e in out_entities:
+        e["signals"]["degree"] = degree.get(str(e.get("id")), 0)
+
+    out_entities.sort(key=lambda e: (e.get("layer", ""), -int(
+        (e.get("signals") or {}).get("cross_section_coverage", 0)), e.get("name", "")))
+
+    stats = {
+        "entities_before": n,
+        "entities_after": len(out_entities),
+        "merged": n - len(out_entities),
+        "clusters": len(cluster_records),
+        "merge_methods": {
+            "alias": alias_merges,
+            "auto": auto_merges,
+            "llm": llm_merges,
+            "no_llm": sum(1 for (_, (ok, reason)) in llm_pairs.items()
+                          if ok and reason == "embedding_threshold"),
+        },
+        "candidate_pairs": len(candidates),
+        "rejected": dict(rej),
+        "llm_calls": sum(1 for (_, (_, reason)) in llm_pairs.items() if reason == "llm"),
+        "relations_before": len(aggr.get("relations") or []),
+        "relations_after": len(rel_out),
+        "by_layer": dict(Counter(e.get("layer", "") for e in out_entities)),
+    }
+    result = {
+        "schema_version": SCHEMA.version,
+        "doc_id": aggr.get("doc_id") or "doc",
+        "entities": out_entities,
+        "relations": list(rel_out.values()),
+        "clusters": cluster_records,
+        "merge_map": name_map,
+        "id_map": id_map,
+        "decisions": decisions[: int(CFG["LOG_DECISIONS_MAX"])],
+        "stats": stats,
+    }
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
 
-    logger.info("\n—— 去重任务摘要 ——")
-    logger.info(f"候选对原始数量：{cnt_pairs}")
-    logger.info(f"进入 LLM 判定的数量：{len(kept_for_llm)}（已并行处理）")
-    logger.info(f"成功合并的实体对：{rep_merged}")
-    logger.info(f"实体数量变化：{len(entities)} -> {len(new_entities)}")
-    logger.info(f"总耗时：{t1 - t0:.2f} 秒")
-    logger.info(f"结果文件：{out_path.resolve()}")
+    logger.info(f"✅ Dedup 完成：{out_path.resolve()}")
+    logger.info(f"  实体 {n} → {len(out_entities)}（合并 {n - len(out_entities)}，"
+                f"簇 {len(cluster_records)}）")
+    logger.info(f"  合并方式 {stats['merge_methods']} / 候选 {len(candidates)} / "
+                f"LLM {stats['llm_calls']}")
+    logger.info(f"  关系 {stats['relations_before']} → {stats['relations_after']}")
+    return 0
 
 
-def main():
-    # CLI 仅作最小覆盖（多数参数全部走 YAML）
-    ap = argparse.ArgumentParser(description="Tree-KG 实体去重（纯 YAML 配置版）")
-    ap.add_argument("--entities", type=str, default="", help="（可选）实体 JSON 路径覆盖")
-    ap.add_argument("--emb", type=str, default="", help="（可选）嵌入 PKL 路径覆盖")
-    ap.add_argument("--out", type=str, default="", help="（可选）结果 JSON 路径覆盖")
-    args = ap.parse_args()
-
-    # 现在 run() 里完全从 YAML 取；如需覆盖，可以自行改 run() 接口。
-    run()
+def main(argv: Optional[List[str]] = None) -> int:
+    ap = argparse.ArgumentParser(description="v2 同层实体去重")
+    ap.add_argument("--entities", default=None)
+    ap.add_argument("--emb", default=None)
+    ap.add_argument("--out", default=None)
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--workers", type=int, default=int(API.get("WORKERS") or 8))
+    ap.add_argument("--loglevel", default="INFO",
+                    choices=["DEBUG", "INFO", "WARNING", "ERROR"])
+    args = ap.parse_args(argv)
+    logger.setLevel(getattr(logging, args.loglevel))
+    return run(Path(args.entities) if args.entities else None,
+               Path(args.emb) if args.emb else None,
+               Path(args.out) if args.out else None,
+               args.dry_run, args.workers)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

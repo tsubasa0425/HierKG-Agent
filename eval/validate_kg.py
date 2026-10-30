@@ -43,10 +43,10 @@ def validate(kg: Dict[str, Any]) -> Dict[str, Any]:
     # 派生导语证据（FinalKG 3.5 步打标 derived）：只进跨层边做图导航锚点、
     # 不进 evidence_ids 投影（否则检索传播会拿它们当候选证据排挤真实叶子）。
     # 因此「有边但投影无」对它们合法，漂移检查需豁免。
-    derived_ev = {e["evidence_id"] for e in kg["L3_evidences"] if e.get("derived")}
-    for layer, idkey in (("L1_concepts", "concept_id"), ("L2_entities", "entity_id")):
+    derived_ev = {e["id"] for e in kg["L3_evidences"] if e.get("derived")}
+    for layer in ("L1_concepts", "L2_entities"):
         for n in kg[layer]:
-            nid = n[idkey]
+            nid = n["id"]
             evids = set(_evid(n))
             edge_targets = {e["target"] for e in cross_by_source.get(nid, [])
                             if e["target"] not in derived_ev}
@@ -59,7 +59,7 @@ def validate(kg: Dict[str, Any]) -> Dict[str, Any]:
                 })
 
     reachable = {e["target"] for e in edges if e.get("layer") in _CROSS_LAYERS}
-    all_ev = [e["evidence_id"] for e in kg["L3_evidences"]]
+    all_ev = [e["id"] for e in kg["L3_evidences"]]
     orphans = [eid for eid in all_ev if eid not in reachable]
 
     return {

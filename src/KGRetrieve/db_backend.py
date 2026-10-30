@@ -162,6 +162,8 @@ def _row_to_edge(source: Dict, target: Dict, rel: Dict, rel_type: str) -> Edge:
         layer=rel.get("layer", ""),
         description=rel.get("description", ""),
         keywords=rel.get("keywords", []) or [],
+        confidence=float(rel.get("confidence", 1.0)),
+        evidence_ids=list(rel.get("evidence_ids") or []),
     )
 
 
@@ -637,23 +639,39 @@ class KGDBMemory:
 # ===========================================================================
 
 def _dedupe_evidence_ids(evidences: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """证据 ID 撞名时（同 section_id 出现多个小节），给后出现的条目追加序号保证唯一。
+    """证据 ID 撞名时给后出现的条目追加序号，保证 Neo4j / ChromaDB 内唯一。
 
-    ChromaDB 要求集合内 ID 唯一，Neo4j 里 node_id 撞名也会造成歧义。
-    所有条目内容都保留，只在冲突时重命名：第一个保持 `ev_1.4`，后续变成 `ev_1.4#2` 等。
-    其他节点里引用的 evidence_id（如 `ev_1.4`）始终指向第一个条目，依然有效。
+    v2 的 ID（`ev_{doc_id}:{section_id}[:{block_id}]`）正常情况下不会撞名；
+    这里保留兜底：第一个保持原 ID，后续变成 `...#2`。其他节点/边里引用的
+    原 ID 始终指向第一个条目，语义不变。
     """
     seen: Dict[str, int] = {}
     out: List[Dict[str, Any]] = []
     for ev in evidences:
-        eid = ev["evidence_id"]
+        eid = str(ev["id"])
         n = seen.get(eid, 0)
         seen[eid] = n + 1
         if n > 0:
             ev = dict(ev)
-            ev["evidence_id"] = f"{eid}#{n + 1}"
+            ev["id"] = f"{eid}#{n + 1}"
         out.append(ev)
     return out
+
+
+def _parent_map(edges: List[Dict[str, Any]]) -> Dict[str, str]:
+    """L2 → L1 归属：从 instance_of 边推导；example_of 的 L2→L1 方向也认。
+
+    v2 的 L2 节点本身不存 concept_id，导入时用它补齐，保证检索层
+    `Node.concept_id` 语义与 v1 一致。
+    """
+    parents: Dict[str, str] = {}
+    for e in edges:
+        if e.get("type") not in ("instance_of", "example_of"):
+            continue
+        src, tgt = str(e.get("source", "")), str(e.get("target", ""))
+        if src and tgt and src not in parents:
+            parents[src] = tgt
+    return parents
 
 
 def _preflight_import(config: Dict[str, Any], path: Path, kg: Dict[str, Any]) -> Dict[str, Any]:
@@ -755,7 +773,25 @@ def import_kg(kg_path: Optional[str] = None, *, check_only: bool = False) -> boo
     entities = kg.get("L2_entities", [])
     evidences = kg.get("L3_evidences", [])
     edges = kg.get("edges", [])
-    # 证据 ID 可能撞名（同一 section_id 的多个小节），重命名后保证唯一
+
+    # —— v2 契约检查（旧版 final_kg.json 必须重新构建）—— #
+    bad = []
+    if str(kg.get("schema_version") or "") != "2.0":
+        bad.append(f"schema_version={kg.get('schema_version')!r}")
+    for label, items in (("L1_concepts", concepts), ("L2_entities", entities),
+                         ("L3_evidences", evidences)):
+        if any(not isinstance(x, dict) or "id" not in x for x in items):
+            bad.append(f"{label} 缺少 id")
+    if any(not isinstance(x, dict) or "source" not in x or "target" not in x
+           for x in edges):
+        bad.append("edges 缺少 source/target")
+    if bad:
+        msg = "final_kg.json 不是 v2 产物：" + "；".join(bad) + "。请用 v2 流水线重新构建。"
+        print(f"❌ {msg}")
+        _emit("import_error", code="kg_invalid", message=msg, path=str(path))
+        return False
+
+    # 证据 ID 可能撞名，重命名后保证唯一
     evidences = _dedupe_evidence_ids(evidences)
     counts = {"concepts": len(concepts), "entities": len(entities),
               "evidences": len(evidences), "edges": len(edges)}
@@ -803,6 +839,14 @@ def _import_to_neo4j(config, concepts, entities, evidences, edges):
     print("\n—— Neo4j 导入 ——")
     neo = config["neo4j"]
     driver = GraphDatabase.driver(neo["uri"], auth=(neo["username"], neo["password"]))
+    parents = _parent_map(edges)
+
+    def _attrs(item: Dict[str, Any]) -> str:
+        attrs = dict(item.get("attributes") or {})
+        for key in ("signals", "layer_decision", "merged_from", "salience"):
+            if item.get(key) is not None:
+                attrs[key] = item[key]
+        return json.dumps(attrs, ensure_ascii=False)
 
     node_total = len(concepts) + len(entities) + len(evidences)
     edge_total = len(edges)
@@ -828,18 +872,24 @@ def _import_to_neo4j(config, concepts, entities, evidences, edges):
             for c in concepts:
                 sess.run("""
                     CREATE (n:Concept {
-                        node_id: $node_id, name: $name, type: $type,
+                        node_id: $node_id, name: $name, type: $type, layer: $layer,
                         description: $description, aliases: $aliases,
-                        concept_id: $concept_id, evidence_ids: $evidence_ids
+                        concept_id: $concept_id, evidence_ids: $evidence_ids,
+                        confidence: $confidence, salience_score: $salience_score,
+                        attributes: $attributes
                     })
                 """,
-                    node_id=c["concept_id"],
+                    node_id=c["id"],
                     name=c.get("name", ""),
                     type=c.get("type", ""),
-                    description=c.get("description", ""),
+                    layer=c.get("layer", "L1"),
+                    description=c.get("definition", ""),
                     aliases=c.get("aliases", []),
-                    concept_id=c["concept_id"],
+                    concept_id=c["id"],
                     evidence_ids=c.get("evidence_ids", []),
+                    confidence=float(c.get("confidence", 1.0)),
+                    salience_score=float((c.get("salience") or {}).get("score", 0.0)),
+                    attributes=_attrs(c),
                 )
                 done += 1
                 if done % 500 == 0:
@@ -849,20 +899,24 @@ def _import_to_neo4j(config, concepts, entities, evidences, edges):
             for e in entities:
                 sess.run("""
                     CREATE (n:Entity {
-                        node_id: $node_id, name: $name, type: $type,
+                        node_id: $node_id, name: $name, type: $type, layer: $layer,
                         description: $description, aliases: $aliases,
                         concept_id: $concept_id, evidence_ids: $evidence_ids,
+                        confidence: $confidence, salience_score: $salience_score,
                         attributes: $attributes
                     })
                 """,
-                    node_id=e["entity_id"],
+                    node_id=e["id"],
                     name=e.get("name", ""),
                     type=e.get("type", ""),
-                    description=e.get("description", ""),
+                    layer=e.get("layer", "L2"),
+                    description=e.get("definition", ""),
                     aliases=e.get("aliases", []),
-                    concept_id=e.get("concept_id", ""),
+                    concept_id=parents.get(str(e["id"]), ""),
                     evidence_ids=e.get("evidence_ids", []),
-                    attributes=json.dumps(e.get("attributes", {}) or {}, ensure_ascii=False),
+                    confidence=float(e.get("confidence", 1.0)),
+                    salience_score=float((e.get("salience") or {}).get("score", 0.0)),
+                    attributes=_attrs(e),
                 )
                 done += 1
                 if done % 500 == 0:
@@ -875,18 +929,23 @@ def _import_to_neo4j(config, concepts, entities, evidences, edges):
                         node_id: $node_id, name: $name, type: $type,
                         doc_id: $doc_id, section_id: $section_id,
                         section_path: $section_path, section_level: $section_level,
-                        snippet: $snippet, entities_in_section: $entities_in_section
+                        snippet: $snippet, entities_in_section: $entities_in_section,
+                        block_id: $block_id, block_type: $block_type,
+                        derived: $derived
                     })
                 """,
-                    node_id=ev["evidence_id"],
-                    name=ev.get("title", ev.get("section_id", "")),
+                    node_id=ev["id"],
+                    name=ev.get("title") or ev.get("section_id") or ev["id"],
                     type=ev.get("section_level", ""),
                     doc_id=ev.get("doc_id", ""),
                     section_id=ev.get("section_id", ""),
                     section_path=ev.get("section_path", ""),
                     section_level=ev.get("section_level", ""),
-                    snippet=ev.get("snippet", ev.get("content", "")),
+                    snippet=ev.get("text", ""),
                     entities_in_section=ev.get("entities_in_section", []),
+                    block_id=ev.get("block_id", ""),
+                    block_type=ev.get("block_type", "unknown"),
+                    derived=bool(ev.get("derived", False)),
                 )
                 done += 1
                 if done % 500 == 0:
@@ -908,7 +967,8 @@ def _import_to_neo4j(config, concepts, entities, evidences, edges):
                         MATCH (s {{node_id: $src}}), (t {{node_id: $tgt}})
                         CREATE (s)-[r:`{rel_type}` {{
                             layer: $layer, description: $desc, keywords: $kw,
-                            edge_type: $et
+                            edge_type: $et, confidence: $confidence,
+                            evidence_ids: $evids
                         }}]->(t)
                         RETURN r
                     """,
@@ -918,6 +978,8 @@ def _import_to_neo4j(config, concepts, entities, evidences, edges):
                         desc=edge.get("description", ""),
                         kw=edge.get("keywords", []),
                         et=edge.get("type", "related"),
+                        confidence=float(edge.get("confidence", 1.0)),
+                        evids=edge.get("evidence_ids", []),
                     )
                     if result.single():
                         success += 1
@@ -979,17 +1041,28 @@ def _import_to_chroma(config, concepts, entities, evidences, edges):
         return ollama_client.embeddings(model=model, prompt=text)["embedding"]
 
     # 导入 L1 + L2 节点
+    parents = _parent_map(edges)
+    name_by_id: Dict[str, str] = {}
     all_nodes = []
     for c in concepts:
-        all_nodes.append((c["concept_id"], "concept",
-                          f"{c.get('name','')}: {c.get('description','')}",
-                          {"node_id": c["concept_id"], "node_type": "concept",
-                           "name": c.get("name", ""), "type": c.get("type", "")}))
+        cid = str(c["id"])
+        name_by_id[cid] = c.get("name", "")
+        all_nodes.append((cid, "concept",
+                          f"{c.get('name','')}: {c.get('definition','')}",
+                          {"node_id": cid, "node_type": "concept",
+                           "name": c.get("name", ""), "type": c.get("type", ""),
+                           "layer": c.get("layer", "L1"), "concept_id": cid}))
     for e in entities:
-        all_nodes.append((e["entity_id"], "entity",
-                          f"{e.get('name','')}: {e.get('description','')}",
-                          {"node_id": e["entity_id"], "node_type": "entity",
-                           "name": e.get("name", ""), "type": e.get("type", "")}))
+        eid = str(e["id"])
+        name_by_id[eid] = e.get("name", "")
+        all_nodes.append((eid, "entity",
+                          f"{e.get('name','')}: {e.get('definition','')}",
+                          {"node_id": eid, "node_type": "entity",
+                           "name": e.get("name", ""), "type": e.get("type", ""),
+                           "layer": e.get("layer", "L2"),
+                           "concept_id": parents.get(eid, "")}))
+    for ev in evidences:
+        name_by_id[str(ev["id"])] = ev.get("title", "")
 
     vector_total = len(all_nodes) + len(evidences) + len(edges)
     vector_done = 0
@@ -1015,11 +1088,13 @@ def _import_to_chroma(config, concepts, entities, evidences, edges):
     t0 = time.perf_counter()
     for i in range(0, len(evidences), 20):
         batch = evidences[i:i + 20]
-        ids = [ev["evidence_id"] for ev in batch]
-        docs = [f"{ev.get('title','')}: {ev.get('snippet','')[:500]}" for ev in batch]
-        metas = [{"node_id": ev["evidence_id"], "node_type": "evidence",
+        ids = [str(ev["id"]) for ev in batch]
+        docs = [f"{ev.get('title','')}: {ev.get('text','')[:500]}" for ev in batch]
+        metas = [{"node_id": str(ev["id"]), "node_type": "evidence",
                   "name": ev.get("title", ""), "section_id": ev.get("section_id", ""),
-                  "section_path": ev.get("section_path", "")} for ev in batch]
+                  "section_path": ev.get("section_path", ""),
+                  "block_id": ev.get("block_id", ""),
+                  "derived": bool(ev.get("derived", False))} for ev in batch]
         embs = [embed(d) for d in docs]
         ev_col.add(ids=ids, documents=docs, metadatas=metas, embeddings=embs)
         vector_done += len(batch)
@@ -1034,10 +1109,16 @@ def _import_to_chroma(config, concepts, entities, evidences, edges):
     for i in range(0, len(edges), 50):
         batch = edges[i:i + 50]
         ids = [f"{e['source']}_{e.get('type','rel')}_{e['target']}" for e in batch]
-        docs = [f"{e.get('source','')} {e.get('type','')} {e.get('target','')}: {e.get('description','')}"
-                for e in batch]
+        docs = [
+            f"{name_by_id.get(str(e.get('source','')), e.get('source',''))} "
+            f"{e.get('type','')} "
+            f"{name_by_id.get(str(e.get('target','')), e.get('target',''))}: "
+            f"{e.get('description','')}"
+            for e in batch
+        ]
         metas = [{"source": e.get("source", ""), "target": e.get("target", ""),
-                  "type": e.get("type", ""), "layer": e.get("layer", "")} for e in batch]
+                  "type": e.get("type", ""), "layer": e.get("layer", ""),
+                  "confidence": float(e.get("confidence", 1.0))} for e in batch]
         embs = [embed(d) for d in docs]
         edge_col.add(ids=ids, documents=docs, metadatas=metas, embeddings=embs)
         vector_done += len(batch)

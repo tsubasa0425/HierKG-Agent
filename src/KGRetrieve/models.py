@@ -26,16 +26,22 @@ class Edge:
     layer: str
     description: str = ""
     keywords: List[str] = field(default_factory=list)
+    confidence: float = 1.0
+    evidence_ids: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        out = {
             "source": self.source,
             "target": self.target,
             "type": self.type,
             "layer": self.layer,
             "description": self.description,
             "keywords": self.keywords,
+            "confidence": self.confidence,
         }
+        if self.evidence_ids:
+            out["evidence_ids"] = list(self.evidence_ids)
+        return out
 
 
 @dataclass

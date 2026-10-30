@@ -4,7 +4,7 @@
 两类文件：
   * form 模式 —— config.yaml（APIConfig）/ storage.yaml（Neo4j + Ollama），
     结构化字段，密钥只写不回显；
-  * yaml 模式 —— text/extraction/conv/aggr/dedup/pred/emb 与 schema.yaml，
+  * yaml 模式 —— text/extraction/conv/aggr/dedup/pred/emb 与 schema.v2.yaml，
     保存原始文本（保留注释与顺序），服务端做结构校验后原子写入。
 
 所有路径都按注册表白名单解析，绝不接受任意 file_id 之外的路径。
@@ -75,7 +75,7 @@ CONFIG_FILES: Dict[str, Dict[str, Any]] = {
         "top": "EmbConfig", "rebuild_from": "embedding",
     },
     "schema": {
-        "label": "L0 本体", "path": CFG_DIR / "schema.yaml", "mode": "yaml",
+        "label": "L0 本体", "path": CFG_DIR / "schema.v2.yaml", "mode": "yaml",
         "top": None, "rebuild_from": "textseg", "critical": True,
     },
 }
@@ -84,9 +84,9 @@ FORM_KEYS = {"app", "storage"}
 STAGE_IO_KEYS: Dict[str, List[str]] = {
     "text": ["DOCX_NAME", "TOC_NAME", "WARN_NAME"],
     "extraction": ["IN_NAME", "OUT_NAME"],
-    "conv": ["TOC_ENT_REL_NAME", "CONV_RESULT_NAME", "CONV_PROMPTS_NAME"],
-    "aggr": ["CONV_IN_NAME", "OUT_NAME", "LOG_NAME"],
-    "dedup": ["ENTITIES_AGGR_NAME", "ENTITIES_CONV_NAME", "EMBEDDINGS_NAME", "RESULT_NAME"],
+    "conv": ["TOC_ENT_REL_NAME", "CONV_RESULT_NAME"],
+    "aggr": ["CONV_IN_NAME", "OUT_NAME"],
+    "dedup": ["ENTITIES_AGGR_NAME", "EMBEDDINGS_NAME", "RESULT_NAME"],
     "pred": ["DEDUP_NAME", "EMBEDDINGS_NAME", "RESULT_NAME"],
     "emb": ["INPUT_NAME", "OUTPUT_NAME"],
 }
@@ -590,42 +590,55 @@ def _validate_stage(file_id: str, section: Dict[str, Any],
             _warn(warnings, f"doc/ 下暂时没有 {docx}，构建前需要上传或改名")
     elif file_id == "extraction":
         num("TEMPERATURE", 0, 2)
-        ep = section.get("ENTITY_PROMPT")
-        rp = section.get("RELATION_PROMPT")
-        if isinstance(ep, str):
-            for ph in ("${entity_types_with_desc}", "${section_text}"):
-                if ph not in ep:
-                    _warn(warnings, f"ENTITY_PROMPT 缺少占位符 {ph}")
-        else:
-            _warn(warnings, "ENTITY_PROMPT 缺失")
-        if isinstance(rp, str):
-            for ph in ("${relation_types_with_desc}", "${entity_list}", "${section_text}"):
-                if ph not in rp:
-                    _warn(warnings, f"RELATION_PROMPT 缺少占位符 {ph}")
-        else:
-            _warn(warnings, "RELATION_PROMPT 缺失")
+        num("MAX_CHARS", 500, 100_000, True)
+        num("MAX_NAME_LEN", 1, 200, True)
+        num("MAX_DEFINITION_LEN", 10, 5000, True)
+        for key in ("ENTITY_PROMPT", "RELATION_PROMPT"):
+            if not isinstance(section.get(key), str) or not section.get(key, "").strip():
+                _warn(warnings, f"{key} 缺失，将使用代码内默认提示词")
     elif file_id == "conv":
         num("TEMPERATURE", 0, 2)
         num("MAX_TOKENS", 1, 100_000, True)
-        num("MAX_NEIGHBORS_GLOBAL", 0, 100_000, True)
+        num("MAX_NEIGHBORS_PER_ENTITY", 1, 10_000, True)
+        num("MAX_DEFINITION_LEN", 10, 5000, True)
+        num("ENRICH_MAX_ENTITIES", 0, 1_000_000, True)
+        num("ENRICH_MIN_COVERAGE", 0, 100, True)
+        if section.get("ENRICH_MODE") not in (None, "missing", "all", "none"):
+            _err(errors, "ENRICH_MODE 必须是 missing / all / none")
     elif file_id == "aggr":
         num("TEMPERATURE", 0, 2)
         num("MAX_TOKENS", 1, 100_000, True)
         num("LIMIT", 0, 1_000_000, True)
-        if not isinstance(section.get("PROMPTS"), dict):
-            _warn(warnings, "PROMPTS 缺失或不是 mapping，Aggr 将使用代码内默认提示词")
+        num("WORKERS", 1, 256, True)
+        num("PARENT_MIN_SCORE", 0, 100)
+        num("INSTANCE_OF_CONFIDENCE", 0, 1)
+        if not isinstance(section.get("PROMPT_USER_TEMPLATE"), str):
+            _warn(warnings, "PROMPT_USER_TEMPLATE 缺失，Aggr 将使用代码内默认提示词")
     elif file_id == "dedup":
         num("KNN_NEIGHBORS", 1, 10_000, True)
-        num("DIST_THRESHOLD", 0, 2)
-        num("RANK_TOP", 1, 10_000, True)
+        num("SIM_THRESHOLD", 0, 1)
+        num("AUTO_MERGE_SIM", 0, 1)
+        num("NO_LLM_MERGE_SIM", 0, 1)
         num("NAME_JACCARD_MIN", 0, 1)
+        num("PER_NODE_CAP", 0, 10_000, True)
         if section.get("NAME_MODE") not in (None, "token", "char", "bigram", "auto"):
             _warn(warnings, f"NAME_MODE={section.get('NAME_MODE')} 不是常见取值")
+        lo = _as_number(section.get("SIM_THRESHOLD"))
+        hi = _as_number(section.get("AUTO_MERGE_SIM"))
+        if lo is not None and hi is not None and lo > hi:
+            _warn(warnings, "SIM_THRESHOLD 高于 AUTO_MERGE_SIM，灰区将为空")
+        if not isinstance(section.get("LLM_USER_PROMPT"), str):
+            _warn(warnings, "LLM_USER_PROMPT 缺失，Dedup 的 LLM 复核将不可用")
     elif file_id == "pred":
-        num("COS_MIN", -1, 1)
-        num("TOPK", 0, 1_000_000, True)
-        num("PER_NODE_CAP", 0, 10_000, True)
-        num("STRENGTH_MIN", 0, 10, True)
+        num("MIN_SIM", 0, 1)
+        num("MIN_WEIGHT", 0, 100, True)
+        num("MIN_SCORE", 0, 1)
+        num("MAX_PREDICTIONS_PER_NODE", 0, 10_000, True)
+        num("MAX_TOTAL", 1, 1_000_000, True)
+        num("LLM_MAX_PAIRS", 0, 1_000_000, True)
+        num("LLM_MIN_CONFIDENCE", 0, 1)
+        if not isinstance(section.get("PROMPT_USER_TEMPLATE"), str):
+            _warn(warnings, "PROMPT_USER_TEMPLATE 缺失，Pred 的 LLM 复核将不可用")
     elif file_id == "emb":
         host = section.get("OLLAMA_HOST")
         if host not in (None, "") and not (
@@ -640,45 +653,57 @@ def _validate_stage(file_id: str, section: Dict[str, Any],
 
 def _validate_schema(parsed: Dict[str, Any], errors: List[Dict[str, Any]],
                      warnings: List[Dict[str, Any]]) -> None:
-    entity_types = parsed.get("EntityTypes")
-    if not isinstance(entity_types, dict) or not entity_types:
-        _err(errors, "EntityTypes 必须是非空 mapping")
-        entity_types = {}
+    node_types = parsed.get("NodeTypes")
+    if not isinstance(node_types, dict) or not node_types:
+        _err(errors, "NodeTypes 必须是非空 mapping")
+        node_types = {}
 
-    for name, spec in entity_types.items():
-        if not isinstance(spec, dict):
-            _err(errors, f"EntityTypes.{name} 必须是 mapping")
+    all_type_names: set[str] = set()
+    core = node_types.get("core")
+    if not isinstance(core, dict) or not core:
+        _err(errors, "NodeTypes.core 必须是非空 mapping")
+        core = {}
+    all_type_names.update(str(k) for k in core)
+
+    packs = node_types.get("domain_packs") or {}
+    if not isinstance(packs, dict):
+        _err(errors, "NodeTypes.domain_packs 必须是 mapping")
+        packs = {}
+    for pack_name, pack in packs.items():
+        if not isinstance(pack, dict):
+            _err(errors, f"NodeTypes.domain_packs.{pack_name} 必须是 mapping")
             continue
-        hint = spec.get("layer_hint")
-        if hint not in ("concept", "entity", "auto"):
-            _err(errors, f"EntityTypes.{name}.layer_hint 必须是 concept / entity / auto")
-        if not spec.get("description"):
-            _warn(warnings, f"EntityTypes.{name} 缺少 description")
+        types = pack.get("types")
+        if not isinstance(types, dict) or not types:
+            _err(errors, f"NodeTypes.domain_packs.{pack_name}.types 必须是非空 mapping")
+            continue
+        all_type_names.update(str(k) for k in types)
 
-    mapping = parsed.get("TypeMapping", [])
-    if not isinstance(mapping, list):
-        _err(errors, "TypeMapping 必须是 list")
-    else:
-        for i, item in enumerate(mapping, 1):
-            if not isinstance(item, dict):
-                _err(errors, f"TypeMapping[{i}] 必须是 mapping")
+    def _check_types(items: Dict[str, Any], prefix: str) -> None:
+        for name, spec in items.items():
+            if not isinstance(spec, dict):
+                _err(errors, f"{prefix}.{name} 必须是 mapping")
                 continue
-            keywords = item.get("keywords")
-            if (not isinstance(keywords, list) or not keywords
-                    or any(not isinstance(k, str) or not k.strip() for k in keywords)):
-                _err(errors, f"TypeMapping[{i}].keywords 必须是非空字符串列表")
-            schema_type = item.get("schema_type")
-            if not isinstance(schema_type, str) or not schema_type:
-                _err(errors, f"TypeMapping[{i}].schema_type 缺失")
-            elif schema_type not in entity_types:
-                _err(errors, f"TypeMapping[{i}].schema_type={schema_type} 不在 EntityTypes 中")
+            if not spec.get("description"):
+                _warn(warnings, f"{prefix}.{name} 缺少 description")
+            parent = spec.get("parent")
+            if parent and parent not in all_type_names:
+                _warn(warnings, f"{prefix}.{name}.parent={parent} 不是已定义的节点类型")
+
+    _check_types(core, "NodeTypes.core")
+    for pack_name, pack in packs.items():
+        if isinstance(pack, dict) and isinstance(pack.get("types"), dict):
+            _check_types(pack["types"], f"NodeTypes.domain_packs.{pack_name}.types")
 
     relations = parsed.get("RelationTypes")
     if not isinstance(relations, dict):
         _err(errors, "RelationTypes 必须是 mapping")
     else:
-        for group in ("entity_relations", "cross_layer_relations"):
-            block = relations.get(group, {})
+        if "core" not in relations:
+            _err(errors, "RelationTypes.core 缺失")
+        for group, block in relations.items():
+            if group == "derived_inverses":
+                continue
             if not isinstance(block, dict):
                 _err(errors, f"RelationTypes.{group} 必须是 mapping")
                 continue
@@ -686,21 +711,51 @@ def _validate_schema(parsed: Dict[str, Any], errors: List[Dict[str, Any]],
                 if not isinstance(rspec, dict):
                     _err(errors, f"RelationTypes.{group}.{rname} 必须是 mapping")
                     continue
-                if rspec.get("direction") not in ("directed", "undirected"):
-                    _err(errors, f"RelationTypes.{group}.{rname}.direction "
-                                 "必须是 directed / undirected")
-                if group == "cross_layer_relations" and not rspec.get("layers"):
-                    _warn(warnings, f"RelationTypes.cross_layer_relations.{rname} 建议填写 layers")
+                if rspec.get("direction") not in ("directed", "symmetric"):
+                    _warn(warnings, f"RelationTypes.{group}.{rname}.direction "
+                                    "建议为 directed / symmetric")
+                if rspec.get("endpoint_policy") not in (None, "same_layer",
+                                                        "layer_constraint", "any"):
+                    _warn(warnings, f"RelationTypes.{group}.{rname}.endpoint_policy 取值少见")
+                layers = rspec.get("layers")
+                if not isinstance(layers, list) or not layers:
+                    _err(errors, f"RelationTypes.{group}.{rname}.layers 必须是非空列表")
+                if rspec.get("store_inverse") and not rspec.get("inverse"):
+                    _err(errors, f"RelationTypes.{group}.{rname} 声明 store_inverse 但没有 inverse")
 
     evidence = parsed.get("EvidenceSchema")
     if not isinstance(evidence, dict):
         _err(errors, "EvidenceSchema 必须是 mapping")
     else:
-        for key in ("evidence_id", "section_path", "section_level", "title", "snippet"):
-            if key not in evidence:
-                _err(errors, f"EvidenceSchema 缺少字段 {key}")
-            elif not isinstance(evidence[key], dict):
-                _err(errors, f"EvidenceSchema.{key} 必须是 mapping")
+        for key in ("required", "optional"):
+            if not isinstance(evidence.get(key), list):
+                _err(errors, f"EvidenceSchema.{key} 必须是 list")
+        if not isinstance(evidence.get("id_format"), str):
+            _err(errors, "EvidenceSchema.id_format 缺失")
+
+    policy = parsed.get("LayerPolicy")
+    if not isinstance(policy, dict):
+        _err(errors, "LayerPolicy 必须是 mapping")
+    else:
+        rules = policy.get("rules")
+        if not isinstance(rules, list) or not rules:
+            _err(errors, "LayerPolicy.rules 必须是非空 list")
+        else:
+            for i, rule in enumerate(rules, 1):
+                if not isinstance(rule, dict):
+                    _err(errors, f"LayerPolicy.rules[{i}] 必须是 mapping")
+                    continue
+                if not rule.get("id"):
+                    _err(errors, f"LayerPolicy.rules[{i}].id 缺失")
+                if not isinstance(rule.get("when"), dict):
+                    _err(errors, f"LayerPolicy.rules[{i}].when 必须是 mapping")
+                if rule.get("layer") not in ("L1", "L2", "llm", "excluded"):
+                    _err(errors, f"LayerPolicy.rules[{i}].layer 必须是 L1/L2/llm/excluded")
+                conf = _as_number(rule.get("confidence"))
+                if conf is None or not (0 <= conf <= 1):
+                    _err(errors, f"LayerPolicy.rules[{i}].confidence 必须是 0~1")
+        if not isinstance(policy.get("signals"), dict) or not policy.get("signals"):
+            _err(errors, "LayerPolicy.signals 必须是非空 mapping")
 
 
 # ---------------------------------------------------------------------------
@@ -708,60 +763,71 @@ def _validate_schema(parsed: Dict[str, Any], errors: List[Dict[str, Any]],
 # ---------------------------------------------------------------------------
 
 def schema_summary(parsed: Dict[str, Any]) -> Dict[str, Any]:
-    entity_types = parsed.get("EntityTypes") or {}
-    mapping = parsed.get("TypeMapping") or []
+    node_types = parsed.get("NodeTypes") or {}
     relations = parsed.get("RelationTypes") or {}
+    policy = parsed.get("LayerPolicy") or {}
 
-    ents = []
-    if isinstance(entity_types, dict):
-        for name, spec in entity_types.items():
+    nodes: List[Dict[str, Any]] = []
+
+    def _add_nodes(items: Any, pack: str) -> None:
+        if not isinstance(items, dict):
+            return
+        for name, spec in items.items():
             spec = spec if isinstance(spec, dict) else {}
-            ents.append({
+            nodes.append({
                 "name": name,
-                "layer_hint": spec.get("layer_hint", ""),
+                "pack": pack,
+                "parent": spec.get("parent", ""),
                 "description": spec.get("description", ""),
                 "examples": spec.get("examples", []) or [],
             })
 
-    maps = []
-    if isinstance(mapping, list):
-        for item in mapping:
-            if isinstance(item, dict):
-                maps.append({
-                    "keywords": item.get("keywords", []) or [],
-                    "schema_type": item.get("schema_type", ""),
-                })
+    if isinstance(node_types, dict):
+        _add_nodes(node_types.get("core"), "core")
+        packs = node_types.get("domain_packs") or {}
+        if isinstance(packs, dict):
+            for pack_name, pack in packs.items():
+                if isinstance(pack, dict):
+                    _add_nodes(pack.get("types"), str(pack_name))
 
-    def _relations(group: str) -> List[Dict[str, Any]]:
-        block = relations.get(group) if isinstance(relations, dict) else None
-        out = []
-        if isinstance(block, dict):
+    rels: List[Dict[str, Any]] = []
+    if isinstance(relations, dict):
+        for group, block in relations.items():
+            if group == "derived_inverses" or not isinstance(block, dict):
+                continue
             for name, spec in block.items():
                 spec = spec if isinstance(spec, dict) else {}
-                out.append({
+                rels.append({
                     "name": name,
+                    "group": group,
                     "direction": spec.get("direction", ""),
                     "description": spec.get("description", ""),
-                    "example": spec.get("example", ""),
-                    "layers": spec.get("layers", ""),
+                    "layers": spec.get("layers", []),
                 })
-        return out
 
-    hints: Dict[str, int] = {}
-    for e in ents:
-        hints[e["layer_hint"] or "?"] = hints.get(e["layer_hint"] or "?", 0) + 1
+    rules = policy.get("rules") if isinstance(policy, dict) else []
+    rules = rules if isinstance(rules, list) else []
+    pack_counts: Dict[str, int] = {}
+    for n in nodes:
+        pack_counts[n["pack"]] = pack_counts.get(n["pack"], 0) + 1
 
     return {
-        "entity_types": ents,
-        "type_mapping": maps,
-        "entity_relations": _relations("entity_relations"),
-        "cross_layer_relations": _relations("cross_layer_relations"),
+        "ontology_name": parsed.get("ontology_name", ""),
+        "schema_version": parsed.get("schema_version", ""),
+        "node_types": nodes,
+        "relation_types": rels,
+        "layer_rules": [
+            {"id": r.get("id", ""), "layer": r.get("layer", ""),
+             "confidence": r.get("confidence", 0)}
+            for r in rules if isinstance(r, dict)
+        ],
         "counts": {
-            "entity_types": len(ents),
-            "type_mapping": len(maps),
-            "entity_relations": len(_relations("entity_relations")),
-            "cross_layer_relations": len(_relations("cross_layer_relations")),
-            "layer_hints": hints,
+            "node_types": len(nodes),
+            "core_types": pack_counts.get("core", 0),
+            "domain_types": len(nodes) - pack_counts.get("core", 0),
+            "relation_types": len(rels),
+            "layer_rules": len(rules),
+            "packs": pack_counts,
         },
     }
 
@@ -781,7 +847,7 @@ def write_config_file(file_id: str, content: str) -> Dict[str, Any]:
     if not check["ok"]:
         return check  # 调用方按 400 处理
 
-    # schema.yaml 不参与 include 合并，其余 stage 写完再校验整条流水线配置。
+    # schema.v2.yaml 不参与 include 合并，其余 stage 写完再校验整条流水线配置。
     path = meta["path"]
     with write_lock:
         backup = _backup(path, file_id)

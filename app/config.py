@@ -36,7 +36,8 @@ def make_client(cfg: Dict[str, Any]):
 
 _CHAT_DEFAULTS: Dict[str, Any] = {
     "ENABLED": True,       # 热问题缓存总开关
-    "DB_PATH": "",         # 空 → chat_store 默认路径（env HIERKG_CHAT_DB > app/data/chat.db）
+    "SESSION_DIR": "",     # 空 → app/data/sessions（env HIERKG_SESSION_DIR）
+    "CACHE_DB_PATH": "",   # 空 → app/data/cache.db（env HIERKG_CACHE_DB）
     "THETA_EXACT": 0.96,   # ≥ 此相似度 + 版本匹配 → L1 答案直出
     "THETA_NEAR": 0.85,    # ≥ 此相似度 → L2 证据回放；否则 L3 全量检索
 }
@@ -54,6 +55,9 @@ def load_chat_config(path: str | None = None) -> Dict[str, Any]:
         return merged
     raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     cfg = raw.get("CacheConfig") or {}
+    # 兼容旧配置键：DB_PATH 曾同时承担会话与缓存存储路径，现仅指缓存库
+    if cfg.get("DB_PATH") and not cfg.get("CACHE_DB_PATH"):
+        cfg = {**cfg, "CACHE_DB_PATH": cfg["DB_PATH"]}
     for k in _CHAT_DEFAULTS:
         if k in cfg and cfg[k] is not None:
             merged[k] = cfg[k]

@@ -1,50 +1,61 @@
+# config/dedup.yaml
 DedupConfig:
-  # —— I/O（只保留文件名；代码里统一拼到 KGBuild/output 下）——
-  ENTITIES_AGGR_NAME: "aggr_entities.json"    # 若存在优先用它
-  ENTITIES_CONV_NAME: "conv_entities.json"    # 否则回退到它
+  # —— I/O —— #
+  ENTITIES_AGGR_NAME: "aggr_entities.json"
   EMBEDDINGS_NAME: "node_embeddings.pkl"
   RESULT_NAME: "dedup_result.json"
 
-  # —— KNN 搜索 ——
-  KNN_NEIGHBORS: 20
-  DIST_THRESHOLD: 0.55
+  # —— 向量候选 —— #
+  KNN_NEIGHBORS: 15          # 每层内取 top-K 近邻
+  SIM_THRESHOLD: 0.88        # 低于该余弦相似度直接丢弃
+  AUTO_MERGE_SIM: 0.96       # 高于该值直接合并，不问 LLM
+  NO_LLM_MERGE_SIM: 0.93     # LLM 不可用时，高于该值才合并
   MUTUAL_KNN: true
-  RANK_TOP: 12           # 实际取近邻排名 1..11
+  PER_NODE_CAP: 20
 
-  # —— 过滤策略 ——
-  STRICT_SAME_ROLE: false
-  USE_NAME_JACCARD: true
-  NAME_JACCARD_MIN: 0.25
-  NAME_MODE: "auto"      # token|char|bigram|auto
-  PER_NODE_CAP: 30
-  MAX_NEIGHBORS_GLOBAL: 30
+  # —— 约束 —— #
+  STRICT_SAME_TYPE: true     # 跨层绝不合并；同层默认也要求类型一致
+  USE_ALIAS_FASTPATH: true   # 名称/别名规范化后完全相交 → 直接合并
+  USE_NAME_JACCARD: false    # 同义词可能字形完全不同，默认不靠名称相似度卡
+  NAME_JACCARD_MIN: 0.2
+  NAME_CONTAINMENT_GUARD: true  # 名称互相包含（智能体 / 反应式智能体）视为上下位，不合并
+  NAME_MODE: "auto"
 
-  # —— LLM 调用参数（step 专属；公共参数在 config.yaml APIConfig）——
+  # —— LLM 复核（灰区候选）—— #
+  LLM_MERGE: true
   TEMPERATURE: 0.0
-  MAX_TOKENS: 1000
+  MAX_TOKENS: 200
   DRY_RUN: false
+  PROMPT_VERSION: "dedup.v2"
+  LOG_DECISIONS_MAX: 5000
 
-  # —— 其他优化 ——
-  USE_ALIAS_FASTPATH: false
-  TRUNCATE_DESC: false
-  DESC_MAXLEN: 120
-
-  # —— Prompt 模板 —— #
+  # —— 提示词模板 —— #
+  # 占位符：{name_a} {type_a} {layer_a} {alias_a} {desc_a}
+  #         {name_b} {type_b} {layer_b} {alias_b} {desc_b}
   LLM_SYSTEM_PROMPT: |
-    你是"知识图谱专家"，擅长实体消歧。
-    仅基于实体的名称、角色、描述判断是否为同一概念，输出严格 JSON，不要多余文本。
+    你是教材知识图谱的实体消歧编辑。只依据给出的名称、别名、类型、层级和定义判断。
+    宁可漏合并，也不要把两个不同概念合并。
 
   LLM_USER_PROMPT: |
-    ### 实体1
+    ### 实体 A
     - 名称：{name_a}
-    - 角色：{role_a}
-    - 描述：{desc_a}
+    - 类型：{type_a}
+    - 层级：{layer_a}
+    - 别名：{alias_a}
+    - 定义：{desc_a}
 
-    ### 实体2
+    ### 实体 B
     - 名称：{name_b}
-    - 角色：{role_b}
-    - 描述：{desc_b}
+    - 类型：{type_b}
+    - 层级：{layer_b}
+    - 别名：{alias_b}
+    - 定义：{desc_b}
 
     ### 任务
-    判断两个实体是否为同一概念，输出 JSON（严格按键名）：
-    {schema}
+    判断 A 与 B 是否指同一个概念/实例。只有满足以下之一才判 true：
+    1. 两者是同一实体的不同写法（全称/缩写/中英文/旧称）；
+    2. 定义描述的是同一个对象，且类型一致。
+    如果只是上下位关系、相关关系、或一个更具体，判 false。
+
+    输出严格 JSON（仅 JSON）：
+    {"is_same": true, "reason": "不超过 30 字的依据"}

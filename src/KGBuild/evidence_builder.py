@@ -1,139 +1,231 @@
 #!/usr/bin/env python3
-"""
-L3 证据层构建脚本
+# -*- coding: utf-8 -*-
+"""evidence_builder v2 —— 从章节树构建 L3 证据层。
 
-从 toc_with_entities_and_relations.json 生成 evidence.json。
-每个有 content 的节点（chapter/section/subsection）都成为一个 L3 证据节点，
-带完整的章节路径、原文、以及该章节中抽取到的实体名称列表。
+两种粒度：
+  * section（默认）：每个有正文的小节一条证据，覆盖该节全部 block
+  * block：每个可检索 block 一条证据（段落 / 表格 / 图题 / 列表 …）
+  * both：两种都生成（ID 分别为 ev_doc:sec 与 ev_doc:sec:block）
 
-输出结构（对应 schema.yaml 的 EvidenceSchema）：
+小节的 section_id 在 TextSegmentation 阶段已保证唯一，因此证据 ID 天然唯一，
+不再使用 v1 的 `#2` 后缀。容器小节（只有子标题、没有正文）生成 derived 证据，
+仅用于图导航，不进入检索投影。
+
+输出：evidence.json
 {
-  "evidence_id": "ev_1.1.1",
-  "doc_id": "Hello-Agents",
-  "section_id": "1.1.1",
-  "section_path": "初识智能体 > 什么是智能体? > 传统视角下的智能体",
-  "section_level": "subsection",
-  "title": "传统视角下的智能体",
-  "content": "原文...",
-  "entities_in_section": ["大语言模型", "反射智能体", ...]
+  "schema_version": "2.0",
+  "doc_id": "...",
+  "doc_text_path": "...",
+  "evidences": [ ... ],
+  "stats": { ... }
 }
 """
+from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any, Dict, Iterable, List, Optional
+
+try:
+    from .schema_loader import get_schema, make_evidence_id
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from KGBuild.schema_loader import get_schema, make_evidence_id
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+OUT_DIR = SCRIPT_DIR / "output"
 
 
-# 章节层级映射
-LEVEL_MAP = {1: "chapter", 2: "section", 3: "subsection", 4: "subsubsection"}
+def _walk(nodes: Iterable[Dict[str, Any]]) -> Iterable[Dict[str, Any]]:
+    for n in nodes or []:
+        yield n
+        yield from _walk(n.get("children") or [])
 
 
-def build_evidence(toc: List[Dict[str, Any]], doc_id: str = "Hello-Agents") -> List[Dict[str, Any]]:
-    """遍历 TOC 树，为每个有 content 的节点生成一个 L3 证据节点。
+def _block_text(blocks: List[Dict[str, Any]]) -> str:
+    return "\n".join(b.get("text", "") for b in blocks if (b.get("text") or "").strip())
 
-    Args:
-        toc: toc_with_entities_and_relations.json 的根列表
-        doc_id: 文档标识
 
-    Returns:
-        L3 证据节点列表
-    """
+def _span(blocks: List[Dict[str, Any]]) -> tuple[Optional[int], Optional[int]]:
+    starts = [b["char_start"] for b in blocks if b.get("char_start") is not None]
+    ends = [b["char_end"] for b in blocks if b.get("char_end") is not None]
+    if not starts or not ends:
+        return None, None
+    return min(starts), max(ends)
+
+
+def _entity_names(section: Dict[str, Any]) -> List[str]:
+    return [str(e.get("name")) for e in section.get("entities") or [] if e.get("name")]
+
+
+def _make_section_evidence(section: Dict[str, Any], doc_id: str) -> Dict[str, Any]:
+    blocks = [b for b in section.get("blocks") or [] if (b.get("text") or "").strip()]
+    text = _block_text(blocks) or (section.get("content") or "").strip()
+    start, end = _span(blocks)
+    return {
+        "id": make_evidence_id(doc_id, section["section_id"]),
+        "doc_id": doc_id,
+        "section_id": section["section_id"],
+        "section_path": section.get("path") or section.get("title", ""),
+        "section_level": section.get("section_level") or "unknown",
+        "title": section.get("title") or "",
+        "text": text,
+        "block_id": "",
+        "block_type": "unknown",
+        "char_start": start,
+        "char_end": end,
+        "entities_in_section": _entity_names(section),
+        "derived": False,
+    }
+
+
+def _make_block_evidences(section: Dict[str, Any], doc_id: str,
+                          min_chars: int) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for b in section.get("blocks") or []:
+        text = (b.get("text") or "").strip()
+        if not text or len(text) < min_chars:
+            continue
+        out.append({
+            "id": make_evidence_id(doc_id, section["section_id"], b.get("block_id") or ""),
+            "doc_id": doc_id,
+            "section_id": section["section_id"],
+            "section_path": section.get("path") or section.get("title", ""),
+            "section_level": section.get("section_level") or "unknown",
+            "title": section.get("title") or "",
+            "text": text,
+            "block_id": b.get("block_id") or "",
+            "block_type": b.get("type") or "unknown",
+            "char_start": b.get("char_start"),
+            "char_end": b.get("char_end"),
+            "entities_in_section": _entity_names(section),
+            "derived": False,
+        })
+    return out
+
+
+def _make_derived_evidence(section: Dict[str, Any], doc_id: str) -> Optional[Dict[str, Any]]:
+    children = section.get("children") or []
+    if not children:
+        return None
+    child_titles = [c.get("title", "") for c in children if c.get("title")]
+    text = (section.get("title") or "") + "\n" + "\n".join(child_titles)
+    return {
+        "id": make_evidence_id(doc_id, section["section_id"]),
+        "doc_id": doc_id,
+        "section_id": section["section_id"],
+        "section_path": section.get("path") or section.get("title", ""),
+        "section_level": section.get("section_level") or "unknown",
+        "title": section.get("title") or "",
+        "text": text.strip(),
+        "block_id": "",
+        "block_type": "unknown",
+        # 文本由标题拼接而成，与原文偏移不对应，因此不给偏移
+        "char_start": None,
+        "char_end": None,
+        "entities_in_section": [],
+        "derived": True,
+    }
+
+
+def build_evidence(toc_doc: Dict[str, Any], doc_id: Optional[str] = None,
+                   level: str = "section", include_unknown: bool = False,
+                   min_block_chars: int = 0) -> Dict[str, Any]:
+    doc_id = doc_id or toc_doc.get("doc_id") or "doc"
     evidences: List[Dict[str, Any]] = []
-    section_counts: Dict[str, int] = {}  # section_id → 已出现次数，撞名时给证据 ID 加序号
+    ids: set[str] = set()
 
-    def walk(nodes: List[Dict[str, Any]], path: List[str]):
-        for node in nodes:
-            title = node.get("title", "")
-            section_id = node.get("id", "")
-            level = node.get("level", 0)
-            content = node.get("content", "")
-            cur_path = path + [title]
+    for sec in _walk(toc_doc.get("sections") or []):
+        sec_id = sec.get("section_id") or sec.get("id")
+        if not sec_id:
+            continue
+        if sec.get("section_level") == "unknown" and not include_unknown:
+            continue
+        sec["section_id"] = sec_id
 
-            # 只为有正文的节点生成证据
-            if content and content.strip():
-                # 收集该节点抽取到的实体名称
-                entities_in_section = [
-                    e.get("name", "")
-                    for e in node.get("entities", [])
-                    if e.get("name")
-                ]
+        blocks = [b for b in sec.get("blocks") or [] if (b.get("text") or "").strip()]
+        has_body = bool(blocks) or bool((sec.get("content") or "").strip())
 
-                if section_id:
-                    n = section_counts.get(section_id, 0)
-                    section_counts[section_id] = n + 1
-                    # 同一 section_id 出现多次时（文档编号撞名），后出现的加序号保证证据 ID 唯一：
-                    # 第一个保持 ev_1.4，后续变成 ev_1.4#2、ev_1.4#3 ...
-                    evidence_id = f"ev_{section_id}" if n == 0 else f"ev_{section_id}#{n + 1}"
-                else:
-                    # 无 section_id 时按位置兜底，天然唯一
-                    evidence_id = f"ev_{len(evidences)}"
+        produced: List[Dict[str, Any]] = []
+        if has_body:
+            if level in ("section", "both"):
+                produced.append(_make_section_evidence(sec, doc_id))
+            if level in ("block", "both"):
+                produced.extend(_make_block_evidences(sec, doc_id, min_block_chars))
+        else:
+            derived = _make_derived_evidence(sec, doc_id)
+            if derived:
+                produced.append(derived)
 
-                evidences.append({
-                    "evidence_id": evidence_id,
-                    "doc_id": doc_id,
-                    "section_id": section_id,
-                    "section_path": " > ".join(cur_path),
-                    "section_level": LEVEL_MAP.get(level, f"level_{level}"),
-                    "title": title,
-                    "content": content,
-                    "entities_in_section": entities_in_section,
-                })
+        for ev in produced:
+            if ev["id"] in ids:
+                raise ValueError(f"证据 ID 重复：{ev['id']}（section_id={sec_id}）")
+            if not ev["text"]:
+                continue
+            ids.add(ev["id"])
+            evidences.append(ev)
 
-            # 递归处理子节点
-            children = node.get("children", [])
-            if children:
-                walk(children, cur_path)
+    stats = {
+        "evidences": len(evidences),
+        "derived": sum(1 for e in evidences if e["derived"]),
+        "by_section_level": _count(evidences, "section_level"),
+        "by_block_type": _count([e for e in evidences if not e["derived"]], "block_type"),
+        "with_entities": sum(1 for e in evidences if e["entities_in_section"]),
+        "total_chars": sum(len(e["text"]) for e in evidences),
+    }
+    return {
+        "schema_version": get_schema().version,
+        "doc_id": doc_id,
+        "doc_text_path": toc_doc.get("doc_text_path"),
+        "evidences": evidences,
+        "stats": stats,
+    }
 
-    walk(toc, [])
-    return evidences
+
+def _count(rows: List[Dict[str, Any]], key: str) -> Dict[str, int]:
+    out: Dict[str, int] = {}
+    for r in rows:
+        k = str(r.get(key) or "unknown")
+        out[k] = out.get(k, 0) + 1
+    return dict(sorted(out.items()))
 
 
-def main():
-    out_dir = Path(__file__).resolve().parent / "output"   # src/KGBuild/output
-    ap = argparse.ArgumentParser(description="从 TOC JSON 构建 L3 证据层")
-    ap.add_argument("--input", default=str(out_dir / "toc_with_entities_and_relations.json"),
-                    help="输入文件路径")
-    ap.add_argument("--output", default=str(out_dir / "evidence.json"),
-                    help="输出文件路径")
-    ap.add_argument("--doc-id", default="Hello-Agents",
-                    help="文档标识")
-    args = ap.parse_args()
+def main(argv: Optional[List[str]] = None) -> int:
+    ap = argparse.ArgumentParser(description="构建 v2 L3 证据层")
+    ap.add_argument("--input", default=str(OUT_DIR / "toc_with_entities_and_relations.json"))
+    ap.add_argument("--output", default=str(OUT_DIR / "evidence.json"))
+    ap.add_argument("--doc-id", default=None)
+    ap.add_argument("--level", default="section", choices=["section", "block", "both"])
+    ap.add_argument("--min-block-chars", type=int, default=0)
+    ap.add_argument("--include-unknown", action="store_true",
+                    help="包含 section_level=unknown 的前置内容")
+    args = ap.parse_args(argv)
 
     in_path = Path(args.input)
-    out_path = Path(args.output)
-
     if not in_path.exists():
         raise FileNotFoundError(f"输入文件不存在：{in_path}")
-
     with in_path.open("r", encoding="utf-8") as f:
-        toc = json.load(f)
+        toc_doc = json.load(f)
+    if isinstance(toc_doc, list):
+        raise ValueError("输入是 v1 裸数组；请先用 v2 流水线重新生成")
 
-    evidences = build_evidence(toc, doc_id=args.doc_id)
-
+    result = build_evidence(toc_doc, doc_id=args.doc_id, level=args.level,
+                            include_unknown=args.include_unknown,
+                            min_block_chars=args.min_block_chars)
+    out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8") as f:
-        json.dump(evidences, f, ensure_ascii=False, indent=2)
+        json.dump(result, f, ensure_ascii=False, indent=2)
 
-    print(f"✅ L3 证据层构建完成：{out_path.resolve()}")
-    print(f"   证据节点数：{len(evidences)}")
-    if evidences:
-        print(f"   第一个：{evidences[0]['evidence_id']} - {evidences[0]['title']}")
-        print(f"   最后一个：{evidences[-1]['evidence_id']} - {evidences[-1]['title']}")
-
-        # 统计各层级数量
-        level_counts: Dict[str, int] = {}
-        for ev in evidences:
-            lv = ev["section_level"]
-            level_counts[lv] = level_counts.get(lv, 0) + 1
-        print(f"   层级分布：{level_counts}")
-
-        # 统计有实体的证据数
-        with_entities = sum(1 for ev in evidences if ev["entities_in_section"])
-        total_entities = sum(len(ev["entities_in_section"]) for ev in evidences)
-        print(f"   含实体的证据：{with_entities}/{len(evidences)}")
-        print(f"   实体总引用次数：{total_entities}")
+    st = result["stats"]
+    print(f"✅ L3 证据层：{out_path.resolve()}")
+    print(f"   证据 {st['evidences']} 条（derived {st['derived']}）")
+    print(f"   层级分布：{st['by_section_level']}")
+    print(f"   含实体证据：{st['with_entities']} / {st['evidences']}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

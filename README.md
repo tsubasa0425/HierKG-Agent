@@ -57,7 +57,7 @@ source .venv/Scripts/activate    # Windows bash
 cp src/KGBuild/config/config.yaml.example src/KGBuild/config/config.yaml
 ```
 
-编辑 `config.yaml` 填写 LLM API 密钥。流水线各阶段配置（`extraction` / `text` / `conv` / `aggr` / `dedup` / `pred` / `emb`）通过 `include_files` 自动合并；`schema.yaml`（L0 本体）由各阶段直接读取。
+编辑 `config.yaml` 填写 LLM API 密钥。流水线各阶段配置（`extraction` / `text` / `conv` / `aggr` / `dedup` / `pred` / `emb`）通过 `include_files` 自动合并；`schema.v2.yaml`（L0 本体）由各阶段直接读取。
 
 ### 4. 构建知识图谱
 
@@ -72,7 +72,7 @@ python src/KGBuild/pipeline.py --check  # 只预检各步骤输入文件，不�
 
 输出：`src/KGBuild/output/final_kg.json`
 
-以上步骤也可在 Web 端「图谱构建」（`/build`）完成：上传或选择 docx、在线编辑 LLM/存储配置与各阶段 YAML（含 `schema.yaml`）、实时查看 10 步进度与日志、取消/续跑，并在二次确认后导入 Neo4j。若还没有 `config.yaml`，可直接在该页「编辑配置」中填写，无需手动复制模板。
+以上步骤也可在 Web 端「图谱构建」（`/build`）完成：上传或选择 docx、在线编辑 LLM/存储配置与各阶段 YAML（含 `schema.v2.yaml`）、实时查看 10 步进度与日志、取消/续跑，并在二次确认后导入 Neo4j。若还没有 `config.yaml`，可直接在该页「编辑配置」中填写，无需手动复制模板。
 
 ### 5. 启动 Web UI
 
@@ -96,7 +96,7 @@ npm run dev
 
 | 层 | 名称 | 内容 | 来源 |
 |----|------|------|------|
-| L0 | 本体层 | 实体类型定义、关系类型定义、`layer_hint` 分层规则 | `src/KGBuild/config/schema.yaml` |
+| L0 | 本体层 | 节点类型、关系类型、LayerPolicy 分层规则 | `src/KGBuild/config/schema.v2.yaml` |
 | L1 | 概念层 | 抽象领域术语（如"强化学习""效用函数"），跨文档可合并 | `Aggr.py` 分层判定 + `Dedup.py` 去重 |
 | L2 | 实体层 | 具体实例（如"AlphaGo"），带属性和别名 | `Extraction.py` 抽取 + `Aggr.py` 分层 |
 | L3 | 证据层 | 原文小节片段，支撑 L1/L2 节点的溯源 | `TextSegmentation.py` 解析 + `evidence_builder.py` 构建 |
@@ -123,27 +123,30 @@ npm run dev
 
 ```json
 {
+  "schema_version": "2.0",
   "L0_schema": {
-    "entity_types": { ... },
-    "relation_types": { ... }
+    "node_types": { "core": { ... }, "domain_packs": { ... } },
+    "relation_types": { "core": { ... }, "cross_layer": { ... } },
+    "layer_policy": { "rules": [ ... ] }
   },
   "L1_concepts": [
-    {"node_id": "concept_xxx", "name": "强化学习", "type": "学习方法", "aliases": ["RL"], ...}
+    {"id": "concept_xxx", "name": "强化学习", "type": "学习方法", "layer": "L1", "definition": "...", ...}
   ],
   "L2_entities": [
-    {"node_id": "ent_xxx", "name": "AlphaGo", "type": "实例", "aliases": [], ...}
+    {"id": "ent_xxx", "name": "AlphaGo", "type": "人工物", "layer": "L2", "definition": "...", ...}
   ],
   "L3_evidences": [
-    {"node_id": "ev_1.1.1", "name": "传统视角下的智能体", "type": "subsection", "content": "...", ...}
+    {"id": "ev_Hello-Agents_0:1.1.1", "title": "传统视角下的智能体", "section_level": "subsection", "text": "...", ...}
   ],
   "edges": [
-    {"source": "ent_xxx", "target": "concept_yyy", "type": "belongs_to", "layer": "L2-L1"},
-    {"source": "concept_yyy", "target": "ev_1.1.1", "type": "described_by", "layer": "L1-L3"}
-  ]
+    {"source": "ent_xxx", "target": "concept_yyy", "type": "instance_of", "layer": "L2-L1"},
+    {"source": "concept_yyy", "target": "ev_Hello-Agents_0:1.1.1", "type": "described_by", "layer": "L1-L3"}
+  ],
+  "build_manifest": { ... }
 }
 ```
 
-当前 POC 数据规模：453 概念 / 141 实体 / 42 证据 / 1226 条边。
+v2 重新构建后，数据规模以 `build_manifest.json` 的 `counts` 为准。
 
 
 ### 混合查询链路：向量定位入口，图内继续查询
@@ -209,7 +212,7 @@ HierKG-Agent/
 │   │   ├── evidence_builder.py      # L3 证据构建
 │   │   ├── dedup/                   # 去重子包（knn / llm / name_similarity）
 │   │   ├── doc/                     # 输入文件（.docx 教材原文）
-│   │   ├── config/                  # 流水线各阶段 YAML 配置 + schema.yaml
+│   │   ├── config/                  # 流水线各阶段 YAML 配置 + schema.v2.yaml
 │   │   ├── output/                  # 构建产物（final_kg.json 等）
 │   │   └── logs/                    # 运行日志
 │   ├── KGRetrieve/             # 检索层 —— 15 个 Agent 原子工具
@@ -218,13 +221,13 @@ HierKG-Agent/
 │   │   ├── db_backend.py            # KGDBMemory（Neo4j + ChromaDB 后端）+ 导入脚本
 │   │   ├── mcp_server.py            # MCP server（Pi Agent / Claude 直连）
 │   │   └── TOOLS.md                 # 工具文档
-│   └── (schema.yaml 已移入 KGBuild/config/)
+│   └── (schema.v2.yaml 已移入 KGBuild/config/)
 ├── app/                         # Web UI：FastAPI 后端 + React 前端
 │   ├── main.py                       # FastAPI 入口（默认 :8000）
 │   ├── config.py                     # LLM 配置加载（复用 KGBuild config.yaml）
 │   ├── dependencies.py               # 懒加载单例（KGDBMemory / ToolRegistry）
 │   ├── routers/                      # chat.py（SSE Agent 对话）+ graph.py（图谱可视化）
-│   ├── services/                     # agentscope_agent.py（AgentScope 2.0.7 编排，原生事件帧流）+ chat_service.py（热缓存编排）+ chat_store.py/qa_cache.py/kg_version.py + graph_service.py
+│   ├── services/                     # agentscope_agent.py（AgentScope 2.0.7 编排，原生事件帧流）+ chat_service.py（热缓存编排）+ chat_store.py（会话 JSONL）/ cache_db.py（热缓存 SQLite）/qa_cache.py + kg_version.py + graph_service.py
 │   └── frontend/                     # React/Vite/AntD/sigma.js 前端（:5777）
 ├── eval/                         # 评测子系统
 ├── pyproject.toml                # 依赖声明（uv 管理）
@@ -241,7 +244,7 @@ HierKG-Agent/
 |------|------|
 | **Agent 对话**（`/chat`） | 与检索 Agent 多轮对话；实时展示可折叠的**思考片段**与**工具调用轨迹**（推理/工具名/耗时/参数/结果），回答 Markdown 流式输出并引用 `[ev_xxx]` 证据；支持中途停止、清空、历史回顾 |
 | **知识图谱**（`/graph`） | L1 概念（蓝）/ L2 实体（绿）/ L3 证据（橙）分层配色的力导向图；挂载即加载全图采样，支持层级筛选、名称搜索、双击展开 2 跳邻域、单击查看节点/关系详情 |
-| **图谱构建**（`/build`） | 在线编辑 LLM / Neo4j / Ollama 配置与各阶段 YAML（含 L0 `schema.yaml`，服务端校验后原子写入）；选择或上传 docx，带心跳的 SSE 实时进度与日志；取消、从失败步骤重试；导入前强制确认（会清空 Neo4j 并重建 Chroma collection，预检失败不会执行任何破坏性操作） |
+| **图谱构建**（`/build`） | 在线编辑 LLM / Neo4j / Ollama 配置与各阶段 YAML（含 L0 `schema.v2.yaml`，服务端校验后原子写入）；选择或上传 docx，带心跳的 SSE 实时进度与日志；取消、从失败步骤重试；导入前强制确认（会清空 Neo4j 并重建 Chroma collection，预检失败不会执行任何破坏性操作） |
 
 ### 技术栈
 

@@ -1,310 +1,485 @@
-"""
-FinalKG.py —— 四层知识图谱装配器
-
-按 L0-L3 四层模型装配最终图谱，输出 final_kg.json：
-  - L0_schema        : 来自 config/schema.yaml（本体层）
-  - L1_concepts      : layer==concept 的节点（概念层）
-  - L2_entities      : layer==entity  的节点（实体层）
-  - L3_evidences     : 来自 evidence.json（证据层）
-  - edges            : 同层关系 + 跨层关系，标注 layer 字段
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""FinalKG v2 —— 按 schema.v2 装配四层图谱（final_kg.json）。
 
 输入：
-  - src/KGBuild/config/schema.yaml
-  - src/KGBuild/output/dedup_result.json
-  - src/KGBuild/output/pred_result.json
-  - src/KGBuild/output/evidence.json
+  * dedup_result.json    去重后的 L1/L2 节点 + 语义关系
+  * pred_result.json     Pred 补出的候选边
+  * evidence.json        L3 证据层
 输出：
-  - src/KGBuild/output/final_kg.json
-"""
+  * final_kg.json        {schema_version, L0_schema, L1_concepts, L2_entities,
+                          L3_evidences, edges, build_manifest}
+  * build_manifest.json  构建清单（哈希 / 版本 / 校验摘要）
 
+关键规则：
+  * 边是证据归属的权威来源；节点 evidence_ids 只是跨层出边的投影
+  * derived 证据（容器小节）只做导航，不进入 evidence_ids 投影
+  * 逆关系（has_part / has_example）不落库，由序列化层派生
+  * 对称边按节点 ID 字符串序规范化
+"""
 from __future__ import annotations
+
+import argparse
 import hashlib
 import json
-from collections import Counter
+import logging
+import sys
+from collections import Counter, defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import yaml
 
-# === 目录锚点 ===
-HERE = Path(__file__).resolve().parent      # .../src/KGBuild
-SRC = HERE.parent                            # .../src
-EXPLICIT_OUT = HERE / "output"
-HIDDEN_OUT = HERE / "output"
+try:
+    from .kg_models import Evidence, KnowledgeGraph, Node, Provenance, Relation, Salience
+    from .schema_loader import Schema, get_schema
+    from .validate_kg_v2 import validate
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from KGBuild.kg_models import Evidence, KnowledgeGraph, Node, Provenance, Relation, Salience
+    from KGBuild.schema_loader import Schema, get_schema
+    from KGBuild.validate_kg_v2 import validate
 
-SCHEMA_FILE = HERE / "config" / "schema.yaml"  # src/KGBuild/config/schema.yaml
-DEDUP_FILE = HIDDEN_OUT / "dedup_result.json"
-PRED_FILE = HIDDEN_OUT / "pred_result.json"
-EVIDENCE_FILE = EXPLICIT_OUT / "evidence.json"
-FINAL_FILE = HIDDEN_OUT / "final_kg.json"
+SCRIPT_DIR = Path(__file__).resolve().parent
+CONFIG_DIR = SCRIPT_DIR / "config"
+OUT_DIR = SCRIPT_DIR / "output"
+SCHEMA = get_schema()
+
+logger = logging.getLogger("FinalKG")
+if not logger.handlers:
+    h = logging.StreamHandler(sys.stdout)
+    h.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
+    logger.addHandler(h)
+logger.setLevel(logging.INFO)
+
+DEFAULTS: Dict[str, Any] = {
+    "DEDUP_NAME": "dedup_result.json",
+    "PRED_NAME": "pred_result.json",
+    "EVIDENCE_NAME": "evidence.json",
+    "OUT_NAME": "final_kg.json",
+    "MANIFEST_NAME": "build_manifest.json",
+    "EXCLUDE_DERIVED_FROM_PROJECTION": True,
+}
 
 
-def read_json(p: Path) -> Any:
-    with p.open("r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def read_yaml(p: Path) -> dict:
+def _load_yaml(p: Path) -> Dict[str, Any]:
     with p.open("r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
 
-def _ent_id(name: str) -> str:
-    """为 L2 实体生成稳定 ID"""
-    h = hashlib.md5(name.encode("utf-8")).hexdigest()[:8]
-    return f"ent_{h}"
+def _load_config() -> Dict[str, Any]:
+    cfg_path = CONFIG_DIR / "config.yaml"
+    merged: Dict[str, Any] = {}
+    if cfg_path.exists():
+        merged = dict(_load_yaml(cfg_path))
+        for rel in merged.get("include_files", []) or []:
+            p = (CONFIG_DIR / str(rel)).resolve()
+            if p.exists():
+                merged.update(_load_yaml(p))
+    cfg = dict(DEFAULTS)
+    cfg.update(merged.get("FinalConfig") or {})
+    return cfg
 
 
-def load_l0_schema(schema: dict) -> dict:
-    """从 schema.yaml 抽取 L0 本体（实体类型 + 关系类型）"""
-    entity_types = []
-    for t, meta in (schema.get("EntityTypes") or {}).items():
-        item = {"type": t, "layer_hint": meta.get("layer_hint", "auto")}
-        if meta.get("description"):
-            item["description"] = meta["description"]
-        if meta.get("examples"):
-            item["examples"] = meta["examples"]
-        entity_types.append(item)
+CFG = _load_config()
+
+
+def _sha1_bytes(data: bytes) -> str:
+    return hashlib.sha1(data).hexdigest()
+
+
+def _file_sha1(p: Path) -> str:
+    try:
+        return _sha1_bytes(p.read_bytes())
+    except OSError:
+        return ""
+
+
+def _read_json(p: Path, required: bool = True) -> Any:
+    if not p.exists():
+        if required:
+            raise FileNotFoundError(f"缺少输入：{p}")
+        return None
+    with p.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _prov(raw: Iterable[Dict[str, Any]], doc_id: str, default_section: str = "") -> List[Provenance]:
+    out: List[Provenance] = []
+    seen: Set[str] = set()
+    for p in raw or []:
+        d = dict(p)
+        d.setdefault("doc_id", doc_id)
+        if not d.get("doc_id"):
+            d["doc_id"] = doc_id
+        if not d.get("section_id") and default_section:
+            d["section_id"] = default_section
+        try:
+            item = Provenance.from_dict(d)
+        except Exception:
+            continue
+        key = json.dumps(item.to_dict(), ensure_ascii=False, sort_keys=True)
+        if key not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
+def _salience(entity: Dict[str, Any], degree: int) -> Salience:
+    s = entity.get("signals") or {}
+    sal = Salience(
+        occurrence_count=int(s.get("occurrence_count", 0)),
+        section_coverage=int(s.get("cross_section_coverage", 0)),
+        degree=int(degree),
+        definitional=bool(s.get("has_definition") or s.get("definitional_cue")),
+    )
+    return sal.finalize()
+
+
+def _l0(schema: Schema) -> Dict[str, Any]:
     return {
-        "entity_types": entity_types,
-        "relation_types": schema.get("RelationTypes") or {},
+        "schema_version": schema.version,
+        "ontology_name": schema.raw.get("ontology_name", ""),
+        "node_types": schema.raw.get("NodeTypes") or {},
+        "relation_types": schema.raw.get("RelationTypes") or {},
+        "layer_policy": schema.raw.get("LayerPolicy") or {},
+        "evidence_schema": schema.raw.get("EvidenceSchema") or {},
     }
 
 
-def build_section_to_evidence(evidences: List[dict]) -> Dict[str, str]:
-    """section_id → evidence_id 索引"""
-    idx = {}
-    for ev in evidences:
-        sid = (ev.get("section_id") or "").strip()
-        if sid:
-            idx[sid] = ev["evidence_id"]
-    return idx
+# ---------------------------------------------------------------------------
+# 边工具
+# ---------------------------------------------------------------------------
+
+def _edge_key(src: str, tgt: str, typ: str) -> Tuple[str, str, str]:
+    return (src, tgt, typ)
 
 
-def assemble():
-    # 输入校验
-    for p in (SCHEMA_FILE, DEDUP_FILE, EVIDENCE_FILE):
-        if not p.exists():
-            raise FileNotFoundError(f"missing {p}")
+def _add_edge(edges: List[Dict[str, Any]], seen: Set[Tuple[str, str, str]],
+              src: str, tgt: str, typ: str, layer: str, confidence: float,
+              desc: str = "", keywords: Optional[List[str]] = None,
+              evidence_ids: Optional[List[str]] = None,
+              provenance: Optional[List[Provenance]] = None) -> bool:
+    if not src or not tgt or src == tgt:
+        return False
+    key = _edge_key(src, tgt, typ)
+    if key in seen:
+        return False
+    edges.append({
+        "source": src, "target": tgt, "type": typ, "layer": layer,
+        "confidence": round(float(confidence), 2),
+        "description": desc,
+        "keywords": list(keywords or []),
+        "evidence_ids": list(evidence_ids or []),
+        "provenance": [p.to_dict() for p in (provenance or [])],
+    })
+    seen.add(key)
+    return True
 
-    schema = read_yaml(SCHEMA_FILE)
-    dedup = read_json(DEDUP_FILE)
-    entities: Dict[str, dict] = dedup.get("entities", {}) if isinstance(dedup, dict) else {}
-    pred_edges: List[dict] = read_json(PRED_FILE) if PRED_FILE.exists() else []
-    evidences: List[dict] = read_json(EVIDENCE_FILE)
 
-    # L0
-    l0 = load_l0_schema(schema)
+def assemble(dedup_path: Optional[Path] = None, pred_path: Optional[Path] = None,
+             evidence_path: Optional[Path] = None, out_path: Optional[Path] = None) -> Dict[str, Any]:
+    dedup_path = dedup_path or (OUT_DIR / CFG["DEDUP_NAME"])
+    pred_path = pred_path or (OUT_DIR / CFG["PRED_NAME"])
+    evidence_path = evidence_path or (OUT_DIR / CFG["EVIDENCE_NAME"])
+    out_path = out_path or (OUT_DIR / CFG["OUT_NAME"])
 
-    # 节点名 → layer / 节点ID 映射
-    name_to_layer: Dict[str, str] = {}
-    name_to_node_id: Dict[str, str] = {}
-    concept_ids: set = set()
+    dedup = _read_json(dedup_path)
+    pred = _read_json(pred_path, required=False) or {}
+    ev_doc = _read_json(evidence_path)
+    if isinstance(dedup, list) or "entities" not in dedup:
+        raise ValueError("dedup_result.json 不是 v2 产物")
+    if isinstance(ev_doc, list) or "evidences" not in ev_doc:
+        raise ValueError("evidence.json 不是 v2 产物")
 
-    l1_concepts: List[dict] = []
-    l2_entities: List[dict] = []
+    doc_id = str(dedup.get("doc_id") or ev_doc.get("doc_id") or "doc")
+    merge_map = {str(k): str(v) for k, v in (dedup.get("merge_map") or {}).items()}
 
-    for name, ent in entities.items():
-        layer = (ent.get("layer") or "concept").strip().lower()
-        concept_id = (ent.get("concept_id") or "").strip()
-        aliases = ent.get("alias") or []
-        desc = (ent.get("updated_description") or ent.get("original") or "").strip()
+    # —— L3 证据 —— #
+    evidences: List[Evidence] = []
+    evidence_by_id: Dict[str, Evidence] = {}
+    section_ev: Dict[str, str] = {}
+    for raw in ev_doc["evidences"]:
+        ev = Evidence.from_dict(raw)
+        evidences.append(ev)
+        evidence_by_id[ev.id] = ev
+        if not ev.derived and ev.section_id not in section_ev:
+            section_ev[ev.section_id] = ev.id
 
-        if layer == "entity":
-            eid = _ent_id(name)
-            name_to_layer[name] = "entity"
-            name_to_node_id[name] = eid
-            l2_entities.append({
-                "entity_id": eid,
-                "name": name,
-                "type": ent.get("type", ""),
-                "concept_id": concept_id,
-                "aliases": aliases,
-                "description": desc,
-                "attributes": {},
-                "evidence_ids": [],  # 下面填充
-            })
-        else:
-            cid = concept_id or f"concept_{hashlib.md5(name.encode('utf-8')).hexdigest()[:8]}"
-            concept_ids.add(cid)
-            name_to_layer[name] = "concept"
-            name_to_node_id[name] = cid
-            l1_concepts.append({
-                "concept_id": cid,
-                "name": name,
-                "type": ent.get("type", ""),
-                "aliases": aliases,
-                "description": desc,
-                "evidence_ids": [],  # 下面填充
-            })
+    # —— 节点 —— #
+    nodes_by_id: Dict[str, Node] = {}
+    node_by_name: Dict[str, Node] = {}
+    entities: Dict[str, Dict[str, Any]] = {}
+    skipped: List[Dict[str, str]] = []
 
-    # L3
-    l3_evidences: List[dict] = []
-    for ev in evidences:
-        l3_evidences.append({
-            "evidence_id": ev.get("evidence_id", ""),
-            "doc_id": ev.get("doc_id", ""),
-            "section_id": ev.get("section_id", ""),
-            "section_path": ev.get("section_path", ""),
-            "section_level": ev.get("section_level", ""),
-            "title": ev.get("title", ""),
-            "summary": ev.get("title", ""),
-            "snippet": ev.get("content", ""),
-            "entities_in_section": ev.get("entities_in_section") or [],
-        })
-
-    sec2ev = build_section_to_evidence(l3_evidences)
-
-    # 3.5) 父级证据补边：章/节导语补齐 entities_in_section。
-    #     根因：Extraction.collect_subsections 只把「没有子节点的节」送进 extract_entities，
-    #     章（level1）与带子节的节（如 1.1 / 2.1）整个被跳过——它们的导语内容有正文
-    #     （267-536 字）却从未被扫描实体 → entities_in_section 为空 → 无跨层边 → 孤儿证据，
-    #     图导航到不了、只能靠向量命中。
-    #     修法：空 entities_in_section 的父级证据，按 section_id 层级从「后代证据的
-    #     entities_in_section」取并集继承（1章→1.x…，1.1→1.1.x…），pass 4 自然建边。
-    #     从快照读取，避免中间派生互相级联（顺序无关）。叶子节无后代 → 不变。
-    #     派生边在 pass 4 一律降权为 appears_in（章/节导语只是概述「提到」其下概念，
-    #     不是定义，不应带 described_by 的 1.0 定义权重注入检索）。
-    _orig_ent = {e["evidence_id"]: list(e.get("entities_in_section") or [])
-                 for e in l3_evidences}
-    _derived: set = set()   # 被 3.5 派生的证据 ID（pass 4 据此降权）
-    for ev in l3_evidences:
-        if _orig_ent.get(ev["evidence_id"]):
+    for e in dedup["entities"]:
+        layer = str(e.get("layer") or "")
+        etype = str(e.get("type") or "")
+        if layer not in ("L1", "L2"):
+            skipped.append({"name": e.get("name", ""), "reason": f"layer={layer}"})
             continue
-        prefix = (ev.get("section_id") or "").rstrip("章") + "."
-        child_ents = set()
-        for other in l3_evidences:
-            osid = other.get("section_id") or ""
-            if osid != ev.get("section_id") and osid.startswith(prefix):
-                child_ents.update(_orig_ent.get(other["evidence_id"]) or [])
-        if child_ents:
-            ev["entities_in_section"] = sorted(child_ents)
-            ev["derived"] = True      # 打标：派生导语只做图导航锚点，不进检索投影（见 pass 5）
-            _derived.add(ev["evidence_id"])
-
-    # === 边装配 ===
-    edges: List[dict] = []
-    edge_set: set = set()
-
-    def add_edge(src: str, tgt: str, typ: str, layer: str,
-                 desc: str = "", keywords: List[str] | None = None):
-        if not src or not tgt or src == tgt:
-            return
-        key = (src, tgt, typ, layer)
-        if key in edge_set:
-            return
-        item = {"source": src, "target": tgt, "type": typ, "layer": layer}
-        if desc:
-            item["description"] = desc
-        if keywords:
-            item["keywords"] = keywords
-        edges.append(item)
-        edge_set.add(key)
-
-    # 1) 同层关系：来自 pred_result（按两端节点 layer 标注）
-    for e in pred_edges or []:
-        u = (e.get("u") or "").strip()
-        v = (e.get("v") or "").strip()
-        if u not in name_to_node_id or v not in name_to_node_id:
+        if not SCHEMA.is_valid_node_type(etype):
+            skipped.append({"name": e.get("name", ""), "reason": f"type={etype}"})
             continue
-        lu = name_to_layer[u]
-        lv = name_to_layer[v]
-        if lu == "concept" and lv == "concept":
-            layer_tag = "L1-L1"
-        elif lu == "entity" and lv == "entity":
-            layer_tag = "L2-L2"
-        else:
-            layer_tag = "L1-L2"
-        llm = e.get("llm") or {}
-        typ = (llm.get("type") or "related").strip()
-        desc = (llm.get("description") or "").strip()
-        keywords = llm.get("keywords") or []
-        add_edge(name_to_node_id[u], name_to_node_id[v], typ, layer_tag, desc, keywords)
+        nid = str(e.get("id") or "")
+        if not nid or nid in nodes_by_id:
+            skipped.append({"name": e.get("name", ""), "reason": "missing/duplicate id"})
+            continue
+        node = Node(
+            id=nid,
+            name=str(e.get("name") or ""),
+            type=etype,
+            layer=layer,
+            aliases=[str(a) for a in (e.get("aliases") or []) if a],
+            definition=str(e.get("definition") or ""),
+            confidence=float(e.get("confidence", 1.0)),
+            provenance=_prov(e.get("provenance") or [], doc_id),
+            attributes={
+                "signals": e.get("signals") or {},
+                "layer_decision": e.get("layer_decision") or {},
+                "merged_from": e.get("merged_from") or [],
+            },
+        )
+        nodes_by_id[nid] = node
+        node_by_name[node.name] = node
+        entities[nid] = e
 
-    # 2) 跨层 L2→L1：instance_of（实体归属概念）
-    for ent in l2_entities:
-        cid = ent.get("concept_id") or ""
-        if cid and cid in concept_ids:
-            add_edge(ent["entity_id"], cid, "instance_of", "L2-L1",
-                     desc="L2 实体归属 L1 概念")
+    # —— 语义边（抽取 + Pred）—— #
+    edges: List[Dict[str, Any]] = []
+    seen: Set[Tuple[str, str, str]] = set()
+    pair_types: Dict[Tuple[str, str], Set[str]] = defaultdict(set)
 
-    # 3) 跨层 L1→L3 / L2→L3：appears_in
-    #    依据：实体 occurrences 的 node_id(=section_id) → evidence_id
-    #    注意：evidence_ids 不在此回填，统一在 pass 4 之后从跨层边派生（见 #5）——
-    #    同一节点会经 occurrence（本 pass）与 entities_in_section（pass 4）两条路径挂边，
-    #    两条路径各自回填必漏一条造成投影漂移（2026-08-25 实测 20 个漂移节点）。
+    def semantic_pair(src: str, tgt: str) -> Tuple[str, str]:
+        return tuple(sorted((src, tgt)))  # type: ignore[return-value]
 
-    def _link_to_evidence(node_id: str, layer_name: str, occurrences: List[dict]):
-        for occ in occurrences or []:
-            sid = (occ.get("node_id") or "").strip()
-            evid = sec2ev.get(sid)
+    # 1) 抽取/归并阶段的关系
+    for r in dedup.get("relations") or []:
+        src, tgt = str(r.get("source", "")), str(r.get("target", ""))
+        if src not in nodes_by_id or tgt not in nodes_by_id:
+            continue
+        rel = SCHEMA.canonical_relation(str(r.get("type") or ""))
+        if not rel:
+            continue
+        ls, lt = nodes_by_id[src].layer, nodes_by_id[tgt].layer
+        if not SCHEMA.relation_allowed(rel, ls, lt):
+            continue
+        if SCHEMA.is_symmetric(rel) and src > tgt:
+            src, tgt = tgt, src
+        evids = []
+        for p in r.get("provenance") or []:
+            sid = str(p.get("section_id") or "")
+            if sid in section_ev:
+                evids.append(section_ev[sid])
+        _add_edge(edges, seen, src, tgt, rel, f"{ls}-{lt}",
+                  float(r.get("confidence", 0.5)),
+                  str(r.get("description") or ""), r.get("keywords") or [],
+                  list(dict.fromkeys(evids))[:5],
+                  _prov(r.get("provenance") or [], doc_id))
+        pair_types[semantic_pair(src, tgt)].add(rel)
+
+    # 2) Pred 预测边：同一对节点已有语义边时不再叠加
+    for p in pred.get("predictions") or []:
+        src, tgt = str(p.get("source", "")), str(p.get("target", ""))
+        if src not in nodes_by_id or tgt not in nodes_by_id:
+            continue
+        rel = SCHEMA.canonical_relation(str(p.get("type") or ""))
+        if not rel:
+            continue
+        ls, lt = nodes_by_id[src].layer, nodes_by_id[tgt].layer
+        if not SCHEMA.relation_allowed(rel, ls, lt):
+            continue
+        if rel != "instance_of" and pair_types.get(semantic_pair(src, tgt)):
+            continue
+        if SCHEMA.is_symmetric(rel) and src > tgt:
+            src, tgt = tgt, src
+        evids = [section_ev[s] for s in (p.get("section_ids") or []) if s in section_ev]
+        _add_edge(edges, seen, src, tgt, rel, f"{ls}-{lt}",
+                  float(p.get("confidence", 0.5)),
+                  str(p.get("description") or ""), p.get("keywords") or [],
+                  list(dict.fromkeys(evids))[:5],
+                  _prov(p.get("provenance") or [], doc_id))
+        pair_types[semantic_pair(src, tgt)].add(rel)
+
+    # —— 跨层证据边 —— #
+    def add_evidence_edge(node: Node, evid: str, rel: str, confidence: float,
+                          section_id: str) -> None:
+        _add_edge(edges, seen, node.id, evid, rel,
+                  f"{node.layer}-L3", confidence,
+                  "", [], [evid],
+                  [Provenance(doc_id=doc_id, section_id=section_id,
+                              extractor="final.v2")])
+
+    for node in nodes_by_id.values():
+        e = entities[node.id]
+        occs = e.get("occurrences") or []
+        used_sections: List[str] = []
+        definition_sid = ""
+        for o in occs:
+            sid = str(o.get("section_id") or "")
+            if sid and sid not in used_sections:
+                used_sections.append(sid)
+            if not definition_sid and o.get("definitional_cue"):
+                definition_sid = sid
+        for sid in used_sections:
+            evid = section_ev.get(sid)
             if not evid:
                 continue
-            # L1→L3 用 described_by，L2→L3 用 appears_in（区分概念定义出处 vs 实体出现处）
-            rel = "described_by" if layer_name == "concept" else "appears_in"
-            add_edge(node_id, evid, rel, f"L{1 if layer_name=='concept' else 2}-L3")
+            add_evidence_edge(node, evid, "appears_in", 0.6, sid)
+        if node.layer == "L1":
+            sid = definition_sid or (used_sections[0] if used_sections else "")
+            evid = section_ev.get(sid)
+            if evid:
+                add_evidence_edge(node, evid, "described_by", 0.9, sid)
 
-    for c in l1_concepts:
-        _link_to_evidence(c["concept_id"], "concept",
-                          entities.get(c["name"], {}).get("occurrences") or [])
-    for e2 in l2_entities:
-        _link_to_evidence(e2["entity_id"], "entity",
-                          entities.get(e2["name"], {}).get("occurrences") or [])
-
-    # 4) 补充：evidence.entities_in_section → 反向连接（确保证据侧声明的实体也被挂上）
-    #    3.5 派生的父级证据（_derived）边一律 appears_in：章/节导语只概述「提到」其下
-    #    概念，不是定义，降为提及级（0.5），避免最强权重注入噪声。
-    for ev in l3_evidences:
-        evid = ev["evidence_id"]
-        derived = evid in _derived
-        for nm in ev.get("entities_in_section") or []:
-            if nm not in name_to_node_id:
+    # 3) 证据侧声明的实体（兜底，补齐 occurrences 未覆盖的提及）
+    for ev in evidences:
+        if ev.derived:
+            continue
+        for raw_name in ev.entities_in_section or []:
+            name = merge_map.get(str(raw_name), str(raw_name))
+            node = node_by_name.get(name)
+            if not node:
                 continue
-            node_id = name_to_node_id[nm]
-            layer_name = name_to_layer[nm]
-            rel = "appears_in" if (derived or layer_name == "entity") else "described_by"
-            add_edge(node_id, evid, rel, f"L{1 if layer_name=='concept' else 2}-L3")
+            # 证据侧声明的实体只算“提及”；described_by 只留给定义句所在小节
+            add_evidence_edge(node, ev.id, "appears_in", 0.55, ev.section_id)
 
-    # 5) 统一回填 evidence_ids：从跨层边派生（边为唯一权威，evidence_ids 只是投影缓存）。
-    #    全部跨层边（L1-L3/L2-L3）建完后重算，保证 evidence_ids 恒等于节点跨层出边
-    #    target 集合 —— eval/validate_kg.py 守护的不变量，缺了会漏证据/引用失真。
-    #    2026-08-25 例外：_derived（3.5 步派生的父级导语证据）只进边、不进投影——
-    #    它们只是图导航锚点，若进 evidence_ids 会被检索传播当候选证据，排挤真实
-    #    叶子证据（实测 0005/0009/0014 Recall@10 掉 5.4pp）。投影=检索、边=导航，
-    #    两条职责分离。validate_kg 已同步豁免派生证据。
-    cross_layers = ("L1-L3", "L2-L3")
-    evidence_by_node: Dict[str, set] = {}
+    # —— 度数 / salience / evidence_ids 投影 —— #
+    degree: Dict[str, int] = defaultdict(int)
     for e in edges:
-        if e["layer"] in cross_layers and e["target"] not in _derived:
-            evidence_by_node.setdefault(e["source"], set()).add(e["target"])
-    for c in l1_concepts:
-        c["evidence_ids"] = sorted(evidence_by_node.get(c["concept_id"], set()))
-    for e2 in l2_entities:
-        e2["evidence_ids"] = sorted(evidence_by_node.get(e2["entity_id"], set()))
+        degree[e["source"]] += 1
+        if e["target"] in nodes_by_id:
+            degree[e["target"]] += 1
 
-    # === 输出 ===
-    kg = {
-        "L0_schema": l0,
-        "L1_concepts": l1_concepts,
-        "L2_entities": l2_entities,
-        "L3_evidences": l3_evidences,
-        "edges": edges,
+    incoming_ev: Dict[str, Set[str]] = defaultdict(set)
+    for e in edges:
+        if e["target"] in evidence_by_id and e["source"] in nodes_by_id:
+            ev = evidence_by_id[e["target"]]
+            if not (CFG["EXCLUDE_DERIVED_FROM_PROJECTION"] and ev.derived):
+                incoming_ev[e["source"]].add(e["target"])
+
+    for nid, node in nodes_by_id.items():
+        node.salience = _salience(entities[nid], degree.get(nid, 0))
+        node.evidence_ids = sorted(incoming_ev.get(nid, set()))
+
+    # —— 装配 —— #
+    l1 = sorted((n for n in nodes_by_id.values() if n.layer == "L1"), key=lambda n: n.name)
+    l2 = sorted((n for n in nodes_by_id.values() if n.layer == "L2"), key=lambda n: n.name)
+    kg = KnowledgeGraph(
+        schema_version=SCHEMA.version,
+        L0_schema=_l0(SCHEMA),
+        L1_concepts=l1,
+        L2_entities=l2,
+        L3_evidences=evidences,
+        edges=[Relation.from_dict(e) for e in edges],
+    )
+    kg_dict = kg.to_dict()
+    kg_dict["doc_id"] = doc_id
+
+    validation = validate(kg_dict)
+    if validation.get("errors"):
+        logger.warning(f"校验发现 {len(validation['errors'])} 个错误（前 5 条）")
+        for msg in validation["errors"][:5]:
+            logger.warning(f"  - {msg}")
+
+    # —— build manifest —— #
+    section_hashes: Dict[str, str] = {}
+    for ev in evidences:
+        if ev.derived:
+            continue
+        section_hashes.setdefault(ev.section_id, _sha1_bytes(ev.text.encode("utf-8")))
+    config_hashes = {}
+    for name in ("schema.v2.yaml", "extraction.yaml", "conv.yaml", "aggr.yaml",
+                 "emb.yaml", "dedup.yaml", "pred.yaml"):
+        p = CONFIG_DIR / name
+        if p.exists():
+            config_hashes[name] = _file_sha1(p)
+    api = {}
+    cfg_path = CONFIG_DIR / "config.yaml"
+    if cfg_path.exists():
+        try:
+            api = (_load_yaml(cfg_path).get("APIConfig") or {})
+        except Exception:
+            api = {}
+    embedding_model = ""
+    storage = SCRIPT_DIR.parent / "KGRetrieve" / "config" / "storage.yaml"
+    if storage.exists():
+        try:
+            embedding_model = str((_load_yaml(storage).get("ChromaConfig") or {})
+                                  .get("EMBEDDING_MODEL") or "")
+        except Exception:
+            embedding_model = ""
+
+    payload_for_hash = json.dumps(kg_dict, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    doc_text_path = ev_doc.get("doc_text_path")
+    doc_hash = _file_sha1(Path(doc_text_path)) if doc_text_path else _file_sha1(evidence_path)
+    manifest = {
+        "schema_version": SCHEMA.version,
+        "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "doc_id": doc_id,
+        "doc_hashes": {doc_id: doc_hash},
+        "section_hashes": section_hashes,
+        "config_hashes": config_hashes,
+        "prompt_versions": {
+            "extraction": "extraction.v2",
+            "conv": "conv.v2",
+            "aggr": "aggr.v2",
+            "dedup": "dedup.v2",
+            "pred": "pred.v2",
+        },
+        "model_ids": {
+            "llm": str(api.get("MODEL_NAME") or ""),
+            "embedding": embedding_model,
+        },
+        "final_kg_sha1": _sha1_bytes(payload_for_hash),
+        "counts": {
+            "L1_concepts": len(l1),
+            "L2_entities": len(l2),
+            "L3_evidences": len(evidences),
+            "edges": len(edges),
+            "edges_by_type": dict(Counter(e["type"] for e in edges).most_common()),
+        },
+        "skipped": skipped,
+        "validation": {
+            "ok": validation.get("ok", False),
+            "errors": len(validation.get("errors") or []),
+            "warnings": len(validation.get("warnings") or []),
+        },
     }
-    FINAL_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with FINAL_FILE.open("w", encoding="utf-8") as f:
-        json.dump(kg, f, ensure_ascii=False, indent=2)
+    kg_dict["build_manifest"] = manifest
 
-    # 统计
-    print(f"✅ 输出: {FINAL_FILE.resolve()}")
-    print(f"- L0 实体类型: {len(l0['entity_types'])} 种")
-    print(f"- L1 概念节点: {len(l1_concepts)}")
-    print(f"- L2 实体节点: {len(l2_entities)}")
-    print(f"- L3 证据节点: {len(l3_evidences)}")
-    print(f"- 总边数: {len(edges)}")
-    by_layer = Counter(e["layer"] for e in edges)
-    for k, v in sorted(by_layer.items()):
-        print(f"  · {k}: {v}")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        json.dump(kg_dict, f, ensure_ascii=False, indent=2)
+    manifest_path = out_path.parent / CFG["MANIFEST_NAME"]
+    with manifest_path.open("w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False, indent=2)
+
+    logger.info(f"✅ FinalKG：{out_path.resolve()}")
+    logger.info(f"  L1 {len(l1)} / L2 {len(l2)} / L3 {len(evidences)} / 边 {len(edges)}")
+    logger.info(f"  边类型：{manifest['counts']['edges_by_type']}")
+    logger.info(f"  校验：errors={manifest['validation']['errors']} "
+                f"warnings={manifest['validation']['warnings']}")
+    logger.info(f"  manifest：{manifest_path.resolve()}")
+    return kg_dict
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    ap = argparse.ArgumentParser(description="装配 v2 四层知识图谱")
+    ap.add_argument("--dedup", default=None)
+    ap.add_argument("--pred", default=None)
+    ap.add_argument("--evidence", default=None)
+    ap.add_argument("--out", default=None)
+    ap.add_argument("--loglevel", default="INFO",
+                    choices=["DEBUG", "INFO", "WARNING", "ERROR"])
+    args = ap.parse_args(argv)
+    logger.setLevel(getattr(logging, args.loglevel))
+    assemble(Path(args.dedup) if args.dedup else None,
+             Path(args.pred) if args.pred else None,
+             Path(args.evidence) if args.evidence else None,
+             Path(args.out) if args.out else None)
+    return 0
 
 
 if __name__ == "__main__":
-    assemble()
+    sys.exit(main())

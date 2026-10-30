@@ -13,9 +13,18 @@ TextSegConfig:
   USE_STYLE_FIRST: true             # 样式优先
   ENABLE_REGEX_FALLBACK: true       # 样式失效时回退正则
   # ENABLE_REGEX_FALLBACK: false       # 样式失效时回退正则
-  MAX_LEVEL: 4                      # 最大层级（1=章,2=节,3=小节,4=知识点）
+  MAX_LEVEL: 6                      # 最大识别层级（编号有几段就是几级；1=章,2=节,3=小节,...）
   WARNINGS_PRINT_TOP: 10            # 控制台最多打印的告警条数
   SAVE_WARNINGS_FILE: true          # 是否写入告警文件
+
+  # —— v2 新选项 —— #
+  SKIP_TOC: true                    # 自动跳过文档开头的目录页（TOC 样式 / 点线+页码）
+  MIN_TOC_LINES: 3                  # 连续多少行目录样式才判定为目录页
+  MAX_TITLE_LEN: 80                 # 标题最大长度，超长视为正文
+  KEEP_PREAMBLE: true               # 首个标题之前的正文保留为「前言」小节
+  PREAMBLE_TITLE: "前言"
+  SAVE_DOC_TEXT: true               # 输出规范纯文本，供证据字符偏移核对
+  DOC_TEXT_NAME: "doc_text.txt"
 
   # —— 标题清洗 ——
   NORMALIZE_SPACES: true

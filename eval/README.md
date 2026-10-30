@@ -52,7 +52,7 @@ python -m eval.report eval/runs/<最新目录>
 ### Agent 层（`eval/agent/`）
 驱动完整 `run_agent`（LangGraph 图），收集 SSE 事件。指标：
 - `tool_rounds / tool_calls / elapsed_ms / has_error / no_done`
-- `cited_ids`：从 `done.answer` 用 `\[(ev_[0-9A-Za-z_.#一-鿿]+)\]` 提取引用
+- `cited_ids`：从 `done.answer` 用 `\[(ev_[0-9A-Za-z_.#:\-一-鿿]+)\]` 提取引用
 - **引用 grounding**（重放）：对每条 `tool_call` 事件重新 `registry.call()`，用 `extract_evidence_ids` 汇总系统真检索到的证据，算答案引用里被检索到的比例
 - `citation_coverage`：golden 证据被答案引用的比例
 
@@ -66,8 +66,8 @@ DeepSeek（temp 0，OpenAI 兼容），一次评四维（faithfulness/completene
 25 题，5 类各 5 题：`definition / single_hop / multi_hop / instance / comparison`。
 
 出题规则：
-- **写名不写 ID**：概念/实体只写节点名称，ID 由 `GoldenResolver` 从 `final_kg.json` 解析（防手打错别）；证据 ID（如 `ev_1.1.1`）本身是稳定章节号，直接写
-- `golden_evidence_ids` 来自 golden 节点的 `evidence_ids`，必须用**去重后** ID（镜像 `ev_1.4#2`，见 `resolver.py::_dedupe_evidence_ids`）
+- **写名不写 ID**：概念/实体只写节点名称，ID 由 `GoldenResolver` 从 `final_kg.json` 解析（防手打错别）；证据 ID 使用 v2 稳定格式 `ev_{doc_id}:{section_id}[:{block_id}]`，直接写
+- `golden_evidence_ids` 来自 golden 节点的 `evidence_ids`，必须用**去重后** ID（v2 证据 ID 正常唯一，`resolver.py::_dedupe_evidence_ids` 只做兜底）
 - multi-hop 题额外给 `golden_src_name / golden_tgt_name`（路径探针用）
 
 数据校验：`python -m eval.datasets.resolver --validate` 检查全部名称可解析、ID 存在且格式合法。

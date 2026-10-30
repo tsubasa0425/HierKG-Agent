@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Embedding.py —— 用 Ollama 嵌入模型生成节点向量（node_embeddings.pkl）。
+"""Embedding v2 —— 用 Ollama 为 L1/L2 节点生成向量（node_embeddings.pkl）。
 
-输入：conv_entities.json（{name: {updated_description / original, ...}}）
-输出：pickle {name: np.ndarray[float32]}，供 Dedup.py / Pred.py 做余弦相似度。
+输入：aggr_entities.json（v2：{entities:[{id,name,aliases,type,definition,...}]}）
+输出：pickle {node_id: np.ndarray[float32]}，向量已 L2 归一化。
+
+嵌入文本 = 规范名 + 别名 + 类型 + 定义。定义来自原文/证据化补全，
+不再使用 v1 的“邻居描述扩写”，避免把邻域噪声写进向量。
 
 模型与地址默认复用 src/KGRetrieve/config/storage.yaml 的 ChromaConfig；
-emb.yaml 里的 OLLAMA_HOST / EMBEDDING_MODEL 留空即沿用 storage.yaml，
-显式填写则覆盖（一般不需要，保持与检索侧同一模型即可）。
+emb.yaml 的 OLLAMA_HOST / EMBEDDING_MODEL 留空即沿用，显式填写则覆盖。
 """
 from __future__ import annotations
 
@@ -15,96 +17,123 @@ import json
 import pickle
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
-import ollama
 import yaml
-from tqdm import tqdm
 
-SCRIPT_DIR = Path(__file__).resolve().parent            # src/KGBuild
+SCRIPT_DIR = Path(__file__).resolve().parent
+CONFIG_DIR = SCRIPT_DIR / "config"
+OUT_DIR = SCRIPT_DIR / "output"
 DEFAULT_HOST = "http://localhost:11434"
 DEFAULT_MODEL = "bge-m3"
 
-# Windows 控制台默认 GBK，含 emoji 的日志会直接崩；统一按 UTF-8 输出
 for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
         _stream.reconfigure(encoding="utf-8", errors="replace")
 
+DEFAULTS: Dict[str, Any] = {
+    "INPUT_NAME": "aggr_entities.json",
+    "OUTPUT_NAME": "node_embeddings.pkl",
+    "OLLAMA_HOST": "",
+    "EMBEDDING_MODEL": "",
+    "BATCH_SIZE": 16,
+    "TIMEOUT_SECS": 120,
+    "MAX_DEFINITION_CHARS": 400,
+}
 
-# ====== 配置加载 ======
+
 def _safe_load_yaml(p: Path) -> dict:
     with p.open("r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
 
-def load_config(config_path: Path) -> dict:
-    """读取 config.yaml，并按 include_files 依次合并（相对 KGBuild/config/）。"""
-    base = _safe_load_yaml(config_path)
-    merged = dict(base)
-
-    includes = (base.get("include_files") or []) if isinstance(base, dict) else []
-    for inc in includes:
-        inc_path = (config_path.parent / inc).resolve()
-        if not inc_path.exists():
-            # 兼容写成 "config/xxx.yaml" 的老习惯
-            alt = (config_path.parent / "config" / inc).resolve()
-            if alt.exists():
-                inc_path = alt
-        if not inc_path.exists():
-            raise FileNotFoundError(f"include 文件未找到：{inc} -> {inc_path}")
-        merged.update(_safe_load_yaml(inc_path))
-    return merged
+def load_config() -> Dict[str, Any]:
+    cfg_path = CONFIG_DIR / "config.yaml"
+    merged: Dict[str, Any] = {}
+    if cfg_path.exists():
+        merged = dict(_safe_load_yaml(cfg_path))
+        for rel in merged.get("include_files", []) or []:
+            p = (CONFIG_DIR / str(rel)).resolve()
+            if p.exists():
+                merged.update(_safe_load_yaml(p))
+    if "EmbConfig" not in merged:
+        merged.update(_safe_load_yaml(CONFIG_DIR / "emb.yaml"))
+    cfg = dict(DEFAULTS)
+    cfg.update(merged.get("EmbConfig") or {})
+    return cfg
 
 
 def load_storage_chroma() -> dict:
-    """读取检索侧 storage.yaml 的 ChromaConfig（缺失时返回空字典）。"""
     p = SCRIPT_DIR.parent / "KGRetrieve" / "config" / "storage.yaml"
     if not p.exists():
         return {}
     try:
-        return (_safe_load_yaml(p).get("ChromaConfig") or {})
+        return _safe_load_yaml(p).get("ChromaConfig") or {}
     except yaml.YAMLError as exc:
         print(f"⚠️ storage.yaml 解析失败，改用默认 Ollama 配置：{exc}")
         return {}
 
 
-def resolve_ollama(emb: dict) -> tuple[str, str]:
+def resolve_ollama(emb: Dict[str, Any]) -> tuple[str, str]:
     chroma = load_storage_chroma()
     host = str(emb.get("OLLAMA_HOST") or chroma.get("OLLAMA_HOST") or DEFAULT_HOST)
     model = str(emb.get("EMBEDDING_MODEL") or chroma.get("EMBEDDING_MODEL") or DEFAULT_MODEL)
     return host.strip().rstrip("/"), model.strip()
 
 
-# ====== 文本处理 ======
-def load_entities(file_path: str) -> Dict[str, dict]:
+# ---------------------------------------------------------------------------
+# 输入 / 文本
+# ---------------------------------------------------------------------------
+
+def load_entities(file_path: str) -> List[dict]:
     with open(file_path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    print(f"📘 已加载实体 {len(data)} 个：{Path(file_path).name}")
-    return data
+    if isinstance(data, dict) and "entities" in data:
+        entities = data["entities"]
+    elif isinstance(data, list):
+        entities = data
+    else:
+        raise ValueError("输入不是 v2 aggr 产物（需要 {entities:[...]}）")
+    print(f"📘 已加载实体 {len(entities)} 个：{Path(file_path).name}")
+    return entities
 
 
 def entity_text(e: dict) -> str:
-    return (e.get("updated_description") or e.get("original") or "").strip() or "[EMPTY]"
+    name = (e.get("name") or "").strip()
+    aliases = [a for a in (e.get("aliases") or []) if a and a != name]
+    etype = (e.get("type") or "").strip()
+    definition = (e.get("definition") or "").strip()
+    parts = [name]
+    if aliases:
+        parts.append("（" + "、".join(aliases[:4]) + "）")
+    if etype:
+        parts.append(f"[{etype}]")
+    if definition:
+        parts.append("：" + definition)
+    text = "".join(parts).strip()
+    return text or name or "[EMPTY]"
 
 
-# ====== 生成嵌入 ======
-def generate_embeddings(
-    client: ollama.Client,
-    model: str,
-    entities: Dict[str, dict],
-    batch_size: int = 16,
-) -> Dict[str, np.ndarray]:
-    items = sorted(entities.items(), key=lambda kv: kv[0])
-    names: List[str] = [k for k, _ in items]
-    texts: List[str] = [entity_text(v) for _, v in items]
-    if not texts:
-        print("⚠️ 没有可嵌入的文本，输出空字典")
+# ---------------------------------------------------------------------------
+# 生成嵌入
+# ---------------------------------------------------------------------------
+
+def generate_embeddings(client, model: str, entities: List[dict],
+                        batch_size: int = 16) -> Dict[str, np.ndarray]:
+    items = sorted(
+        [e for e in entities if e.get("id")],
+        key=lambda e: str(e["id"]),
+    )
+    if not items:
+        print("⚠️ 没有带 id 的实体，输出空字典")
         return {}
+    ids: List[str] = [str(e["id"]) for e in items]
+    texts: List[str] = [entity_text(e) for e in items]
 
     bs = max(1, int(batch_size))
     batches: List[np.ndarray] = []
-    for i in tqdm(range(0, len(texts), bs), desc="Ollama 嵌入", ncols=80):
+    for i in range(0, len(texts), bs):
         batch = texts[i:i + bs]
         resp = client.embed(model=model, input=batch, truncate=True)
         embs = np.asarray(resp.embeddings, dtype=np.float32)
@@ -112,13 +141,13 @@ def generate_embeddings(
             raise RuntimeError(
                 f"Ollama 返回向量形状异常：{embs.shape}（期望 {len(batch)} 条）")
         batches.append(embs)
+        print(f"  嵌入 {min(i + bs, len(texts))}/{len(texts)}", end="\r")
 
     mat = np.vstack(batches)
-    # 下游 Dedup/Pred 还会再归一化一次；这里先归一是为了 pkl 自身可直接做余弦
     norms = np.linalg.norm(mat, axis=1, keepdims=True)
     mat = mat / np.maximum(norms, 1e-12)
-    print(f"✅ 已生成嵌入向量：{mat.shape[0]} × {mat.shape[1]}（{model}）")
-    return {n: mat[i] for i, n in enumerate(names)}
+    print(f"\n✅ 已生成嵌入向量：{mat.shape[0]} × {mat.shape[1]}（{model}）")
+    return {nid: mat[i] for i, nid in enumerate(ids)}
 
 
 def save_embeddings_pkl(name_to_vec: Dict[str, np.ndarray], out_file: str) -> None:
@@ -128,32 +157,27 @@ def save_embeddings_pkl(name_to_vec: Dict[str, np.ndarray], out_file: str) -> No
     print(f"💾 已保存嵌入文件：{out_file}")
 
 
-# ====== 主入口 ======
 def main(argv: Optional[List[str]] = None) -> int:
-    cfg_path = SCRIPT_DIR / "config" / "config.yaml"
-    try:
-        config = load_config(cfg_path)
-    except FileNotFoundError as exc:
-        # 允许 --help / 直接用 CLI 覆盖参数；正式构建前 pipeline 会做配置预检
-        print(f"⚠️ 配置加载不完整，改用默认值：{exc}", file=sys.stderr)
-        config = {}
-    emb = config.get("EmbConfig") or {}
+    cfg = load_config()
+    input_path = OUT_DIR / str(cfg["INPUT_NAME"])
+    output_path = OUT_DIR / str(cfg["OUTPUT_NAME"])
+    host, model = resolve_ollama(cfg)
 
-    input_path = SCRIPT_DIR / "output" / emb.get("INPUT_NAME", "conv_entities.json")
-    output_path = SCRIPT_DIR / "output" / emb.get("OUTPUT_NAME", "node_embeddings.pkl")
-    host, model = resolve_ollama(emb)
-
-    parser = argparse.ArgumentParser(description="用 Ollama 嵌入模型生成实体向量")
+    parser = argparse.ArgumentParser(description="用 Ollama 为 v2 节点生成向量")
     parser.add_argument("--infile", type=str, default=str(input_path))
     parser.add_argument("--outfile", type=str, default=str(output_path))
-    parser.add_argument("--batch_size", type=int, default=int(emb.get("BATCH_SIZE", 16)))
+    parser.add_argument("--batch_size", type=int, default=int(cfg.get("BATCH_SIZE", 16)))
     parser.add_argument("--host", type=str, default=host, help="Ollama 地址（默认取配置）")
     parser.add_argument("--model", type=str, default=model, help="嵌入模型（默认取配置）")
     args = parser.parse_args(argv)
 
-    timeout = float(emb.get("TIMEOUT_SECS", 120))
-    client = ollama.Client(host=args.host, timeout=timeout)
+    try:
+        import ollama
+    except ImportError:
+        print("❌ 未安装 ollama Python 包：pip install ollama", file=sys.stderr)
+        return 1
 
+    client = ollama.Client(host=args.host, timeout=float(cfg.get("TIMEOUT_SECS", 120)))
     print(f"🔗 Ollama: {args.host}  模型: {args.model}")
     entities = load_entities(args.infile)
     try:

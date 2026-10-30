@@ -1,84 +1,53 @@
+# config/pred.yaml
 PredConfig:
-  # —— I/O（只保留文件名；代码统一拼到 KGBuild/output 下）——
+  # —— I/O —— #
   DEDUP_NAME: "dedup_result.json"
   EMBEDDINGS_NAME: "node_embeddings.pkl"
   RESULT_NAME: "pred_result.json"
 
-  # —— 阶段与权重 —— #
-  STAGE_DEFAULT: 1           # 1=初始化连通性；2=跨小节补边
-  ALPHA: 0.6                 # 语义权重（cos）
-  BETA_STAGE1: 0.25          # Stage1: AA 权重
-  GAMMA_STAGE1: 0.15         # Stage1: CA 权重
-  BETA_STAGE2: 0.20          # Stage2: AA 权重
-  GAMMA_STAGE2: 0.20         # Stage2: CA 权重
+  # —— 候选召回 —— #
+  MIN_SIM: 0.62              # 余弦相似度下限
+  MIN_WEIGHT: 2              # 共现权重下限（与 MIN_SIM 二选一满足后再看 score）
+  MIN_SCORE: 0.55            # 综合分 = 0.6*sim + 0.25*共现 + 0.15*共同小节
+  MAX_PREDICTIONS_PER_NODE: 4
+  MAX_TOTAL: 500
 
-  # —— 召回 / 结构特征 —— #
-  COS_MIN: 0.62              # 余弦相似度预筛阈值
-  GRANULARITY_CA: 2          # 共同祖先粒度（章/节两级）
-  CROSS_SECTION_ONLY: false  # Stage2：仅跨小节候选
-
-  # —— 候选配额 —— #
-  TOPK: 1000                 # 进入 LLM 的全局候选上限（0 表示不限）
-  PER_NODE_CAP: 6            # 单实体候选上限
-  STRENGTH_MIN: 7            # LLM 判定强度阈值（≥7 保留）
-  COMMIT_DEFAULT: false      # 是否把新边写回 dedup_result.json
-  DEBUG_LLM_DEFAULT: false   # 调试开关
-
-  # —— LLM 调用参数（step 专属；公共参数在 config.yaml APIConfig）——
+  # —— LLM 复核（只判 top 候选，控制成本）—— #
+  LLM_PREDICT: true
+  LLM_MAX_PAIRS: 80
+  LLM_MIN_CONFIDENCE: 0.5
+  DRY_RUN: false
   TEMPERATURE: 0.2
-  MAX_TOKENS: 1000
+  MAX_TOKENS: 300
+  PROMPT_VERSION: "pred.v2"
 
-  # —— Prompt 模板 —— #
+  # —— 提示词模板 —— #
+  # 占位符：{name_a} {type_a} {layer_a} {desc_a}
+  #         {name_b} {type_b} {layer_b} {desc_b}
+  #         {sim} {shared} {weight} {allowed}
   PROMPT_SYSTEM: |
-    你是知识图谱专家。需要在以下关系集合内判定【单一、最强】关系：
-    - prerequisite：先修/前置；掌握 A 是理解 B 的必要条件。
-    - part-of：A 是 B 的组成或子概念（层级包含）。
-    - applies-to：A（方法/函数/算法）用于 B（对象/任务/场景）。
-    - example-of：A 是 B 的实例或典型代表（方向 A→B）。
-    - synonym：严格同义或别名（几乎等价）。
-    - contrasts-with：概念/方法在用途、性质上形成对比。
-    - related：相关但不满足以上更强语义（兜底）。
-
-    打分规则（strength 0~10）：
-    - 9–10：教材/描述有明确"前置/包含/用途/同义"等措辞或强事实依据
-    - 7–8：教学常识或多处线索支持
-    - 5–6：弱证据/语义接近但不明确
-    - <5：不成立或不应连边
-
-    【示例（正例）】
-    - A=高斯消去法, B=LU分解 → prerequisite（先学高斯消去理解 LU 分解） strength=8
-    - A=for 循环, B=控制流 → part-of（for 是控制流的一种） strength=9
-    - A=fft 函数, B=离散傅里叶变换 → applies-to（fft 实现 DFT） strength=9
-    - A=最小二乘直线拟合, B=线性回归 → example-of（前者是后者的实例） strength=8
-    - A=伪逆, B=Moore–Penrose 逆 → synonym（严格同义） strength=10
-    - A=直接法, B=迭代法 → contrasts-with（求解思想对比） strength=8
-
-    【示例（反例/边界）】
-    - A=矩阵乘法, B=LU分解 → related（不属于先修/包含/同义/用途）
-    - A=矩阵, B=线性代数 → part-of（方向注意：矩阵 是 线性代数 的组成）
-    - A=plot 函数, B=曲线拟合 → 仅当描述明确用 plot 做拟合可视化时才可判 applies-to，否则 related
-
-    你将综合语义相似（余弦）、结构特征（Adamic–Adar、共同祖先）给出判断。
-    只允许输出 JSON，不得包含多余文本。
+    你是教材知识图谱的关系编辑。只依据给出的两个实体及其定义判断一条最强关系。
+    可用的关系类型由用户消息中的 allowed 列表限定，不得输出列表外的类型。
+    如果证据不足，输出 type="none"，不要用 related 凑数。
+    方向必须符合定义：applies_to 是「方法/工具 → 对象/任务」；
+    part_of 是「子概念 → 上位概念」；instance_of 是「实例 → 概念」。
 
   PROMPT_USER_TEMPLATE: |
-    实体A：{u_name}
-    描述A：{u_desc}
+    实体 A：{name_a}
+    类型：{type_a} / 层级：{layer_a}
+    定义：{desc_a}
 
-    实体B：{v_name}
-    描述B：{v_desc}
+    实体 B：{name_b}
+    类型：{type_b} / 层级：{layer_b}
+    定义：{desc_b}
 
-    特征：
-    - cos={cos_val}
-    - AA={aa_val}
-    - CA={ca_val}
+    结构信号：cos={sim}，共同小节={shared}，共现权重={weight}
+    允许的关系：{allowed}
 
-    任务：判断是否新增"相关"边，并给出类型、强度（0~10）、仅返回JSON，不添加任何解释，一句话描述。
-    严格输出：
-    {{
-      "is_relevant": true/false,
-      "type": "关系类型（如 related / prerequisite / part-of 等）",
-      "strength": 整数0-10,
-      "description": "一句话理由，简洁明了",
-      "keywords": ["关键词1", "关键词2", "关键词3",...]
-    }}
+    输出严格 JSON（仅 JSON）：
+    {
+      "type": "allowed 中的一个，或 none",
+      "confidence": 0.0,
+      "description": "不超过 40 字的依据",
+      "keywords": ["抽象关键词"]
+    }

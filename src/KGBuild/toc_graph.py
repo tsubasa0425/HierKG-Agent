@@ -1,134 +1,119 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""toc_graph v2 —— 章节结构图（toc_graph.json）。
+
+这是一个中间产物，不进入最终四层 KG，用于：
+  * 检查章节树是否合理（层级、父子、跨度）
+  * 给 Web 建图页提供结构视图
+  * 后续增量构建时定位受影响的小节
+
+节点 ID 直接复用 TextSegmentation 的 section_id（同一文档内唯一），
+边统一为 child --part_of--> parent，避免再引入一套关系名。
+"""
+from __future__ import annotations
+
 import json
+import sys
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Any, Dict, Iterable, List, Optional
 
-def extract_toc_entities_and_relations(input_path: Path, output_path: Path):
-    # 读取 TOC 数据
-    with input_path.open("r", encoding="utf-8") as f:
-        toc_data = json.load(f)
+try:
+    from .schema_loader import get_schema
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from KGBuild.schema_loader import get_schema
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+OUT_DIR = SCRIPT_DIR / "output"
+
+
+def _walk(nodes: Iterable[Dict[str, Any]], parent_id: Optional[str] = None):
+    for n in nodes or []:
+        sid = n.get("section_id") or n.get("id") or ""
+        yield n, parent_id
+        yield from _walk(n.get("children") or [], sid)
+
+
+def build_toc_graph(toc_doc: Dict[str, Any]) -> Dict[str, Any]:
     nodes: List[Dict[str, Any]] = []
     edges: List[Dict[str, Any]] = []
+    seen: set[str] = set()
 
-    entity_count = 0
-    relation_count = 0
+    for sec, parent_id in _walk(toc_doc.get("sections") or []):
+        sid = sec.get("section_id") or sec.get("id") or ""
+        if not sid or sid in seen:
+            continue
+        seen.add(sid)
+        nodes.append({
+            "id": sid,
+            "name": sec.get("title") or "",
+            "title": sec.get("title") or "",
+            "numbering": sec.get("numbering") or "",
+            "level": int(sec.get("level") or 1),
+            "section_level": sec.get("section_level") or "unknown",
+            "path": sec.get("path") or "",
+            "parent_id": parent_id or "",
+            "char_start": sec.get("char_start"),
+            "char_end": sec.get("char_end"),
+            "block_count": len(sec.get("blocks") or []),
+        })
+        if parent_id:
+            edges.append({
+                "source": sid,
+                "target": parent_id,
+                "type": "part_of",
+                "layer": "structure",
+                "description": f"{sid} 属于 {parent_id}",
+            })
 
-    # 去重：按 section_id 记录已创建的节点（避免重复）
-    created_by_section_id: Dict[str, str] = {}  # section_id -> node_name(title)
-
-    # 递归处理每个顶层章节
-    for section in toc_data:
-        entity_count, relation_count = process_section(
-            section=section,
-            nodes=nodes,
-            edges=edges,
-            entity_count=entity_count,
-            relation_count=relation_count,
-            created_by_section_id=created_by_section_id,
-            parent_node_name=None,  # 顶层无父节点
-        )
-
-    graph_data = {
+    return {
+        "schema_version": get_schema().version,
+        "doc_id": toc_doc.get("doc_id") or "",
         "nodes": nodes,
         "edges": edges,
-        "entity_count": entity_count,
-        "relation_count": relation_count
+        "stats": {
+            "nodes": len(nodes),
+            "edges": len(edges),
+            "by_level": _count(nodes, "level"),
+            "by_section_level": _count(nodes, "section_level"),
+            "roots": sum(1 for n in nodes if not n["parent_id"]),
+        },
     }
 
-    # 写出
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8") as f:
-        json.dump(graph_data, f, ensure_ascii=False, indent=2)
 
-    print(f"知识图谱文件已保存至：{output_path.resolve()}")
-    print(f"生成了 {entity_count} 个实体，{relation_count} 个关系。")
-
-
-def process_section(
-    section: Dict[str, Any],
-    nodes: List[Dict[str, Any]],
-    edges: List[Dict[str, Any]],
-    entity_count: int,
-    relation_count: int,
-    created_by_section_id: Dict[str, str],
-    parent_node_name: Optional[str] = None,
-) -> Tuple[int, int]:
-    """
-    递归处理每一层的章节节点及其关系（仅 level 1/2/3）
-    - 节点：用 title 作为 name
-    - 边：用父节点的 name -> 子节点的 name
-    """
-    section_id = (section.get("id") or "").strip()
-    section_title = (section.get("title") or "").strip()
-
-    # level 可能是字符串，这里统一成 int
-    try:
-        section_level = int(section.get("level", 0) or 0)
-    except Exception:
-        section_level = 0
-
-    # 只处理 level 1~3
-    if section_level not in (1, 2, 3):
-        return entity_count, relation_count
-
-    # —— 创建/记录节点 ——（按 section_id 去重）
-    if section_title:
-        # 如果该 section_id 未创建过节点，则创建新节点
-        if section_id not in created_by_section_id:
-            created_by_section_id[section_id] = section_title  # 记录 name
-
-            nodes.append({
-                "name": section_title,               # 可视化或后续处理统一读 name
-                "title": section_title,              # 冗余保留
-                "level": f"level{section_level}",     # level1/level2/level3
-                "description": section_id            # 用章节编号做描述
-            })
-            entity_count += 1
-
-        # 当前节点名称（后续给子节点连边用）
-        current_node_name = created_by_section_id[section_id]
-
-        level_names = ['', 'chapter', 'section', 'subsection']
-        # —— 父子关系边 ——（父 name -> 子 name）
-        if parent_node_name:
-            edges.append({
-                "source": parent_node_name,
-                "target": current_node_name,
-                "relationship": "child_of",
-                "description": f"{parent_node_name} -> {current_node_name}",
-                "type": f"{level_names[section_level-1]}->{level_names[section_level]}"
-            })
-            relation_count += 1
-    else:
-        # 没标题就不创建节点，也不递归
-        return entity_count, relation_count
-
-    # —— 递归子节点 ——（同样只保留到 level 3）
-    for child in section.get("children", []) or []:
-        entity_count, relation_count = process_section(
-            section=child,
-            nodes=nodes,
-            edges=edges,
-            entity_count=entity_count,
-            relation_count=relation_count,
-            created_by_section_id=created_by_section_id,
-            parent_node_name=current_node_name,  # 用 name 作为父节点标识
-        )
-
-    return entity_count, relation_count
+def _count(nodes: List[Dict[str, Any]], key: str) -> Dict[str, int]:
+    out: Dict[str, int] = {}
+    for n in nodes:
+        k = str(n.get(key))
+        out[k] = out.get(k, 0) + 1
+    return dict(sorted(out.items()))
 
 
-def main():
-    # 以脚本所在目录为基准：src/KGBuild
-    script_dir = Path(__file__).resolve().parent
-    in_file = script_dir / "output" / "toc_with_entities_and_relations.json"
-    out_file = script_dir / "output" / "toc_graph.json"
+def main(argv: Optional[List[str]] = None) -> int:
+    import argparse
+    ap = argparse.ArgumentParser(description="构建 v2 章节结构图")
+    ap.add_argument("--in", dest="in_path",
+                    default=str(OUT_DIR / "toc_with_entities_and_relations.json"))
+    ap.add_argument("--out", default=str(OUT_DIR / "toc_graph.json"))
+    args = ap.parse_args(argv)
 
-    if not in_file.exists():
-        raise FileNotFoundError(f"未找到输入文件：{in_file}")
+    in_path = Path(args.in_path)
+    if not in_path.exists():
+        raise FileNotFoundError(f"未找到输入文件：{in_path}")
+    with in_path.open("r", encoding="utf-8") as f:
+        toc_doc = json.load(f)
+    if isinstance(toc_doc, list):
+        raise ValueError("输入是 v1 裸数组；请先用 v2 流水线重新生成")
 
-    extract_toc_entities_and_relations(in_file, out_file)
+    graph = build_toc_graph(toc_doc)
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        json.dump(graph, f, ensure_ascii=False, indent=2)
+    print(f"✅ 章节结构图：{out_path.resolve()}")
+    print(f"  节点 {graph['stats']['nodes']} / 边 {graph['stats']['edges']}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

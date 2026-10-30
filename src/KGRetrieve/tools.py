@@ -39,6 +39,41 @@ from .models import Node
 logger = logging.getLogger(__name__)
 
 
+def _flatten_packs(section: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """schema.v2 的 NodeTypes / RelationTypes 分组 → 拍平成 {名称: 定义}。
+
+    结构兼容两种分组：
+      * `core: {概念: {...}}` / `cross_layer: {instance_of: {...}}`
+      * `domain_packs: {ai_textbook: {types: {智能体类型: {...}}}}`
+    `derived_inverses` 这类非定义分组会被跳过。
+    """
+    out: Dict[str, Dict[str, Any]] = {}
+
+    def _add(items: Any, pack: str) -> None:
+        if not isinstance(items, dict):
+            return
+        for name, meta in items.items():
+            if not isinstance(meta, dict):
+                continue
+            # 关系定义一定有 direction；节点类型没有该字段
+            if pack and "inverse_of" in meta:
+                continue
+            item = dict(meta)
+            item.setdefault("pack", pack)
+            out[str(name)] = item
+
+    for pack, items in (section or {}).items():
+        if not isinstance(items, dict):
+            continue
+        if pack == "domain_packs":
+            for sub_pack, meta in items.items():
+                if isinstance(meta, dict):
+                    _add(meta.get("types"), str(sub_pack))
+        else:
+            _add(items, str(pack))
+    return out
+
+
 # =====================================================================
 # 工具基类
 # =====================================================================
@@ -150,9 +185,9 @@ class GetSchemaTool(BaseTool):
         "properties": {
             "section": {
                 "type": "string",
-                "enum": ["all", "entity_types", "relation_types"],
+                "enum": ["all", "node_types", "entity_types", "relation_types"],
                 "default": "all",
-                "description": "返回 schema 的哪个部分：all=全部，entity_types=仅实体类型，relation_types=仅关系类型",
+                "description": "返回 schema 的哪个部分：all=全部，node_types/entity_types=仅实体类型，relation_types=仅关系类型",
             },
         },
     }
@@ -163,10 +198,11 @@ class GetSchemaTool(BaseTool):
     def _run(self, params: Dict[str, Any]) -> ToolResult:
         section = params.get("section", "all")
         schema = self.kg.schema
-        if section == "entity_types":
-            data = {"entity_types": schema.get("entity_types", [])}
+        if section in ("node_types", "entity_types"):
+            node_types = _flatten_packs(schema.get("node_types", {}))
+            data = {"node_types": node_types, "entity_types": list(node_types)}
         elif section == "relation_types":
-            data = {"relation_types": schema.get("relation_types", {})}
+            data = {"relation_types": _flatten_packs(schema.get("relation_types", {}))}
         else:
             data = schema
         return ToolResult(self.name, True, data=data)
@@ -180,7 +216,7 @@ class GetNodeByIDTool(BaseTool):
         "properties": {
             "node_id": {
                 "type": "string",
-                "description": "节点ID，如 concept_7446050b / ent_db974238 / ev_1.1.1",
+                "description": "节点ID，如 concept_7446050b / ent_db974238 / ev_{doc_id}:{section_id}:{block_id}",
             },
         },
         "required": ["node_id"],
@@ -257,7 +293,7 @@ class GetEvidenceByIDTool(BaseTool):
     parameters = {
         "type": "object",
         "properties": {
-            "evidence_id": {"type": "string", "description": "L3 证据ID，如 ev_1.1.1"},
+            "evidence_id": {"type": "string", "description": "L3 证据ID，格式 ev_{doc_id}:{section_id}[:{block_id}]"},
             "include_snippet": {"type": "boolean", "default": True,
                                 "description": "是否返回原文片段（默认返回；当 snippet 太长时可设置为 false 只看元数据）"},
             "snippet_chars": {"type": "integer", "default": 2000,

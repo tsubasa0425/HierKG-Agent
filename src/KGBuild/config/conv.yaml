@@ -1,49 +1,46 @@
+# config/conv.yaml
 ConvConfig:
-  # —— I/O（只保留文件名；路径由代码拼接）——
-  TOC_ENT_REL_NAME: "toc_with_entities_and_relations.json"  # 来自 KGBuild/output
-  CONV_RESULT_NAME: "conv_entities.json"    # 输出到 KGBuild/output
-  CONV_PROMPTS_NAME: "conv_prompts.json"
+  # —— I/O —— #
+  TOC_ENT_REL_NAME: "toc_with_entities_and_relations.json"
+  CONV_RESULT_NAME: "conv_entities.json"
 
-  # —— 邻域控制 ——
-  MAX_NEIGHBORS_GLOBAL: 300
+  # —— 邻域 —— #
+  # 每个实体保留的共现邻居上限（按共同出现的小节数降序）
+  MAX_NEIGHBORS_PER_ENTITY: 40
 
-  # —— LLM 调用参数（step 专属；公共参数在 config.yaml APIConfig）——
+  # —— 定义补全（只用原文片段，不拿邻居描述编故事）—— #
+  # missing: 只补没有定义的实体；all: 全部重写；none: 不调用 LLM
+  ENRICH_MODE: "missing"
+  ENRICH_MAX_ENTITIES: 100          # 单次构建最多补多少条，控制成本
+  ENRICH_MIN_COVERAGE: 2            # 至少出现在 2 个小节才值得补
+  MAX_DEFINITION_LEN: 300
+
+  # —— LLM 调用参数（step 专属）—— #
   TEMPERATURE: 0.2
-  MAX_TOKENS: 1000
-
-  # —— 其他开关 ——
+  MAX_TOKENS: 500
   DRY_RUN: false
+  PROMPT_VERSION: "conv.v2"
 
-  # —— Prompt 模板（从这里读取，不再硬编码在代码里）——
-  PROMPT_SYSTEM: |-
-    你是"知识图谱专家"，负责为课程知识图谱中的实体生成增强描述。
-    输出目标：帮助知识图谱系统补充实体定义、功能和语义关联。
-    约束：
-    - 仅使用输入提供的信息（出现位置、邻域实体、原始描述），禁止引入外部常识或猜测。
-    - 生成单段中文描述，180–320 字，全角标点，不分行、不列点、不加标题。
-    - 若信息不足，可生成概述性描述，但不要虚构。
-    - 输出必须是单个 JSON 对象，禁止 Markdown 代码块或附加文本。
-    - 所有引号使用 ASCII 双引号 `"`，不得使用中文引号。
+  # —— 提示词模板 —— #
+  # 占位符（string.Template 语法）：
+  #   ${entity_name}  ${entity_type}  ${snippets}  ${occurrences}
+  PROMPT_SYSTEM: |
+    你是严谨的教材知识图谱编辑。你只能依据用户给出的原文片段写定义，
+    不得引入片段之外的知识，不得使用“可能 / 通常 / 据说”等不确定措辞。
 
-  PROMPT_USER_TEMPLATE: |-
-    目标实体：{entity_name}
-    原始描述：{original_desc}
+  PROMPT_USER_TEMPLATE: |
+    目标实体：${entity_name}
+    实体类型：${entity_type}
+    出现位置：${occurrences}
 
-    出现位置（最多3处）：{occurrences}
+    原文片段：
+    ${snippets}
 
-    邻域实体（按共现权重排序，可能截断）：
-    {neighbors}
+    请用一句中文给该实体下定义，要求：
+    1. 只使用片段中明确陈述的信息，不要补充片段外的背景；
+    2. 写成“X 是…… / X 指……”的完整定义句，长度 20–120 字；
+    3. 如果片段不足以形成定义，返回空字符串，不要猜测；
+    4. 不要输出 Markdown、引号或任何解释。
 
-    任务：
-    - 基于上述信息，为"{entity_name}"生成增强描述；
-    - 包含定义/本质、典型功能或场景、与邻域实体的关键联系（仅限输入能佐证的部分）；
-    - 不得臆测、不得添加外部知识。
-    输出要求：
-    - 仅返回单行 JSON，键名固定：name、updated_description；
-    - description 必须是单段中文，180–320 字，全角标点；
-    - 禁止输出任何解释、代码围栏或多余内容。
-    严格输出：
-    {{
-      "name": "{entity_name}",
-      "updated_description": "180~320字的中文增强描述，单段落，无列表、无标题、无外部信息"
-    }}
+    输出严格 JSON（仅 JSON）：
+    {"definition": "定义句或空字符串"}

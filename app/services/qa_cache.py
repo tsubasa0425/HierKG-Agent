@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import yaml
 
-from .chat_store import get_conn, lock
+from .cache_db import get_conn, lock
 
 logger = logging.getLogger("hierkg-web.qa_cache")
 

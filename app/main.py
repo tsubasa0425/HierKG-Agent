@@ -20,7 +20,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from app.config import load_chat_config, load_llm_config
 from app.routers import build, chat, graph, sessions
-from app.services import build_manager, build_store, chat_store, kg_version
+from app.services import build_manager, build_store, cache_db, chat_store, kg_version
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger("hierkg-web")
@@ -46,10 +46,12 @@ app.state.registry = None
 app.state.kg_maintenance = False
 app.state.loop = None
 
-# 会话/热缓存配置：启动读一次，DB_PATH 非空时覆盖 chat_store 默认路径
+# 会话/热缓存配置：启动读一次；空值分别走 app/data/sessions 与 app/data/cache.db
 app.state.chat_cfg = load_chat_config()
-if app.state.chat_cfg.get("DB_PATH"):
-    chat_store.set_db_path(app.state.chat_cfg["DB_PATH"])
+if app.state.chat_cfg.get("SESSION_DIR"):
+    chat_store.set_data_dir(app.state.chat_cfg["SESSION_DIR"])
+if app.state.chat_cfg.get("CACHE_DB_PATH"):
+    cache_db.set_db_path(app.state.chat_cfg["CACHE_DB_PATH"])
 
 # LLM 配置启动时读一次（缺配置启动即报错，便于快速暴露）
 try:

@@ -124,32 +124,35 @@ export interface ConfigFileMeta {
   critical: boolean;
 }
 
-export interface SchemaEntityType {
+export interface SchemaNodeType {
   name: string;
-  layer_hint: string;
+  pack: string;
+  parent: string;
   description: string;
   examples: string[];
 }
 
 export interface SchemaRelation {
   name: string;
+  group: string;
   direction: string;
   description: string;
-  example: string;
-  layers: string;
+  layers: string[];
 }
 
 export interface SchemaSummary {
-  entity_types: SchemaEntityType[];
-  type_mapping: Array<{ keywords: string[]; schema_type: string }>;
-  entity_relations: SchemaRelation[];
-  cross_layer_relations: SchemaRelation[];
+  ontology_name: string;
+  schema_version: string;
+  node_types: SchemaNodeType[];
+  relation_types: SchemaRelation[];
+  layer_rules: Array<{ id: string; layer: string; confidence: number }>;
   counts: {
-    entity_types: number;
-    type_mapping: number;
-    entity_relations: number;
-    cross_layer_relations: number;
-    layer_hints: Record<string, number>;
+    node_types: number;
+    core_types: number;
+    domain_types: number;
+    relation_types: number;
+    layer_rules: number;
+    packs: Record<string, number>;
   };
 }
 

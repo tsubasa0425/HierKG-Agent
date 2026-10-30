@@ -1,643 +1,530 @@
-from __future__ import annotations
-import json
-import time
-import hashlib
-import logging
-import requests
-from dataclasses import dataclass, asdict, field
-from pathlib import Path
-from typing import Dict, List, Tuple, Any, Optional
-import yaml
-from tqdm import tqdm
-import re
-import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Aggr v2 —— 分层（L1/L2）+ 稳定 ID + L2 概念归属。
 
-# ========================= 配置加载（YAML）
-def load_yaml(path: Path) -> dict:
-    with path.open("r", encoding="utf-8") as f:
+层级不再由 LLM 拍板，而是 LayerPolicy 规则优先：
+  1. 待定类型 → excluded（不入图，保留在待清洗池）
+  2. 专有实例（工具/人物/组织/版本号/配置值）→ L2
+  3. 定义 + 跨小节复用 → L1；跨小节复用 → L1；标题/定义句 → L1
+  4. 规则未命中时才调用 LLM（LLM 不可用时按同一组信号启发式兜底）
+
+L2 的父概念（instance_of）由共现、已有关系和类型偏好共同打分选出，
+保证每个 L2 最多一个父节点；没有合适父节点时留空，不硬凑。
+
+输入：conv_entities.json
+输出：aggr_entities.json
+{
+  "schema_version": "2.0",
+  "doc_id": "...",
+  "entities": [{id,name,aliases,type,layer,parent_id,definition,confidence,
+                signals,occurrences,neighbors,provenance,layer_decision}],
+  "relations": [{source,target,source_name,target_name,type,layer,
+                 description,keywords,confidence,provenance}],
+  "excluded": [{name,type,reason}],
+  "stats": {...}
+}
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import re
+import sys
+import threading
+import time
+from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple
+
+import yaml
+
+try:
+    from .schema_loader import Schema, get_schema, make_node_id
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from KGBuild.schema_loader import Schema, get_schema, make_node_id
+
+try:
+    from tqdm import tqdm
+except ImportError:
+    def tqdm(*args, **kwargs):  # type: ignore
+        class _Null:
+            def __iter__(self): return iter(args[0]) if args else iter(())
+            def update(self, n=1): pass
+            def close(self): pass
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+        return _Null()
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+CONFIG_DIR = SCRIPT_DIR / "config"
+OUT_DIR = SCRIPT_DIR / "output"
+SCHEMA = get_schema()
+
+logger = logging.getLogger("Aggr")
+if not logger.handlers:
+    h = logging.StreamHandler(sys.stdout)
+    h.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
+    logger.addHandler(h)
+logger.setLevel(logging.INFO)
+
+DEFAULTS: Dict[str, Any] = {
+    "CONV_IN_NAME": "conv_entities.json",
+    "OUT_NAME": "aggr_entities.json",
+    "LIMIT": 0,
+    "DRY_RUN": False,
+    "WORKERS": 8,
+    "TEMPERATURE": 0.0,
+    "MAX_TOKENS": 300,
+    "PROMPT_VERSION": "aggr.v2",
+    "PROPER_INSTANCE_TYPES": ["工具", "人工物", "人物", "组织", "事件"],
+    "PARENT_TYPE_PREFERENCE": {
+        "工具": ["人工物", "概念", "方法", "算法"],
+        "人工物": ["概念", "方法"],
+        "人物": ["概念", "组织", "事件"],
+        "组织": ["概念", "事件"],
+        "事件": ["概念", "方法"],
+        "指标": ["概念", "方法"],
+        "属性": ["概念", "方法"],
+        "任务": ["概念", "方法"],
+        "算法": ["数学概念", "方法", "概念"],
+        "智能体类型": ["概念", "方法"],
+    },
+    "PARENT_MIN_SCORE": 1.0,
+    "INSTANCE_OF_CONFIDENCE": 0.6,
+    "LLM_LAYER": True,
+    "PROMPT_SYSTEM": "",
+    "PROMPT_USER_TEMPLATE": "",
+}
+API_DEFAULTS: Dict[str, Any] = {
+    "API_KEY": "", "API_BASE": "", "MODEL_NAME": "",
+    "TIMEOUT_SECS": 120, "RETRIES": 3, "RETRY_BACKOFF_BASE": 2,
+    "RATE_LIMIT_QPS": 0, "CHAT_COMPLETIONS_PATH": "/chat/completions",
+}
+VERSION_RE = re.compile(r"(?:^|[\s\-_])v?\d+(?:\.\d+)+", re.I)
+FILE_RE = re.compile(r"\.(?:py|js|ts|json|ya?ml|md|txt|toml|ini|cfg)$", re.I)
+CONFIG_RE = re.compile(r"^[a-z][a-z0-9_\-]*$")
+MODEL_RE = re.compile(r"[A-Za-z]+[-\s]?\d+[A-Za-z0-9.\-]*")
+PROPER_PROPER_RE = re.compile(r"(?:^[A-Z]{2,}[-_]\d+|^\d+(?:\.\d+)?$)")
+
+
+# ---------------------------------------------------------------------------
+# 配置 / 工具
+# ---------------------------------------------------------------------------
+
+def _load_yaml(p: Path) -> Dict[str, Any]:
+    with p.open("r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
-# KGBuild 目录
-SCRIPT_DIR = Path(__file__).resolve().parent
-CFG_DIR = SCRIPT_DIR / "config"
 
-# 主配置：src/KGBuild/config/config.yaml
-MAIN_CFG_PATH = CFG_DIR / "config.yaml"
-config = load_yaml(MAIN_CFG_PATH)
+def _as_bool(v: Any) -> bool:
+    if isinstance(v, str):
+        return v.strip().lower() in ("1", "true", "yes", "on")
+    return bool(v)
 
-# 递归加载 include_files（相对 KGBuild/config/ 拼接；绝对路径原样用）
-includes = config.get("include_files", []) or []
-for inc in includes:
-    inc_path = Path(inc)
-    if not inc_path.is_absolute():
-        inc_path = (CFG_DIR / inc).resolve()
-    if inc_path.exists():
-        cfg_add = load_yaml(inc_path)
-        if cfg_add:
-            config.update(cfg_add)
 
-# 取出 API 与 Aggr 配置（字典）
-APIConfig = config.get("APIConfig", {})
-AggrCfg   = config.get("AggrConfig", {})
-# 关键修复①：PROMPTS 同时兼容顶层和 AggrConfig 下两种放法
-PROMPTS   = (config.get("PROMPTS") or AggrCfg.get("PROMPTS") or {})
+def _load_config() -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    cfg_path = CONFIG_DIR / "config.yaml"
+    merged: Dict[str, Any] = {}
+    if cfg_path.exists():
+        merged = dict(_load_yaml(cfg_path))
+        for rel in merged.get("include_files", []) or []:
+            p = (CONFIG_DIR / str(rel)).resolve()
+            if p.exists():
+                merged.update(_load_yaml(p))
+    if "AggrConfig" not in merged:
+        merged.update(_load_yaml(CONFIG_DIR / "aggr.yaml"))
+    cfg = dict(DEFAULTS)
+    cfg.update(merged.get("AggrConfig") or {})
+    cfg["DRY_RUN"] = _as_bool(cfg.get("DRY_RUN"))
+    api = dict(API_DEFAULTS)
+    api.update(merged.get("APIConfig") or {})
+    return cfg, api
 
-# ========================= 路径拼接
-OUTPUT_DIR = SCRIPT_DIR / "output"
-LOGS_DIR   = SCRIPT_DIR / "logs"
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-# 名字到实际路径
-CONV_IN_PATH  = OUTPUT_DIR / AggrCfg.get("CONV_IN_NAME", "conv_entities.json")
-AGGR_OUT_PATH = OUTPUT_DIR / AggrCfg.get("OUT_NAME", "aggr_entities.json")
-LOG_PATH      = LOGS_DIR   / AggrCfg.get("LOG_NAME", "aggr.log")
+CFG, API = _load_config()
+_rate_lock = threading.Lock()
+_last_ts = 0.0
 
-# ========================= 日志
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(message)s",
-    handlers=[
-        logging.FileHandler(LOG_PATH, encoding="utf-8"),
-        logging.StreamHandler()
-    ],
-)
-logger = logging.getLogger("Aggr")
 
-# ========================= 运行参数
-TEMPERATURE = float(AggrCfg.get("TEMPERATURE", 0.0))
-MAX_TOKENS  = int(AggrCfg.get("MAX_TOKENS", 1000))
-API_TIMEOUT = int(APIConfig.get("TIMEOUT_SECS", 120))
-RETRIES     = int(APIConfig.get("RETRIES", 3))
-CHAT_COMPLETIONS_PATH = APIConfig.get("CHAT_COMPLETIONS_PATH", "/chat/completions")
-DRY_RUN     = bool(int(AggrCfg.get("DRY_RUN", 0)))
+def _rate_limit() -> None:
+    qps = float(API.get("RATE_LIMIT_QPS") or 0)
+    if qps <= 0:
+        return
+    global _last_ts
+    with _rate_lock:
+        delta = time.time() - _last_ts
+        if delta < 1.0 / qps:
+            time.sleep(1.0 / qps - delta)
+        _last_ts = time.time()
 
-LIMIT = int(AggrCfg.get("LIMIT", 0))
-TREE_ENFORCE = bool(int(AggrCfg.get("TREE_ENFORCE", 1)))
-PROGRESS_NCOLS = int(AggrCfg.get("PROGRESS_NCOLS", 100))
-WORKERS = int(APIConfig.get("WORKERS", os.cpu_count() or 6))
 
-API_BASE = APIConfig.get("API_BASE", "")
-API_KEY  = APIConfig.get("API_KEY", "")
-MODEL    = APIConfig.get("MODEL_NAME", "")
-
-# ========================= L0 本体加载（schema.yaml）
-SCHEMA_PATH = SCRIPT_DIR / "config" / "schema.yaml"  # src/KGBuild/config/schema.yaml
-_schema = load_yaml(SCHEMA_PATH) if SCHEMA_PATH.exists() else {}
-ENTITY_TYPE_MAP: Dict[str, str] = {}  # type_name -> layer_hint
-for _tname, _tdef in (_schema.get("EntityTypes") or {}).items():
-    ENTITY_TYPE_MAP[_tname] = (_tdef or {}).get("layer_hint", "auto")
-LAYER_RULES = AggrCfg.get("LAYER_RULES", {})
-CONCEPT_MIN_OCC = int(LAYER_RULES.get("concept_min_occurrences", 2))
-
-logger.info(f"已加载 schema.yaml：{len(ENTITY_TYPE_MAP)} 种实体类型，layer_hint 映射={ENTITY_TYPE_MAP}")
-
-   
-   # ---- 类型归一化规则（从 schema.yaml 的 TypeMapping 加载）----
-_TYPE_MAPPING_RULES: List[Tuple[List[str], str]] = []
-for _rule in (_schema.get("TypeMapping") or []):
-    _kw = _rule.get("keywords", [])
-    _st = _rule.get("schema_type", "")
-    if _kw and _st:
-        _TYPE_MAPPING_RULES.append((_kw, _st))
-
-def _normalize_type(raw_type: str) -> str:
-    """将非 schema 类型归一化到 schema 类型（safety net）。
-    Extraction.py 已做入口归一化，这里是对漏网之鱼的兜底。
-    """
-    t = (raw_type or "").strip()
-    if t in ENTITY_TYPE_MAP:
-        return t
-    for keywords, schema_type in _TYPE_MAPPING_RULES:
-        if any(kw in t for kw in keywords):
-            return schema_type
-    return "概念"  # 兜底
-
-# ========================= 数据结构
-@dataclass
-class Occurrence:
-    path: str
-    node_id: str
-    level: int
-    title: str
-
-@dataclass
-class Neighbor:
-    name: str
-    snippet: str = ""  # 如 "cooccur|undirected|w=..." 或 "rel|directed|type=part-of|src=core|dst=non-core"
-    type: str = ""     # 标准化关系名：cooccur / prerequisite / part-of / applies-to / example-of / synonym / contrasts-with / related
-
-@dataclass
-class EntityItem:
-    name: str
-    alias: List[str]
-    type: str
-    original: str
-    occurrences: List[Occurrence]
-    neighbors: List[Neighbor]
-    layer: str = ""  # "concept" / "entity"（新四层模型）
-    concept_id: str = ""  # concept 自身为自身 id；entity 指向所属 concept
-    role: str = ""  # 旧字段，保留兼容（core=concept, non-core=entity）
-    updated_description: str = ""  # 预留
-
-# ========================= 工具：模板/解析/HTTP
-def _prompts_section() -> dict:
-    return PROMPTS or {}
-
-def build_system_prompt_role() -> str:
-    return (_prompts_section().get("system") or "").strip()
-
-def build_system_prompt_relation() -> str:
-    return (_prompts_section().get("relation_system") or "").strip()
-
-def _truncate(s: str, n: int) -> str:
-    s = (s or "").strip()
-    return (s[:n] + "…") if len(s) > n else s
-
-def _nb_list(ent: EntityItem, k=5) -> str:
-    xs = []
-    for nb in ent.neighbors[:k]:
-        xs.append(f"- {nb.name}｜{_truncate(nb.snippet, 60)}")
-    return "\n".join(xs) if xs else "(无)"
-
-def build_user_prompt_for_layer(entity: EntityItem, section_summary: str) -> str:
-    neighbors = entity.neighbors[:6]
-    occs = entity.occurrences[:2]
-    desc = _truncate(entity.original, 300)
-    lines = []
-    for nb in neighbors:
-        sn = _truncate((nb.snippet or "").replace("\n", " "), 80)
-        head = sn.split("|", 1)[0] if "|" in sn else "neighbor"
-        lines.append(f"- {nb.name}（{head}）")
-    occ_str = "; ".join(o.path for o in occs) or "(无)"
-    neigh_str = "\n".join(lines) if lines else "(无)"
-
-    return (
-        "第一行只输出最终标签（concept 或 entity）。\n\n"
-        f"目标实体：{entity.name}\n"
-        f"实体类型：{entity.type}\n"
-        f"实体描述：{desc}\n"
-        f"同现目录（最多2条）：{occ_str}\n"
-        "邻域实体（最多6个）：\n" + neigh_str + "\n"
-        f"章节摘要（可选）：{_truncate(section_summary, 200)}\n"
-    )
-
-# —— 关系标签集合 —— #
-REL_TYPES = {"prerequisite","part-of","applies-to","example-of","synonym","contrasts-with","related"}
-REL_PATTERN = re.compile(r"\b(prerequisite|part-of|applies-to|example-of|synonym|contrasts-with|related)\b", re.I)
-REL_LABEL_CHOICES = "prerequisite|part-of|applies-to|example-of|synonym|contrasts-with|related"
-
-# 关键修复②：关系模板安全渲染，避免 KeyError
-class _SafeDict(dict):
-    def __missing__(self, key):
-        # 未提供的占位符保持原样，避免 KeyError
-        return "{" + key + "}"
-
-def build_user_prompt_for_relation(core: EntityItem, child: EntityItem) -> str:
-    tpl = (_prompts_section().get("relation_user_template") or "").strip()
-    if not tpl:
-        return (
-            "只输出一行：在 {prerequisite|part-of|applies-to|example-of|synonym|contrasts-with|related} 中选择一个最贴切的关系类型。\n\n"
-            f"【Core】{core.name}（type={core.type}）\n描述：{_truncate(core.original, 200)}\n\n"
-            f"【Non-Core】{child.name}（type={child.type}）\n描述：{_truncate(child.original, 200)}\n"
-        )
-
-    # 兼容老模板：若发现单花括号的 7 类标签，把它替换成受控占位符
-    legacy = "{prerequisite|part-of|applies-to|example-of|synonym|contrasts-with|related}"
-    if legacy in tpl:
-        tpl = tpl.replace(legacy, "{label_choices}")
-
-    fields = _SafeDict({
-        "core_name": core.name,
-        "core_type": core.type,
-        "core_desc": _truncate(core.original, 260),
-        "core_neighbors": _nb_list(core, 5),
-        "child_name": child.name,
-        "child_type": child.type,
-        "child_desc": _truncate(child.original, 260),
-        "child_neighbors": _nb_list(child, 5),
-        "label_choices": REL_LABEL_CHOICES,  # 给模板使用
-    })
-
-    # 只格式化一次，且缺失字段不报错
-    return tpl.format_map(fields)
-
-def call_llm(system_prompt: str, user_prompt: str) -> Tuple[str, bool, str, int, bool]:
-    """OpenAI 兼容 /chat/completions；线程安全：每次请求独立调用 requests.post"""
-    if DRY_RUN:
-        return "", False, "dry_run_enabled", 0, True
-    if not API_BASE:
-        logger.warning("API_BASE 为空，跳过 LLM 调用。")
-        return "", False, "api_base_empty", 0, False
+def call_llm(system_prompt: str, user_prompt: str) -> str:
+    if CFG["DRY_RUN"] or not API.get("API_BASE") or not API.get("MODEL_NAME"):
+        return ""
+    import requests
 
     headers = {"Content-Type": "application/json"}
-    if API_KEY:
-        headers["Authorization"] = f"Bearer {API_KEY}"
-
+    if API.get("API_KEY"):
+        headers["Authorization"] = f"Bearer {API['API_KEY']}"
     payload = {
-        "model": MODEL,
+        "model": API["MODEL_NAME"],
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        "temperature": TEMPERATURE,
-        "max_tokens": MAX_TOKENS,
-        "top_p": 1,
-        "frequency_penalty": 0,
-        "presence_penalty": 0,
+        "temperature": float(CFG["TEMPERATURE"]),
+        "max_tokens": int(CFG["MAX_TOKENS"]),
     }
-
-    last_err = ""
-    for attempt in range(1, RETRIES + 1):
+    for k in range(max(1, int(API["RETRIES"]))):
         try:
-            resp = requests.post(
-                f"{API_BASE}{CHAT_COMPLETIONS_PATH}",
-                headers=headers,
-                json=payload,
-                timeout=API_TIMEOUT,
-            )
+            _rate_limit()
+            url = API["API_BASE"].rstrip("/") + API.get("CHAT_COMPLETIONS_PATH", "/chat/completions")
+            resp = requests.post(url, headers=headers, json=payload,
+                                 timeout=float(API["TIMEOUT_SECS"]))
             resp.raise_for_status()
-            content = resp.json()["choices"][0]["message"]["content"].strip()
-            content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
-            if content:
-                return content, True, "", attempt, False
-            last_err = "empty_content"
-        except Exception as e:
-            last_err = str(e)
-            time.sleep(2 ** attempt)
-    return "", False, last_err or "unknown_error", RETRIES, False
+            text = resp.json()["choices"][0]["message"]["content"].strip()
+            return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"LLM 调用失败({k + 1}/{API['RETRIES']})：{e}")
+            time.sleep(float(API["RETRY_BACKOFF_BASE"]) ** k)
+    return ""
 
-# ========================= 层级判定（并发）
-_RE_CONCEPT = r"(?:\bconcept\b|概念)"
-_RE_ENTITY = r"(?:\bentity\b|实体)"
-LAYER_PATTERN = re.compile(rf"{_RE_ENTITY}|{_RE_CONCEPT}", flags=re.I)
 
-def _parse_layer(text: str) -> str:
-    if not text:
-        return ""
-    t = text.replace("\r", "")
-    # 只看第一行
-    for ln in t.splitlines():
-        ln = ln.strip().strip(" :：，。;；\"'`*").lower()
-        if not ln:
+def _parse_layer(text: str) -> Optional[str]:
+    for ln in (text or "").splitlines():
+        t = ln.strip().lower().strip(" :：,，.。;；*\"'`")
+        if not t:
             continue
-        if ln in {"concept", "概念"}:
-            return "concept"
-        if ln in {"entity", "实体"}:
-            return "entity"
-        if ln.startswith(("concept", "概念")):
-            return "concept"
-        if ln.startswith(("entity", "实体")):
-            return "entity"
+        if t in ("l1", "concept", "概念"):
+            return "L1"
+        if t in ("l2", "entity", "实体"):
+            return "L2"
+        if t.startswith(("l1", "concept", "概念")):
+            return "L1"
+        if t.startswith(("l2", "entity", "实体")):
+            return "L2"
         break
-    # 回退：全文正则
-    matches = list(LAYER_PATTERN.finditer(t))
-    if not matches:
-        return ""
-    last = matches[-1].group(0).lower().strip()
-    return "entity" if ("entity" in last or "实体" in last) else "concept"
-
-def _gen_concept_id(name: str) -> str:
-    """为概念节点生成稳定的 concept_id"""
-    return f"concept_{hashlib.md5(name.encode('utf-8')).hexdigest()[:8]}"
-
-def judge_layer(entity: EntityItem, section_summary: str) -> Tuple[str, str, dict]:
-    """判定实体属于 concept 层还是 entity 层。
-
-    三级决策：
-    1. 规则优先：schema.yaml 的 layer_hint=concept/entity → 直接判定（省 LLM 调用）
-    2. LLM 判定：layer_hint=auto 或 type 未在 schema 中 → 调 LLM
-    3. 启发式兜底：LLM 失败 → occurrences >= CONCEPT_MIN_OCC → concept，否则 entity
-
-    Returns:
-        (layer, concept_id, diag)
-        layer: "concept" / "entity"
-        concept_id: concept 的自身 id；entity 暂为空（Stage 2 分配）
-    """
-    ent_type = _normalize_type(entity.type)
-    hint = ENTITY_TYPE_MAP.get(ent_type, "auto")
-    occ_count = len(entity.occurrences)
-    used_fallback = False
-    note = ""
-    ok = True
-    attempts = 0
-    dry = False
-    raw = ""
-
-    # ---- 第一级：规则优先 ----
-    if hint == "concept" and occ_count >= CONCEPT_MIN_OCC:
-        layer = "concept"
-        concept_id = _gen_concept_id(entity.name)
-        note = f"rule: layer_hint=concept, occ={occ_count}>={CONCEPT_MIN_OCC}"
-        diag = {"ok": True, "attempts": 0, "used_fallback": False, "note": note, "raw": "", "dry_run": False, "method": "schema_rule"}
-        return layer, concept_id, diag
-
-    if hint == "concept":
-        # layer_hint=concept 但出现次数不够 → 仍判 concept（类型说了算）
-        layer = "concept"
-        concept_id = _gen_concept_id(entity.name)
-        note = f"rule: layer_hint=concept, occ={occ_count}<{CONCEPT_MIN_OCC} (type 优先)"
-        diag = {"ok": True, "attempts": 0, "used_fallback": False, "note": note, "raw": "", "dry_run": False, "method": "schema_rule"}
-        return layer, concept_id, diag
-
-    if hint == "entity":
-        layer = "entity"
-        concept_id = ""  # Stage 2 分配
-        note = f"rule: layer_hint=entity"
-        diag = {"ok": True, "attempts": 0, "used_fallback": False, "note": note, "raw": "", "dry_run": False, "method": "schema_rule"}
-        return layer, concept_id, diag
-
-    # ---- 第二级：LLM 判定（auto 或未知类型）----
-    sys_p = build_system_prompt_role()
-    usr_p = build_user_prompt_for_layer(entity, section_summary)
-    content, ok, err, attempts, dry = call_llm(sys_p, usr_p)
-    parsed = _parse_layer(content)
-    raw = content
-
-    if ok and parsed in ("concept", "entity"):
-        layer = parsed
-        concept_id = _gen_concept_id(entity.name) if layer == "concept" else ""
-        note = f"llm: type={ent_type}(auto), occ={occ_count}"
-        diag = {"ok": ok, "attempts": attempts, "used_fallback": False, "note": note, "raw": raw, "dry_run": dry, "method": "llm"}
-        return layer, concept_id, diag
-
-    # ---- 第三级：启发式兜底 ----
-    used_fallback = True
-    weight = float(AggrCfg.get("FALLBACK", {}).get("neighbor_weight", 0.5))
-    threshold = float(AggrCfg.get("FALLBACK", {}).get("threshold", 4))
-    score = occ_count + weight * len(entity.neighbors)
-    layer = "concept" if score >= threshold else "entity"
-    concept_id = _gen_concept_id(entity.name) if layer == "concept" else ""
-    note = f"fallback_heuristic: score={score:.1f} threshold={threshold} -> {layer}"
-    diag = {"ok": ok, "attempts": attempts, "used_fallback": used_fallback, "note": note, "raw": raw, "dry_run": dry, "method": "fallback"}
-    return layer, concept_id, diag
-
-# ========================= 实体→概念分配 + 兜底
-def _is_horizontal(snippet: str) -> bool:
-    head = (snippet or "").split("|", 1)[0].strip().lower()
-    vertical_prefixes = [s.lower() for s in (AggrCfg.get("VERTICAL_REL_TYPES") or [])]
-    return head not in vertical_prefixes and head != "rel"  # cooccur 等视为横向
-
-def _cooccur_weight(s: str) -> int:
-    m = re.search(r"\bw=(\d+)\b", s or "")
-    try:
-        return int(m.group(1)) if m else 0
-    except Exception:
-        return 0
-
-def _build_entity_concept_candidates(entities: Dict[str, EntityItem]) -> Dict[str, List[str]]:
-    """从 concept 的横向邻居里挑 entity 作为子候选"""
-    cand: Dict[str, List[str]] = {}
-    for concept_name, concept_ent in entities.items():
-        if concept_ent.layer != "concept":
-            continue
-        for nb in concept_ent.neighbors:
-            child = entities.get(nb.name)
-            if not child:
-                continue
-            if child.layer == "entity" and _is_horizontal(nb.snippet):
-                cand.setdefault(child.name, []).append(concept_name)
-    return cand
-
-def _fallback_pick_concept_for_entity(ent: EntityItem, entities: Dict[str, EntityItem]) -> Optional[str]:
-    """兜底：优先选择与 entity 共现权重最高的 concept；再同 section 交集；再任取 concept。"""
-    best_concept, best_w = None, -1
-    for nb in ent.neighbors:
-        ce = entities.get(nb.name)
-        if not ce or ce.layer != "concept":
-            continue
-        w = _cooccur_weight(nb.snippet)
-        if w > best_w:
-            best_w, best_concept = w, ce.name
-    if best_concept:
-        return best_concept
-
-    ent_secs = {o.node_id for o in ent.occurrences}
-    if ent_secs:
-        score: Dict[str, int] = {}
-        for cname, cent in entities.items():
-            if cent.layer != "concept":
-                continue
-            c_secs = {o.node_id for o in cent.occurrences}
-            inter = len(ent_secs & c_secs)
-            if inter > 0:
-                score[cname] = inter
-        if score:
-            return max(score.items(), key=lambda kv: kv[1])[0]
-
-    for cname, cent in entities.items():
-        if cent.layer == "concept":
-            return cname
-    return None
-
-# ========================= 关系类型判定（并发）
-def _parse_relation_type(text: str) -> Optional[str]:
-    if not text:
+    m = re.search(r"\b(l1|l2)\b|(概念|实体)", (text or "").lower())
+    if not m:
         return None
-    first = text.splitlines()[0].strip().lower()
-    first = re.sub(r"[\"'`*：:，,。;\\s]+$", "", first)
-    if first in REL_TYPES:
-        return first
-    m = REL_PATTERN.search(text)
-    if m:
-        cand = m.group(1).lower()
-        if cand in REL_TYPES:
-            return cand
-    return None
+    tok = (m.group(1) or m.group(2) or "").lower()
+    return "L1" if tok in ("l1", "概念") else "L2"
 
-def classify_relation_type(core_ent: EntityItem, child_ent: EntityItem) -> str:
-    if DRY_RUN:
-        return "related"
-    sys_p = build_system_prompt_relation()
-    usr_p = build_user_prompt_for_relation(core_ent, child_ent)
-    content, ok, err, attempts, dry = call_llm(sys_p, usr_p)
-    rel = _parse_relation_type(content or "")
-    if rel in REL_TYPES:
-        # 小偏置：如果 core 是方法/函数/算法而 child 不是，优先 applies-to
-        if rel == "related" and any(k in core_ent.type.lower() for k in ["method","function","algorithm"]) and \
-           not any(k in child_ent.type.lower() for k in ["method","function","algorithm"]):
-            return "applies-to"
-        return rel
-    # 兜底
-    if core_ent.name == child_ent.name or (set(core_ent.alias) & set(child_ent.alias)):
-        return "synonym"
-    if any(k in core_ent.type.lower() for k in ["method","function","algorithm"]) and \
-       not any(k in child_ent.type.lower() for k in ["method","function","algorithm"]):
-        return "applies-to"
-    return "related"
 
-def _mk_rel_snippet(rel_type: str, src_layer="concept", dst_layer="entity") -> str:
-    return f"rel|directed|type={rel_type}|src={src_layer}|dst={dst_layer}"
+def _prompt(entity: Dict[str, Any]) -> str:
+    tpl = CFG.get("PROMPT_USER_TEMPLATE") or ""
+    top_neighbors = "、".join(n["name"] for n in (entity.get("neighbors") or [])[:8]) or "（无）"
+    return (tpl
+            .replace("{entity_name}", entity["name"])
+            .replace("{entity_type}", entity["type"])
+            .replace("{definition}", (entity.get("definition") or "（无）")[:300])
+            .replace("{coverage}", str(entity["signals"].get("cross_section_coverage", 0)))
+            .replace("{occurrences}", str(entity["signals"].get("occurrence_count", 0)))
+            .replace("{neighbors}", top_neighbors))
 
-# ========================= 类型补齐（写文件前）
-def _infer_type_from_snippet(sn: str) -> str:
-    if not sn:
-        return ""
-    head = sn.split("|", 1)[0].lower()
-    if head == "rel":
-        m = re.search(r"type=([a-z\\-]+)", sn, flags=re.I)
-        return (m.group(1).lower() if m else "related")
-    return head  # e.g. "cooccur", "has_subordinate" 等
 
-# ========================= 主流程
-def run_aggr():
-    # 路径检查
-    if not CONV_IN_PATH.exists():
-        raise FileNotFoundError(
-            f"未找到 conv 实体文件：{CONV_IN_PATH}\n"
-            f"请确认 KGBuild/output/ 目录或在 aggr.yaml 中设置 CONV_IN_NAME。"
-        )
+# ---------------------------------------------------------------------------
+# 分层
+# ---------------------------------------------------------------------------
 
-    with CONV_IN_PATH.open("r", encoding="utf-8") as f:
-        raw = json.load(f)
+def detect_proper_instance(entity: Dict[str, Any]) -> bool:
+    name = entity["name"].strip()
+    if entity["type"] in set(CFG["PROPER_INSTANCE_TYPES"]):
+        return True
+    if VERSION_RE.search(name) or FILE_RE.search(name) or PROPER_PROPER_RE.search(name):
+        return True
+    if "=" in name or "/" in name or "\\" in name:
+        return True
+    if CONFIG_RE.match(name) and "_" in name:   # max_tokens / top_k
+        return True
+    if MODEL_RE.fullmatch(name) and re.search(r"\d", name):  # GPT-4 / Llama3
+        return True
+    return False
 
-    # 转对象 + LIMIT
-    items = list(raw.items())
-    if LIMIT and LIMIT > 0:
-        items = items[:LIMIT]
 
-    entities: Dict[str, EntityItem] = {}
-    for name, data in items:
-        entities[name] = EntityItem(
-            name=name,
-            alias=data.get("alias", []),
-            type=data.get("type", ""),
-            original=data.get("original", ""),
-            updated_description=data.get("updated_description", ""),
-            occurrences=[Occurrence(**o) for o in data.get("occurrences", [])],
-            neighbors=[Neighbor(**n) for n in data.get("neighbors", [])],
-        )
+def _heuristic_layer(entity: Dict[str, Any]) -> Tuple[str, str]:
+    s = entity["signals"]
+    if detect_proper_instance(entity):
+        return "L2", "heuristic:proper_instance"
+    if s.get("cross_section_coverage", 0) >= 2 and (
+            s.get("has_definition") or s.get("definitional_cue")):
+        return "L1", "heuristic:defined_and_reused"
+    if s.get("cross_section_coverage", 0) >= 2 and s.get("occurrence_count", 0) >= 2:
+        return "L1", "heuristic:reused"
+    if s.get("heading_presence") or s.get("definitional_cue") or s.get("has_definition"):
+        return "L1", "heuristic:heading_or_definition"
+    return "L2", "heuristic:default"
 
-    section_summary = "章节内容摘要"  # 如需，可从文件读取
 
-    # 阶段1：层级判定（并发）—— concept / entity
-    logger.info(f"===== [Stage 1] 层级判定 concept/entity（并发={WORKERS}）=====")
-    def _layer_job(ent: EntityItem) -> Tuple[str, str, str, dict]:
-        layer, concept_id, diag = judge_layer(ent, section_summary)
-        return ent.name, layer, concept_id, diag
-
-    futures = []
-    with ThreadPoolExecutor(max_workers=WORKERS) as ex:
-        for ent in entities.values():
-            futures.append(ex.submit(_layer_job, ent))
-        for fut in tqdm(as_completed(futures), total=len(futures), ncols=PROGRESS_NCOLS, desc="Assign layers"):
-            try:
-                name, layer, concept_id, diag = fut.result()
-                entities[name].layer = layer
-                entities[name].concept_id = concept_id
-                # 兼容旧字段：core=concept, non-core=entity
-                entities[name].role = "core" if layer == "concept" else "non-core"
-                logger.info(f"[layer] {name} -> {layer} | method={diag.get('method','?')} fallback={diag['used_fallback']}")
-            except Exception as e:
-                logger.warning(f"[layer] 任务失败：{e}")
-
-    total_concept = sum(1 for e in entities.values() if e.layer == "concept")
-    total_entity  = sum(1 for e in entities.values() if e.layer == "entity")
-    logger.info(f"层级分布：concept={total_concept}, entity={total_entity}")
-
-    # 阶段2：实体→概念分配（保证每个 entity 至少有一个 concept；TREE_ENFORCE 时单父）
-    logger.info("===== [Stage 2] 分配 entity→concept 并保证覆盖所有 entity =====")
-    candidates = _build_entity_concept_candidates(entities)  # entity_name -> [concept...]
-    chosen: Dict[str, str] = {}
-    for child, parents in candidates.items():
-        if parents:
-            chosen[child] = parents[0]
-
-    for name, ent in entities.items():
-        if ent.layer != "entity":
+def decide_layers(entities: List[Dict[str, Any]], workers: int = 8) -> None:
+    """原地写入 layer / layer_decision。"""
+    pending: List[Dict[str, Any]] = []
+    for e in entities:
+        e["signals"]["proper_instance"] = detect_proper_instance(e)
+        if e["type"] == "待定":
+            e["layer"] = "excluded"
+            e["layer_decision"] = {
+                "rule": "unresolved", "confidence": 0.0,
+                "method": "rule", "reason": "类型待定，LLM 也无法补全类型",
+            }
             continue
-        if name not in chosen:
-            alt = _fallback_pick_concept_for_entity(ent, entities)
-            if alt:
-                chosen[name] = alt
-        # 分配 concept_id
-        if name in chosen:
-            concept_ent = entities[chosen[name]]
-            if concept_ent.concept_id:
-                ent.concept_id = concept_ent.concept_id
-            else:
-                # concept 自身还没 id（理论上不该发生），补一个
-                concept_ent.concept_id = _gen_concept_id(concept_ent.name)
-                ent.concept_id = concept_ent.concept_id
-
-    if TREE_ENFORCE:
-        pass
-
-    logger.info(f"entity 总数={total_entity}，已分配 concept_id={len(chosen)}")
-
-    # 阶段3：LLM 并发判定关系类型 + 写边（仅 concept→entity）
-    logger.info(f"===== [Stage 3] 关系类型判定（并发={WORKERS}）并写边 =====")
-    def _rel_job(child_name: str, parent_name: str) -> Tuple[str, str, str]:
-        concept_ent = entities[parent_name]
-        child_ent   = entities[child_name]
-        rel_type = classify_relation_type(concept_ent, child_ent)
-        return child_name, parent_name, rel_type
-
-    rel_futs = []
-    with ThreadPoolExecutor(max_workers=WORKERS) as ex:
-        for child_name, parent_name in chosen.items():
-            rel_futs.append(ex.submit(_rel_job, child_name, parent_name))
-        for fut in tqdm(as_completed(rel_futs), total=len(rel_futs), ncols=PROGRESS_NCOLS, desc="Classify relations"):
-            try:
-                child_name, parent_name, rel_type = fut.result()
-                concept_ent = entities[parent_name]
-                child_ent   = entities[child_name]
-
-                # 移除两侧横向边
-                old_concept = len(concept_ent.neighbors)
-                concept_ent.neighbors = [
-                    n for n in concept_ent.neighbors
-                    if not (n.name == child_name and _is_horizontal(n.snippet))
-                ]
-                concept_removed = old_concept - len(concept_ent.neighbors)
-
-                old_child = len(child_ent.neighbors)
-                child_ent.neighbors = [
-                    n for n in child_ent.neighbors
-                    if not (n.name == parent_name and _is_horizontal(n.snippet))
-                ]
-                child_removed = old_child - len(child_ent.neighbors)
-
-                # 添加 concept -> entity（不写回指），同时写 type
-                sn = _mk_rel_snippet(rel_type, "concept", "entity")
-                if not any(n.name == child_name and n.snippet == sn for n in concept_ent.neighbors):
-                    concept_ent.neighbors.append(Neighbor(name=child_name, snippet=sn, type=rel_type))
-
-                total_removed = max(concept_removed, 0) + max(child_removed, 0)
-                logger.info(f"[edge] {parent_name} -> {child_name} ({rel_type}) | removed_horizontal={total_removed}")
-            except Exception as e:
-                logger.warning(f"[rel] 任务失败：{e}")
-
-    # —— 写出前统一补齐 neighbors[*].type —— #
-    for ent in entities.values():
-        for nb in ent.neighbors:
-            if not getattr(nb, "type", ""):
-                nb.type = _infer_type_from_snippet(nb.snippet)
-
-    # 写出结果
-    out = {}
-    for name, ent in tqdm(entities.items(), desc="Write results", ncols=PROGRESS_NCOLS):
-        out[name] = {
-            "name": ent.name,
-            "alias": ent.alias,
-            "type": ent.type,
-            "original": ent.original,
-            "updated_description": ent.updated_description,
-            "layer": ent.layer,
-            "concept_id": ent.concept_id,
-            "role": ent.role,  # 旧字段保留兼容
-            "occurrences": [asdict(o) for o in ent.occurrences],
-            "neighbors": [asdict(n) for n in ent.neighbors],
+        decision = SCHEMA.evaluate_layer(e["type"], e["signals"])
+        if decision.needs_llm:
+            pending.append(e)
+            continue
+        e["layer"] = decision.layer
+        e["layer_decision"] = {
+            "rule": decision.rule_id, "confidence": decision.confidence,
+            "method": "rule",
         }
 
-    AGGR_OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with AGGR_OUT_PATH.open("w", encoding="utf-8") as f:
-        json.dump(out, f, ensure_ascii=False, indent=2)
+    if not pending:
+        logger.info("分层：全部由规则命中，未调用 LLM")
+        return
 
-    logger.info(f"完成，共处理 {len(out)} 个实体。输出文件：{AGGR_OUT_PATH}")
-    print(f"\n✅ Aggr 阶段完成（并发 {WORKERS}），日志：{LOG_PATH}")
+    if not CFG.get("LLM_LAYER") or CFG["DRY_RUN"] or not API.get("API_BASE"):
+        for e in pending:
+            layer, reason = _heuristic_layer(e)
+            e["layer"] = layer
+            e["layer_decision"] = {
+                "rule": "default", "confidence": 0.5,
+                "method": "fallback", "reason": reason,
+            }
+        logger.info(f"分层：{len(pending)} 个实体规则未命中，LLM 不可用，使用启发式兜底")
+        return
 
-# ========================= CLI
+    system = CFG.get("PROMPT_SYSTEM") or ""
+    logger.info(f"分层：{len(pending)} 个实体规则未命中，调用 LLM 判定（并发 {workers}）")
+
+    def work(e: Dict[str, Any]) -> Tuple[str, str, str]:
+        layer = _parse_layer(call_llm(system, _prompt(e)))
+        if layer:
+            return e["name"], layer, "llm"
+        layer, reason = _heuristic_layer(e)
+        return e["name"], layer, f"fallback:{reason}"
+
+    result: Dict[str, Tuple[str, str]] = {}
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        futs = [pool.submit(work, e) for e in pending]
+        for fu in as_completed(futs):
+            name, layer, method = fu.result()
+            result[name] = (layer, method)
+
+    for e in pending:
+        layer, method = result.get(e["name"], ("L2", "fallback:missing"))
+        e["layer"] = layer
+        e["layer_decision"] = {
+            "rule": "default",
+            "confidence": 0.7 if method == "llm" else 0.5,
+            "method": "llm" if method == "llm" else "fallback",
+            "reason": "" if method == "llm" else method,
+        }
+
+
+# ---------------------------------------------------------------------------
+# 关系 / 父概念
+# ---------------------------------------------------------------------------
+
+def _merge_relations(raw: List[Dict[str, Any]], by_name: Dict[str, Dict[str, Any]]
+                     ) -> List[Dict[str, Any]]:
+    out: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+    for r in raw:
+        src = by_name.get(r.get("source") or "")
+        tgt = by_name.get(r.get("target") or "")
+        rel = SCHEMA.canonical_relation(r.get("type") or "")
+        if not src or not tgt or not rel or src["name"] == tgt["name"]:
+            continue
+        if src["layer"] == "excluded" or tgt["layer"] == "excluded":
+            continue
+        # example_of 规范方向 L2→L1；模型偶尔写反，翻过来
+        if rel == "example_of" and src["layer"] == "L1" and tgt["layer"] == "L2":
+            src, tgt = tgt, src
+        if not SCHEMA.relation_allowed(rel, src["layer"], tgt["layer"]):
+            continue
+        if SCHEMA.is_symmetric(rel) and src["name"] > tgt["name"]:
+            src, tgt = tgt, src
+        key = (src["id"], tgt["id"], rel)
+        if key not in out:
+            out[key] = {
+                "source": src["id"], "target": tgt["id"],
+                "source_name": src["name"], "target_name": tgt["name"],
+                "type": rel, "layer": f"{src['layer']}-{tgt['layer']}",
+                "description": r.get("description") or "",
+                "keywords": list(dict.fromkeys(r.get("keywords") or [])),
+                "confidence": float(r.get("confidence", 0.5)),
+                "provenance": list(r.get("provenance") or []),
+            }
+        else:
+            cur = out[key]
+            cur["keywords"] = list(dict.fromkeys(cur["keywords"] + (r.get("keywords") or [])))
+            cur["confidence"] = max(cur["confidence"], float(r.get("confidence", 0.5)))
+            cur["provenance"].extend(r.get("provenance") or [])
+    return list(out.values())
+
+
+def _parent_score(child: Dict[str, Any], parent: Dict[str, Any],
+                  rel_pairs: Set[Tuple[str, str]],
+                  sections: Dict[str, Set[str]]) -> float:
+    score = 0.0
+    if (child["name"], parent["name"]) in rel_pairs or (parent["name"], child["name"]) in rel_pairs:
+        score += 8.0
+    for nb in child.get("neighbors") or []:
+        if nb["name"] == parent["name"]:
+            score += 2.0 + float(nb.get("weight", 0))
+            break
+    c_secs, p_secs = sections.get(child["name"], set()), sections.get(parent["name"], set())
+    score += 2.0 * len(c_secs & p_secs)
+    prefs = CFG.get("PARENT_TYPE_PREFERENCE") or {}
+    pref = list(prefs.get(child["type"]) or ["概念", "方法"])
+    if parent["type"] in pref:
+        score += 5.0 - 2.0 * pref.index(parent["type"])
+    if parent.get("definition"):
+        score += 0.5
+    return score
+
+
+def assign_parents(entities: List[Dict[str, Any]],
+                   relations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    by_name = {e["name"]: e for e in entities if e["layer"] != "excluded"}
+    l1 = [e for e in by_name.values() if e["layer"] == "L1"]
+    l2 = [e for e in by_name.values() if e["layer"] == "L2"]
+    rel_pairs = {(r["source_name"], r["target_name"]) for r in relations}
+    sections: Dict[str, Set[str]] = {
+        e["name"]: {o["section_id"] for o in e.get("occurrences") or []}
+        for e in by_name.values()
+    }
+
+    added: List[Dict[str, Any]] = []
+    min_score = float(CFG["PARENT_MIN_SCORE"])
+    for child in l2:
+        best, best_score = None, min_score
+        for parent in l1:
+            if parent["name"] == child["name"]:
+                continue
+            s = _parent_score(child, parent, rel_pairs, sections)
+            if s > best_score:
+                best, best_score = parent, s
+        if not best:
+            continue
+        child["parent_id"] = best["id"]
+        conf = min(0.9, float(CFG["INSTANCE_OF_CONFIDENCE"]) + 0.02 * best_score)
+        added.append({
+            "source": child["id"], "target": best["id"],
+            "source_name": child["name"], "target_name": best["name"],
+            "type": "instance_of", "layer": "L2-L1",
+            "description": f"{child['name']} 归属于 {best['name']}",
+            "keywords": ["归属"],
+            "confidence": round(conf, 2),
+            "provenance": [{"section_id": o["section_id"], "extractor": "aggr.v2"}
+                           for o in child.get("occurrences") or []][:5],
+            "derived": True,
+        })
+    return added
+
+
+# ---------------------------------------------------------------------------
+# 主流程
+# ---------------------------------------------------------------------------
+
+def run(in_path: Optional[Path] = None, out_path: Optional[Path] = None,
+        dry_run: bool = False, limit: int = 0, workers: int = 8) -> int:
+    in_path = in_path or (OUT_DIR / CFG["CONV_IN_NAME"])
+    out_path = out_path or (OUT_DIR / CFG["OUT_NAME"])
+    if not in_path.exists():
+        raise FileNotFoundError(f"未找到输入：{in_path}")
+    with in_path.open("r", encoding="utf-8") as f:
+        conv = json.load(f)
+    if isinstance(conv, list) or "entities" not in conv:
+        raise ValueError("输入不是 v2 conv 产物（需要 {entities:[...]}）")
+
+    if dry_run:
+        CFG["DRY_RUN"] = True
+    limit = limit or int(CFG.get("LIMIT") or 0)
+    entities = [dict(e) for e in conv["entities"]]
+    if limit > 0:
+        entities = entities[:limit]
+
+    for e in entities:
+        e.setdefault("signals", {})
+        e.setdefault("occurrences", [])
+        e.setdefault("neighbors", [])
+        e.setdefault("aliases", [])
+        e.setdefault("provenance", [])
+        e.setdefault("parent_id", "")
+
+    decide_layers(entities, workers=workers)
+
+    kept = [e for e in entities if e["layer"] in ("L1", "L2")]
+    excluded = [e for e in entities if e["layer"] == "excluded"]
+    for e in kept:
+        e["id"] = make_node_id(e["name"], e["layer"])
+
+    by_name = {e["name"]: e for e in kept}
+    relations = _merge_relations(conv.get("relations") or [], by_name)
+    relations.extend(assign_parents(kept, relations))
+
+    # 度数信号
+    degree: Dict[str, int] = defaultdict(int)
+    for r in relations:
+        degree[r["source"]] += 1
+        degree[r["target"]] += 1
+    for e in kept:
+        e["signals"]["degree"] = degree.get(e["id"], 0)
+
+    result = {
+        "schema_version": SCHEMA.version,
+        "doc_id": conv.get("doc_id") or "doc",
+        "entities": kept,
+        "relations": relations,
+        "excluded": [{
+            "name": e["name"], "type": e["type"],
+            "reason": (e.get("layer_decision") or {}).get("reason", "待定类型"),
+        } for e in excluded],
+        "stats": {
+            "input_entities": len(entities),
+            "concepts_L1": sum(1 for e in kept if e["layer"] == "L1"),
+            "entities_L2": sum(1 for e in kept if e["layer"] == "L2"),
+            "excluded": len(excluded),
+            "with_parent": sum(1 for e in kept if e["layer"] == "L2" and e.get("parent_id")),
+            "relations": len(relations),
+            "relations_by_type": dict(Counter(r["type"] for r in relations).most_common()),
+            "layer_method": dict(Counter(
+                (e.get("layer_decision") or {}).get("method", "?") for e in kept).most_common()),
+            "by_type": dict(Counter(e["type"] for e in kept).most_common()),
+        },
+    }
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+
+    st = result["stats"]
+    logger.info(f"✅ Aggr 完成：{out_path.resolve()}")
+    logger.info(f"  L1 {st['concepts_L1']} / L2 {st['entities_L2']} / excluded {st['excluded']}")
+    logger.info(f"  L2 有父概念 {st['with_parent']} / 关系 {st['relations']} {st['relations_by_type']}")
+    logger.info(f"  分层方式：{st['layer_method']}")
+    return 0
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    ap = argparse.ArgumentParser(description="v2 分层与概念归属")
+    ap.add_argument("--input", default=None)
+    ap.add_argument("--output", default=None)
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--workers", type=int, default=int(CFG.get("WORKERS") or 8))
+    ap.add_argument("--loglevel", default="INFO",
+                    choices=["DEBUG", "INFO", "WARNING", "ERROR"])
+    args = ap.parse_args(argv)
+    logger.setLevel(getattr(logging, args.loglevel))
+    if args.dry_run:
+        CFG["DRY_RUN"] = True
+    return run(Path(args.input) if args.input else None,
+               Path(args.output) if args.output else None,
+               args.dry_run, args.limit, args.workers)
+
+
 if __name__ == "__main__":
-    run_aggr()
+    sys.exit(main())

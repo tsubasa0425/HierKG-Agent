@@ -7,60 +7,69 @@ ExtractionConfig:
   # —— LLM 调用参数（step 专属）—— #
   TEMPERATURE: 0.3
 
+  # —— v2 抽取行为 —— #
+  MAX_CHARS: 6000                   # 单次送入 LLM 的最大字符数，超长小节自动分块
+  MAX_NAME_LEN: 40                  # 实体名最大长度
+  MAX_DEFINITION_LEN: 300           # 定义句最大长度
+  DROP_UNGROUNDED: true             # 实体名/别名在原文找不到时直接丢弃
+  SKIP_BLOCK_TYPES: [code, formula] # 不参与抽取的块类型
+  SKIP_UNKNOWN_SECTIONS: true       # 跳过 section_level=unknown 的前置内容
+  RELATION_CONFIDENCE: 0.5          # LLM 关系的默认置信度
+  PROMPT_VERSION: "extraction.v2"   # 写进 provenance，prompt 改动时递增
+  FAIL_FAST: false                  # true = 任一 chunk 失败即中止整条流水线
+
   # —— 提示词模板 —— #
-  # 占位符说明（使用 $Template 语法，避免 JSON 示例里的大括号冲突）：
-  #   ${entity_types_with_desc}   → Extraction.py 启动时从 config/schema.yaml 的 EntityTypes 动态渲染
-  #   ${relation_types_with_desc} → Extraction.py 启动时从 config/schema.yaml 的 RelationTypes.entity_relations 动态渲染
-  #   ${section_text}             → 调用 extract_entities / extract_relations 时填入该小节的原文
-  #   ${entity_list}              → 调用 extract_relations 时填入已识别的实体列表
+  # 占位符说明（$Template 语法，避免 JSON 示例里的大括号冲突）：
+  #   ${entity_types_with_desc}   → 从 schema.v2.yaml 的 NodeTypes 动态渲染
+  #   ${relation_types_with_desc} → 从 schema.v2.yaml 的 RelationTypes 动态渲染
+  #   ${section_text}             → 当前 chunk 的原文
+  #   ${entity_list}              → 当前 chunk 已识别实体名
   ENTITY_PROMPT: |
-    你是知识图谱专家，擅长提取高质量实体。
-    任务：从以下原文中提取实体，并以 JSON 格式输出。
+    你是知识图谱专家，负责从教材原文中抽取可复用的实体。
 
     【本体约束（必须严格遵守）】
-    实体的 "type" 字段只能从以下预定义类型中选择，不得输出列表之外的类型；
-    每个类型附有说明和示例，帮助你做出正确判断：
+    实体的 "type" 只能从以下类型中选择。若确实无法归类，选「待定」，不要自造类型：
     ${entity_types_with_desc}
 
-    要求：
-    1. 实体应为**具体名词短语或专业术语**。
-    2. 若同一概念存在不同表述或符号，请在 "alias" 中列出。
-    3. 所有实体必须能在原文中找到对应表述，避免推测或扩写。
-    4. "type" 必须严格从【本体约束】中选择，不得自造类型。
-    5. 输出必须是合法 JSON，仅包含实体内容，不得包含解释性文字。
+    抽取规则：
+    1. name 必须是原文中出现的名词短语或专业术语，不得改写、翻译或推测。
+    2. 只抽取原文明确提到的内容；旁白、举例中的假设对象、泛指描述不要抽。
+    3. 不要抽取：代码标识符、变量名、函数名、库的导入名、纯数字、页码、章节号、
+       代词（它 / 我们 / 本文）以及通用动词。
+    4. definition：优先摘录原文中包含该实体的定义句（通常含「是指 / 定义为 /
+       称为 / 是一种 / 指的是」）；没有定义句时留空，不要自行概括。
+    5. aliases：只填原文中同样出现过的同义表述、缩写或英文名。
+    6. 同一实体只输出一次，多个别名放进 aliases。
 
     Input Text: ${section_text}
+
     输出格式严格如下（仅 JSON，无额外文字）：
     {
       "entities": [
         {
-          "name": "实体名",
-          "alias": ["别名1", "别名2"],
-          "type": "必须来自本体约束的类型名",
-          "raw_content": "原文中描述该实体的片段"
+          "name": "原文中的实体名",
+          "aliases": ["原文中出现过的别名"],
+          "type": "必须来自本体约束的类型名，无法归类填 待定",
+          "definition": "原文定义句（没有则留空字符串）"
         }
       ]
     }
 
   RELATION_PROMPT: |
-    你是知识图谱专家。
-    任务：基于原文与已识别实体列表，判断各实体之间是否存在语义关系，并以 JSON 格式输出。
+    你是知识图谱专家，负责判断同一段原文中实体之间的语义关系。
 
-    【本体约束（必须严格遵守）】
-    关系的 "type" 字段只能从以下预定义类型中选择，不得输出列表之外的类型；
-    每个类型附有说明，帮助你做出正确判断：
+    【关系闭集（只能用以下类型）】
     ${relation_types_with_desc}
 
     判断规则：
-    1. 每对实体仅选择一种最强关系类型；若无明显关系则忽略。
-    2. 关系说明应简洁明了，不超过一句话。
-    3. 输出必须是合法 JSON，不得包含多余文字或解释。
-    4. "type" 必须严格从【本体约束】中选择，不得自造类型。
-    5. 提取出的关键词需要能够抽象地体现出这段关系的核心内容和逻辑联系，而不仅仅是具体名词：
-       - 应提取能够表示关系本质的抽象概念、逻辑范畴或关系类型的核心要素
-       - 避免仅提取具体的实体名称、专有名词或通用动词
-       - 优先选择能够反映两小节之间逻辑联系的抽象术语或概念
-       - 关键词应具有概括性，能够超越具体内容，体现关系的本质特征
+    1. source / target 必须严格使用「实体列表」中的名字，不得使用别名或原文其他写法。
+    2. 每对实体最多输出一条最强关系；方向必须符合关系定义。
+    3. 不要输出 described_by / appears_in / instance_of，这三类由系统根据证据和分层构造。
+    4. 没有明确语义关系就不要输出；不要为了凑数而使用 related。
+       related 仅用于「确有联系但不符合其他类型」的情况。
+    5. description 用一句话说明依据，不超过 40 字。
+    6. keywords 填能概括关系本质的抽象词，不要只重复实体名。
+    7. 输出必须是合法 JSON，不得包含解释性文字。
 
     Input:
       原文：${section_text}
@@ -70,12 +79,11 @@ ExtractionConfig:
     {
       "relations": [
         {
-          "source": "源实体名",
-          "target": "目标实体名",
-          "type": "必须来自本体约束的关系类型名",
-          "description": "一句话说明两实体的关系",
-          "keywords": ["关键词1", "关键词2", "关键词3",...]
+          "source": "实体列表中的名字",
+          "target": "实体列表中的名字",
+          "type": "必须来自关系闭集",
+          "description": "一句话依据",
+          "keywords": ["抽象关键词1", "抽象关键词2"]
         }
       ]
     }
-    Output must be valid JSON only, without explanation.

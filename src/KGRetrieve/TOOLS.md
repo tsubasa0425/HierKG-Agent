@@ -124,7 +124,7 @@ reg.call("get_schema", {"section": "all"})
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `node_id` | string | ✅ | 节点ID，如 `concept_7446050b` / `ent_db974238` / `ev_1.1.1` |
+| `node_id` | string | ✅ | 节点ID，如 `concept_7446050b` / `ent_db974238` / `ev_Hello-Agents_0:1.1.1` |
 
 **返回结构**：单个节点的完整字段（名称/类型/描述/别名/证据链接等）
 
@@ -156,7 +156,7 @@ reg.call("get_node_by_id", {"node_id": "concept_7446050b"})
   "type": "概念",
   "aliases": ["智能体"],
   "description": "...",
-  "evidence_ids": ["ev_1.4.3"],
+  "evidence_ids": ["ev_Hello-Agents_0:1.4.3"],
   "entities": [ {"entity_id": "ent_xxx", "name": "...", ...} ],  // include_entities=true
   "entity_count": 3
 }
@@ -194,7 +194,7 @@ reg.call("get_node_by_id", {"node_id": "concept_7446050b"})
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| `evidence_id` | string | ✅ | — | L3 证据ID，如 `ev_1.1.1` |
+| `evidence_id` | string | ✅ | — | L3 证据ID，如 `ev_Hello-Agents_0:1.1.1` |
 | `include_snippet` | boolean | 否 | `true` | 是否返回原文片段 |
 | `snippet_chars` | integer | 否 | `2000` | 原文片段最多返回的字符数 |
 
@@ -202,7 +202,7 @@ reg.call("get_node_by_id", {"node_id": "concept_7446050b"})
 
 ```jsonc
 {
-  "node_id": "ev_1.1.1",
+  "node_id": "ev_Hello-Agents_0:1.1.1",
   "node_type": "evidence",
   "name": "传统视角下的智能体",
   "type": "subsection",
@@ -291,7 +291,7 @@ reg.call("get_node_by_id", {"node_id": "concept_7446050b"})
   "node_name": "强化学习",
   "total": 5,
   "evidences": [
-    {"node_id": "ev_1.1.1", "section_path": "...", "snippet": "...", ...}
+    {"node_id": "ev_Hello-Agents_0:1.1.1", "section_path": "...", "snippet": "...", ...}
   ]
 }
 ```
@@ -421,7 +421,7 @@ reg.call("multi_hop_traverse", {
   "query": "传统视角",
   "hits": 3,
   "evidences": [
-    {"node_id": "ev_1.1.1", "title": "传统视角下的智能体",
+    {"node_id": "ev_Hello-Agents_0:1.1.1", "title": "传统视角下的智能体",
      "section_path": "初识智能体 > 什么是智能体? > 传统视角下的智能体",
      "snippet": "...", "match_score": 5.2}
   ]
@@ -487,7 +487,7 @@ reg.call("multi_hop_traverse", {
   "rerank_method": "cross_encoder",   // cross_encoder | keyword_overlap | original_order
   "items": [
     {"node_id": "concept_ffee9ff0", "name": "大语言模型驱动的智能体",
-     "rank_score": 0.972, "related_evidence_ids": ["ev_xxx"]}
+     "rank_score": 0.972, "related_evidence_ids": ["ev_Hello-Agents_0:1.1"]}
   ]
 }
 ```
@@ -521,13 +521,13 @@ reg.call("multi_hop_traverse", {
 {
   "node_count": 3,
   "evidence_count": 5,
-  "context": "### [概念] 学习型智能体 (concept_xxx)\n- 描述: ...\n- 相关证据: [ev_1.1.1] (1.1.1) 传统视角下的智能体\n\n### 相关证据原文\n[ev_1.1.1] (1.1.1 > ...) 传统视角下的智能体\n  原文片段...\n",
+  "context": "### [概念] 学习型智能体 (concept_xxx)\n- 描述: ...\n- 相关证据: [ev_Hello-Agents_0:1.1.1] (1.1.1) 传统视角下的智能体\n\n### 相关证据原文\n[ev_Hello-Agents_0:1.1.1] (1.1.1 > ...) 传统视角下的智能体\n  原文片段...\n",
   "node_ids": ["concept_xxx", "ent_yyy"],
-  "evidence_ids": ["ev_1.1.1", "ev_2.3"]
+  "evidence_ids": ["ev_Hello-Agents_0:1.1.1", "ev_Hello-Agents_0:2.3"]
 }
 ```
 
-**使用建议**：当 Agent 已收集到一批 ID、准备写最终答案时调用一次，把 `context` 字段直接放进回答 prompt；跨节点重复出现的证据会自动去重，引用格式统一为 `[ev_xxx]`，便于答案溯源。
+**使用建议**：当 Agent 已收集到一批 ID、准备写最终答案时调用一次，把 `context` 字段直接放进回答 prompt；跨节点重复出现的证据会自动去重，引用格式统一为 `[ev_Hello-Agents_0:1.1]`，便于答案溯源。
 
 ---
 
