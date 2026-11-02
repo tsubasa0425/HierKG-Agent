@@ -398,17 +398,23 @@ class GetEntitiesOfConceptTool(BaseTool):
 class GetEvidencesOfNodeTool(BaseTool):
     name = "get_evidences_of_node"
     description = (
-        "获取某个 L1 概念或 L2 实体关联的所有 L3 证据（跨层 described_by / appears_in 边）。"
+        "获取某个 L1 概念或 L2 实体关联的 L3 证据（跨层 described_by / appears_in 边）。"
+        "默认按引用强度返回前 8 条（described_by 优先），需要更多时显式提高 limit。"
+        "传入 query（用户问题/检索意图）时，若本地有精排模型，会先按 query 对候选证据精排。"
         "每条证据带 rel 字段：described_by=该证据在“讲”此节点（强/定义性），"
-        "appears_in=该证据只是“提到”此节点（弱/提及性）。直接返回原文片段和章节定位，用于溯源和判断引用强度。"
+        "appears_in=该证据只是“提到”此节点（弱/提及性）。"
+        "直接返回原文片段和章节定位，用于溯源和判断引用强度。"
     )
     parameters = {
         "type": "object",
         "properties": {
             "node_id": {"type": "string", "description": "L1/L2 节点ID"},
+            "query": {"type": "string",
+                      "description": "检索意图/用户问题；传入时用本地 cross-encoder 精排证据（可选）"},
             "include_snippet": {"type": "boolean", "default": True},
             "snippet_chars": {"type": "integer", "default": 1000},
-            "limit": {"type": "integer", "default": 20},
+            "limit": {"type": "integer", "default": 8,
+                      "description": "最多返回多少条证据（默认 8）"},
         },
         "required": ["node_id"],
     }
@@ -433,14 +439,35 @@ class GetEvidencesOfNodeTool(BaseTool):
             if eid not in seen:
                 seen.add(eid)
                 pairs.append((eid, None))
-        limit = int(params.get("limit", 20))
+        pairs.sort(key=lambda p: _REL_PRIORITY.get(p[1], 2))
+        limit = int(params.get("limit", 8))
         snippet_chars = int(params.get("snippet_chars", 1000))
         include_snippet = bool(params.get("include_snippet", True))
+        query = (params.get("query") or "").strip()
+
+        # 有 query + 本地精排模型时多取候选重排；否则只取前 limit 条
+        candidates = []
+        if query and _internal_rerank_ready():
+            for eid, rel in pairs:
+                ev = self.kg.get_evidence(eid)
+                if ev:
+                    candidates.append((eid, rel, ev))
+            order = _rerank_order(
+                query,
+                [f"{ev.name or ''} {ev.section_path or ''} {ev.snippet or ''}"
+                 for _, _, ev in candidates],
+                limit,
+            )
+            if order is not None:
+                candidates = [candidates[i] for i in order]
+        else:
+            for eid, rel in pairs[:limit]:
+                ev = self.kg.get_evidence(eid)
+                if ev:
+                    candidates.append((eid, rel, ev))
+
         evidences: List[Dict] = []
-        for eid, rel in pairs[:limit]:
-            ev = self.kg.get_evidence(eid)
-            if not ev:
-                continue
+        for eid, rel, ev in candidates[:limit]:
             d = ev.to_dict()
             d["rel"] = rel
             if not include_snippet:
@@ -597,8 +624,11 @@ class SearchEvidencesTool(BaseTool):
     }
 
     def _run(self, params: Dict[str, Any]) -> ToolResult:
+        limit = int(params.get("limit", 10))
         hits = self.kg.search_by_name(params["query"], node_type="evidence",
-                                      limit=int(params.get("limit", 10)) + 30)
+                                      limit=limit + 30)
+        # 多召回 30 条后用本地 cross-encoder 精排（模型缺失时保持原序）
+        hits = _rerank_node_hits(params["query"], hits, limit)
         include_snippet = bool(params.get("include_snippet", True))
         snippet_chars = int(params.get("snippet_chars", 800))
         results = []
@@ -636,9 +666,10 @@ class SemanticSearchTool(BaseTool):
     def _run(self, params: Dict[str, Any]) -> ToolResult:
         q = params["query"]
         lim = int(params.get("per_layer_limit", 8))
-        c = [(n, s) for n, s in self.kg.search_by_name(q, "concept", lim + 5)]
-        e = [(n, s) for n, s in self.kg.search_by_name(q, "entity", lim + 5)]
-        v = [(n, s) for n, s in self.kg.search_by_name(q, "evidence", lim + 5)]
+        # 每层多召回 5 条，再用本地 cross-encoder 精排到 lim 条（模型缺失时保持原序）
+        c = _rerank_node_hits(q, self.kg.search_by_name(q, "concept", lim + 5), lim)
+        e = _rerank_node_hits(q, self.kg.search_by_name(q, "entity", lim + 5), lim)
+        v = _rerank_node_hits(q, self.kg.search_by_name(q, "evidence", lim + 5), lim)
 
         def convert(items, extra_fn=None):
             out = []
@@ -679,6 +710,8 @@ os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 
 _RERANKER: Optional[Any] = None
 _RERANKER_LOCK = threading.Lock()
+# 推理串行化：Agent 同一轮会并发调用多个检索工具，避免多线程同时跑同一个模型
+_RERANK_INFER_LOCK = threading.Lock()
 _RERANKER_MODEL = str(Path(__file__).resolve().parent / "models" / "bge-reranker-v2-m3")
 
 
@@ -710,6 +743,45 @@ def _node_search_text(node: Node) -> str:
 def _sigmoid(x: float) -> float:
     """cross-encoder 原始 logit → 0~1 相关度，便于 Agent 阅读"""
     return 1.0 / (1.0 + math.exp(-x))
+
+
+# —— 检索工具内部精排 ——
+# 只读本地模型（不触发 HF 下载）：模型缺失时保持工具原本的召回顺序，避免一次
+# 普通检索卡在 2.2GB 下载上。需要让 rank_results 走远程下载时仍由它自己处理。
+_INTERNAL_RERANK_ENABLED = os.getenv("HIERKG_INTERNAL_RERANK", "1").strip().lower() not in {
+    "0", "false", "off",
+}
+_RERANKER_LOCAL_FILE = Path(_RERANKER_MODEL) / "model.safetensors"
+# 证据引用强度：定义性边优先于提及性边
+_REL_PRIORITY = {"described_by": 0, "appears_in": 1}
+
+
+def _internal_rerank_ready() -> bool:
+    return _INTERNAL_RERANK_ENABLED and _RERANKER_LOCAL_FILE.exists()
+
+
+def _rerank_order(query: str, texts: List[str], top_n: int) -> Optional[List[int]]:
+    """本地 cross-encoder 给候选排序，返回前 top_n 的下标；不可用/失败返回 None。"""
+    if not query.strip() or not texts or not _internal_rerank_ready():
+        return None
+    try:
+        reranker = _get_reranker()
+        with _RERANK_INFER_LOCK:
+            raw = reranker.predict([(query, text) for text in texts])
+        return sorted(range(len(texts)), key=lambda i: float(raw[i]), reverse=True)[:top_n]
+    except Exception as exc:  # 模型/依赖不可用 → 调用方保持原顺序
+        logger.warning("检索内精排失败，保持原顺序: %s", exc)
+        return None
+
+
+def _rerank_node_hits(
+    query: str, hits: List[Tuple[Node, float]], limit: int
+) -> List[Tuple[Node, float]]:
+    """对 (node, score) 候选做内部精排；精排不可用时退回原顺序前 limit 条。"""
+    order = _rerank_order(query, [_node_search_text(n) for n, _ in hits], limit)
+    if order is None:
+        return hits[:limit]
+    return [hits[i] for i in order]
 
 
 class RankResultsTool(BaseTool):
@@ -759,7 +831,8 @@ class RankResultsTool(BaseTool):
             # —— 首选：cross-encoder 精排（bge-reranker-v2-m3）——
             try:
                 reranker = _get_reranker()
-                raw = reranker.predict([(intent, text) for _, _, text in candidates])
+                with _RERANK_INFER_LOCK:
+                    raw = reranker.predict([(intent, text) for _, _, text in candidates])
                 scores = [_sigmoid(float(s)) for s in raw]
                 rerank_method = "cross_encoder"
             except Exception as exc:
@@ -820,7 +893,8 @@ class AssembleContextTool(BaseTool):
     description = (
         "把已经收集到的节点/证据 ID 组装成一段紧凑、去重、带溯源标注的 context 文本，"
         "可直接粘进回答 prompt。它只做格式化（拼块/去重/截断/贴引用 ID），"
-        "不做任何取舍：查什么、信什么由你（Agent）自己决定。"
+        "不做语义取舍：查什么、信什么由你（Agent）自己决定。"
+        "显式传入的 evidence_ids 优先，其余按节点关联补，总量受 max_evidence 截断。"
         "当检索结果较多、想控制 token 预算、或需要统一引用格式（[ev_xxx]）时调用。"
     )
     parameters = {
@@ -838,7 +912,9 @@ class AssembleContextTool(BaseTool):
             },
             "max_nodes": {"type": "integer", "default": 20, "description": "最多组装多少个节点"},
             "max_evidence_per_node": {"type": "integer", "default": 5,
-                                      "description": "每个节点下列出多少条相关证据引用"},
+                                      "description": "每个节点最多补多少条关联证据（默认 5）"},
+            "max_evidence": {"type": "integer", "default": 12,
+                             "description": "证据原文的全局上限（默认 12 条）"},
             "snippet_chars": {"type": "integer", "default": 400,
                               "description": "每条证据原文片段最多多少字符"},
         },
@@ -852,6 +928,7 @@ class AssembleContextTool(BaseTool):
         nids = params.get("node_ids") or []
         max_nodes = int(params.get("max_nodes", 20))
         max_ev_per_node = int(params.get("max_evidence_per_node", 5))
+        max_evidence = int(params.get("max_evidence", 12))
         snippet_chars = int(params.get("snippet_chars", 400))
         extra_ev = params.get("evidence_ids") or []
 
@@ -874,7 +951,7 @@ class AssembleContextTool(BaseTool):
         for evid in extra_ev:
             add_ev(evid)
         for node in nodes:
-            for eid in _evidence_ids_of_node(self.kg, node):
+            for eid in _evidence_ids_of_node(self.kg, node)[:max_ev_per_node]:
                 add_ev(eid)
             if node.node_type == "evidence":  # 证据节点本身也作为证据入块
                 add_ev(node.node_id)
@@ -884,6 +961,7 @@ class AssembleContextTool(BaseTool):
             ev = self.kg.get_evidence(eid)
             if ev:
                 evidences.append(ev)
+        evidences = evidences[:max_evidence]
 
         # —— 组装文本块 ——
         type_label = {"concept": "概念", "entity": "实体", "evidence": "证据"}

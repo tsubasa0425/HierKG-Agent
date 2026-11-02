@@ -24,7 +24,7 @@
 | Neo4j | 图结构持久化（节点 / 边 / 多跳遍历） |
 | ChromaDB | 语义向量检索 |
 | Ollama（bge-m3） | 检索侧 embedding |
-| sentence-transformers + bge-reranker-v2-m3 | `rank_results` 的精排模型（本地 models/，从 ModelScope / HF 镜像下载）。Python 依赖随 `uv sync` 默认安装；模型缺失或加载失败时 `rank_results` 自动降级为关键词重叠打分 |
+| sentence-transformers + bge-reranker-v2-m3 | 检索工具内部精排与 `rank_results` 共用的模型（本地 models/，从 ModelScope / HF 镜像下载）。Python 依赖随 `uv sync` 默认安装；模型缺失时内部精排保持原召回顺序，`rank_results` 则降级为关键词重叠打分 |
 
 ### 初始化
 
@@ -77,7 +77,7 @@ Agent 侧（Claude Code `.mcp.json` 风格）：
 | **关联查询** | 3 | `get_relations` / `get_entities_of_concept` / `get_evidences_of_node` | 查邻居、查跨层关联 |
 | **跨概念遍历** | 1 | `multi_hop_traverse` | BFS 多跳找路径 |
 | **模糊搜索** | 4 | `search_concepts` / `search_entities` / `search_evidences` / `semantic_search` | 不知道 ID，按关键词/语义探索 |
-| **二次加工** | 2 | `rank_results` / `assemble_context` | 精排候选 / 组装可粘贴的 context 块 |
+| **二次加工** | 2 | `rank_results` / `assemble_context` | 显式重排候选 / 组装可粘贴的 context 块 |
 
 ---
 
@@ -272,16 +272,17 @@ reg.call("get_node_by_id", {"node_id": "concept_7446050b"})
 
 #### `get_evidences_of_node`
 
-获取某个 L1 概念或 L2 实体关联的所有 L3 证据（appears_in / described_by 跨层关系），直接返回原文片段和章节定位，用于溯源。
+获取某个 L1 概念或 L2 实体关联的 L3 证据（appears_in / described_by 跨层关系），直接返回原文片段和章节定位，用于溯源。默认按引用强度返回前 8 条（`described_by` 优先），需要更多时显式提高 `limit`。传入 `query` 且本地有精排模型时，会先按 query 对候选证据精排。
 
 **参数**
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
 | `node_id` | string | ✅ | — | L1/L2 节点ID |
+| `query` | string | 否 | — | 检索意图/用户问题；传入时用本地 cross-encoder 精排证据 |
 | `include_snippet` | boolean | 否 | `true` | 是否返回原文片段 |
 | `snippet_chars` | integer | 否 | `1000` | 原文片段最多字符数 |
-| `limit` | integer | 否 | `20` | 最多返回的证据数 |
+| `limit` | integer | 否 | `8` | 最多返回的证据数（默认 8，需要时显式调高） |
 
 **返回结构**
 
@@ -454,6 +455,8 @@ reg.call("multi_hop_traverse", {
 
 **使用建议**：这是探索型问题的「第一步」工具，拿到候选 ID 后再用精确查找 / 关联查询 / 多跳遍历深入。
 
+> **内部精排**：`semantic_search` / `search_evidences` / `get_evidences_of_node` 在本地存在 `models/bge-reranker-v2-m3/` 时会自动用 cross-encoder 重排候选；模型缺失时保持原召回顺序（不会触发下载）。设置 `HIERKG_INTERNAL_RERANK=0` 可关闭。`rank_results` 仍保留，用于需要显式二次排序的场景。
+
 ---
 
 ### 4.5 二次加工组
@@ -465,7 +468,7 @@ reg.call("multi_hop_traverse", {
 对前几步检索返回的候选节点列表做二次精排。
 
 **两种模式**：
-- **精排模式**（推荐）：传入 `node_ids` + `intent_query`，用本地 **bge-reranker-v2-m3（cross-encoder）** 对 query × 每个候选打分，按相关度降序返回 top_n。模型能看到 query 与候选的逐词交互，比向量相似度准得多。模型可放本地 `models/bge-reranker-v2-m3/`（约 2.2GB，可从 ModelScope / HF 镜像下载）；本地缺失时会自动从 HF 镜像拉取到 Hugging Face 缓存（`HF_ENDPOINT=hf-mirror.com` 已在 tools.py 默认设置）。**依赖默认安装**（`sentence-transformers` 与 CPU 版 `torch`，随 `uv sync` 一起装好）；模型或依赖不可用时自动降级为关键词重叠打分
+- **精排模式**：传入 `node_ids` + `intent_query`，用本地 **bge-reranker-v2-m3（cross-encoder）** 对 query × 每个候选打分，按相关度降序返回 top_n。模型能看到 query 与候选的逐词交互，比向量相似度准得多。模型可放本地 `models/bge-reranker-v2-m3/`（约 2.2GB，可从 ModelScope / HF 镜像下载）；本地缺失时会自动从 HF 镜像拉取到 Hugging Face 缓存（`HF_ENDPOINT=hf-mirror.com` 已在 tools.py 默认设置）。**依赖默认安装**（`sentence-transformers` 与 CPU 版 `torch`，随 `uv sync` 一起装好）；模型或依赖不可用时自动降级为关键词重叠打分
 - **手动挑选模式**：只传 `node_ids` 不传 `intent_query`，按原顺序截取 top_n
 
 **参数**
@@ -495,7 +498,8 @@ reg.call("multi_hop_traverse", {
 > `rank_score` 在 cross-encoder 模式下是 sigmoid 后的 0~1 相关度；若模型加载失败会降级为关键词重叠打分（`rerank_method=keyword_overlap`），模型不可用时返回 `original_order`。
 
 **使用建议**：
-- 当前面的搜索工具返回太多结果（如 `search_concepts` 返回 15 条），而你只想要最相关的 3-5 条时，用精排模式
+- 检索工具（`semantic_search` / `search_evidences` / `get_evidences_of_node`）在本地模型可用时已自动精排，**通常不需要再调用 `rank_results`**
+- 需要用一个与召回 query 不同的意图，对**已经收集好的候选 ID 列表**重新排序时，才用精排模式
 - 当 Agent 已经自己挑好了一些 ID（基于 LLM 的判断），只想按原顺序取前 N 条时，用手动挑选模式
 - 精排只对候选集（top 20~50）生效，属于检索侧，不依赖 LLM
 
@@ -503,16 +507,17 @@ reg.call("multi_hop_traverse", {
 
 #### `assemble_context`
 
-把已经收集到的节点/证据 ID 组装成一段紧凑、去重、带溯源标注的 **context 文本**，可直接粘进回答 prompt。它**只做格式化**（拼块/去重/截断/贴引用 ID），不做任何取舍决策——查什么、信什么由 Agent 自己决定。
+把已经收集到的节点/证据 ID 组装成一段紧凑、去重、带溯源标注的 **context 文本**，可直接粘进回答 prompt。它**只做格式化**（拼块/去重/截断/贴引用 ID），不做语义取舍——查什么、信什么由 Agent 自己决定。显式传入的 `evidence_ids` 优先，其余按节点关联补，总量受 `max_evidence` 截断。
 
 **参数**
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
 | `node_ids` | array<string> | ✅ | — | 已收集的 concept/entity/evidence node_id 列表 |
-| `evidence_ids` | array<string> | 否 | — | 额外要带的证据 ID；不传则自动取各节点关联的证据 |
+| `evidence_ids` | array<string> | 否 | — | 额外要带的证据 ID（优先保留）；不传则自动取各节点关联的证据 |
 | `max_nodes` | integer | 否 | `20` | 最多组装多少个节点 |
-| `max_evidence_per_node` | integer | 否 | `5` | 每个节点下列出多少条相关证据引用 |
+| `max_evidence_per_node` | integer | 否 | `5` | 每个节点最多补多少条关联证据 |
+| `max_evidence` | integer | 否 | `12` | 证据原文的全局上限 |
 | `snippet_chars` | integer | 否 | `400` | 每条证据原文片段最多多少字符 |
 
 **返回结构**
@@ -527,7 +532,7 @@ reg.call("multi_hop_traverse", {
 }
 ```
 
-**使用建议**：当 Agent 已收集到一批 ID、准备写最终答案时调用一次，把 `context` 字段直接放进回答 prompt；跨节点重复出现的证据会自动去重，引用格式统一为 `[ev_Hello-Agents_0:1.1]`，便于答案溯源。
+**使用建议**：当 Agent 已收集到一批 ID、准备写最终答案时调用一次，把 `context` 字段直接放进回答 prompt；跨节点重复出现的证据会自动去重，引用格式统一为 `[ev_Hello-Agents_0:1.1]`，便于答案溯源。证据原文默认最多 12 条，超出时按 `max_evidence` 截断；需要更多时显式调高。
 
 ---
 
@@ -588,11 +593,9 @@ Step 2  Thought: 查两个概念之间有没有直接关系 / 多跳路径
 Step 3  Thought: 用户还问了「有哪些具体实例」——对应 instance_of
         Tool: get_entities_of_concept(concept_id=cid_a, limit=10)
 
-Step 4  Thought: 实例太多，按「强化学习」相关度重排
-        Tool: rank_results(node_ids=[...], intent_query="强化学习 实例 应用场景", top_n=5)
-
-Step 5  Thought: 拉取 top-1 实例的 L3 证据，供答案溯源
-        Tool: get_evidences_of_node(node_id=best_ent_id, snippet_chars=400)
+Step 4  Thought: 实例太多——直接对最相关实例取证据，工具会按 query 内部精排
+        Tool: get_evidences_of_node(node_id=best_ent_id, query="强化学习 实例 应用场景",
+                                     limit=5, snippet_chars=400)
 ```
 
 ---

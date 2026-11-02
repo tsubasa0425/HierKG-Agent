@@ -20,7 +20,7 @@
 uv sync
 ```
 
-`uv sync` 会创建 `.venv/` 并按 `uv.lock` 精确安装。依赖包含 `sentence-transformers` 与 CPU 版 `torch`（供 `rank_results` 精排使用，无需 CUDA）。
+`uv sync` 会创建 `.venv/` 并按 `uv.lock` 精确安装。依赖包含 `sentence-transformers` 与 CPU 版 `torch`（供检索工具内精排与 `rank_results` 使用，无需 CUDA）。
 
 国内网络可加镜像加速：
 
@@ -49,7 +49,7 @@ source .venv/Scripts/activate    # Windows bash
   ollama pull bge-m3
   ```
 
-- （可选）`rank_results` 的精排模型 `bge-reranker-v2-m3` 约 2.2GB：放到 `src/KGRetrieve/models/bge-reranker-v2-m3/` 可离线使用；缺失时首次调用会自动从 HF 镜像下载到缓存。
+- （可选）精排模型 `bge-reranker-v2-m3` 约 2.2GB：放到 `src/KGRetrieve/models/bge-reranker-v2-m3/` 可离线使用。本地存在时，`semantic_search` / `search_evidences` / `get_evidences_of_node` 会自动用它重排候选；缺失时这些工具保持原召回顺序，只有显式调用 `rank_results` 才会尝试从 HF 镜像下载。设置 `HIERKG_INTERNAL_RERANK=0` 可关闭内部精排。
 
 ### 3. 配置
 
@@ -61,7 +61,7 @@ cp src/KGBuild/config/config.yaml.example src/KGBuild/config/config.yaml
 
 ### 4. 构建知识图谱
 
-一键串联整条流水线（docx 解析 → 实体抽取 → toc_graph → 证据构建 → 格式转换 → 分层 → 嵌入 → 去重 → 关系预测 → 四层装配）：
+一键串联整条流水线（docx 解析 → 实体抽取 → toc_graph → 证据构建 → 实体归并/定义补全 → 分层 → 嵌入 → 去重 → 关系预测 → 四层装配）：
 
 ```bash
 python src/KGBuild/pipeline.py          # 完整跑一遍
@@ -91,6 +91,18 @@ npm run dev
 浏览器打开 `http://localhost:5777`。前端通过 Vite 把 `/api` 代理到 `http://127.0.0.1:8000`；若后端换了端口，启动前端时用 `VITE_API_TARGET=http://127.0.0.1:<端口> npm run dev` 覆盖，无需改代码。
 
 ## 工作原理
+
+### 从文档到回答
+
+```text
+docx → 10 步离线构图 → final_kg.json / build_manifest.json
+                              ↓
+                   Neo4j（图遍历） + Chroma（向量召回）
+                              ↓
+              提问 → 定位入口 → 图内扩展 → 取证据 → 带引用回答
+```
+
+构图只写离线产物；查询只读图谱，不触发重建。
 
 ### 四层知识图谱模型
 
@@ -198,7 +210,7 @@ search_evidences        →  get_evidence_by_id（取证据原文）
 | `search_entities` | 按名称/语义模糊搜索 L2 实体 |
 | `search_evidences` | 按关键词搜索 L3 证据 |
 | `semantic_search` | 跨层语义搜索（bge-m3 向量 + 名称混合） |
-| `rank_results` | 对候选 node_id 用 bge-reranker-v2-m3 做 cross-encoder 精排，模型不可用时自动降级为关键词重叠 |
+| `rank_results` | 显式对候选 node_id 做 cross-encoder 精排；检索工具已内置精排，通常无需单独调用，模型不可用时自动降级为关键词重叠 |
 | `assemble_context` | 把收集到的 ID 组装成带溯源标注、可粘贴的 context 块 |
 
 后端为 `KGDBMemory`（Neo4j + ChromaDB + Ollama），可通过 `python -m src.KGRetrieve.mcp_server` 暴露为 MCP server，供 Pi Agent / Claude 等 Agent 直连调用。
@@ -212,7 +224,7 @@ HierKG-Agent/
 │   │   ├── TextSegmentation.py     # docx → TOC + 原文小节
 │   │   ├── Extraction.py           # 小节 → 实体/关系抽取
 │   │   ├── toc_graph.py            # 构建 toc_graph.json
-│   │   ├── Conv.py                 # 结果格式转换
+│   │   ├── Conv.py                 # 实体归并 + 证据化定义补全
 │   │   ├── Aggr.py                 # concept/entity 分层判定
 │   │   ├── Embedding.py            # Ollama 向量化 → node_embeddings.pkl
 │   │   ├── Dedup.py                # 概念去重（调用 dedup/ 子包）

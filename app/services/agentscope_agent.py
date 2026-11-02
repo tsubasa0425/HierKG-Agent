@@ -93,6 +93,12 @@ def build_system_prompt(registry) -> str:
 </workflow>
 <tool_policy>
 - 各检索工具带 limit 参数，控制单次拉取量。
+- 检索深度与问题匹配：定义/「是什么」类问题通常 3–5 次工具调用足够；
+  多跳遍历只用于多概念、对比或关系类问题，不要为了穷举而遍历。
+- get_evidences_of_node 默认只返回前 8 条；传入 query（用户问题/检索意图）可让工具
+  内部精排挑最相关的证据，证据不足时再显式提高 limit。
+- semantic_search / search_evidences / get_evidences_of_node 在本地精排模型可用时
+  会自动重排；通常不需要再调用 rank_results。
 - 多个独立检索可并行：一个问题需要多个关键词/多个角度时，在同一轮一次发起多个检索
   工具调用（search_concepts / search_entities / search_evidences / semantic_search /
   get_*_by_id / get_relations 等），并行拿回后统一汇总，避免串行等待。
@@ -100,6 +106,12 @@ def build_system_prompt(registry) -> str:
 - 若用户问题与图谱检索无关（闲聊 / 自我介绍），不要调用任何检索工具，直接作答；
   介绍自己时基于上方可用工具说明身份、检索能力与作答方式，不必强行引用证据。
 </tool_policy>
+<citation_policy>
+- 每个论点只标注 1–2 条最直接的证据，优先 described_by（定义性）而非 appears_in（仅提及）。
+- 全篇引用总数建议不超过 10 条；get_evidences_of_node / assemble_context 返回的是候选池，
+  不是必须全部引用的清单，不要为了覆盖而罗列检索到的所有证据。
+- 同一小节的多条证据合并引用即可；与论点无关的证据不要出现在答案里。
+</citation_policy>
 <output_format>中文 Markdown，用 [ev_xxx] 标注来源章节；证据不足明说，不编造。</output_format>
 <termination>证据足够即停止调用工具，给出最终答案；严禁输出任何工具调用标记（XML / DSML 一律禁止）。</termination>"""
 

@@ -48,10 +48,16 @@ const { Text, Title } = Typography;
 
 const LS_KEY = 'hierkg_session_id';
 
-// 证据引用徽章：把答案里的 [ev_1.1.1] / [ev_1.4#2] 内部编码转成可读的章节徽章。
-const CITE_RE = /\[ev_([0-9.]+)(?:#[0-9]+)?\]/g;
+// 证据引用徽章：把答案里的 [ev_1.1.1] / [ev_Hello-Agents_0:1.1.1] 转成可读的章节徽章。
+const CITE_RE = /\[(ev_[^\]]+)\]/g;
+/** ev_Hello-Agents_0:1.1.1 → 1.1.1；ev_1.1.1#2 → 1.1.1（兼容旧的纯数字 id）。 */
+function secOf(evId: string): string {
+  if (!evId.startsWith('ev_')) return '';
+  const i = evId.lastIndexOf(':');
+  return (i >= 0 ? evId.slice(i + 1) : evId.slice(3)).replace(/#\d+$/, '');
+}
 function formatAnswer(text: string): string {
-  return text.replace(CITE_RE, (_m, sec: string) => '`§' + sec + '`');
+  return text.replace(CITE_RE, (_m, id: string) => '`§' + secOf(id) + '`');
 }
 const { Sider, Content } = Layout;
 
@@ -120,8 +126,8 @@ function usageLine(usage: UsageInfo | undefined): string {
 // 答题溯源：答案原文里的 [ev_xxx] ↔ 证据 id / 章节号 映射
 // ---------------------------------------------------------------------------
 
-/** 恢复精确 ev id：含 #序号（ev_1.1.1#2），去掉引号外层仅剩 id 本身。 */
-const EV_ID_RE = /\[(ev_[0-9.]+(?:#[0-9]+)?)\]/g;
+/** 恢复精确 ev id：支持 ev_1.1.1#2 与 ev_Hello-Agents_0:1.1.1 两种格式。 */
+const EV_ID_RE = /\[(ev_[^\]]+)\]/g;
 /** 从原始 answer 按出现顺序恢复被引证据 id（去重）。store 存的是原文，仍含 [ev_xxx]。 */
 function citedEvidenceIds(answer: string): string[] {
   const out: string[] = [];
@@ -149,11 +155,6 @@ function resolveSeeds(turn: ChatTurn): string[] {
   return list;
 }
 
-/** ev_1.1.1#2 → '1.1.1'（与徽章 §sec 对齐）；非 ev_ 前缀返回 ''。 */
-function secOf(evId: string): string {
-  return evId.startsWith('ev_') ? evId.slice(3).split('#')[0] : '';
-}
-
 /** 按章节号组匹配（同章节多条，如 ev_1.1.1 与 ev_1.1.1#2）。 */
 function matchBySec(seeds: string[], sec: string): string[] {
   return seeds.filter((id) => secOf(id) === sec);
@@ -164,6 +165,8 @@ type ProvState = {
   open: boolean;
   turnId: number;
   seeds: string[];
+  /** 正文实际引用的证据 id（与检索足迹区分） */
+  cited: string[];
   data: ProvenanceResponse | null;
   loading: boolean;
   /** 图 + 原文列表当前高亮的证据 id 集合 */
@@ -524,6 +527,7 @@ export default function AgentChat() {
   // ---- 答题溯源：打开 / 聚焦 ----
   const openProvenance = (turn: ChatTurn, focusSec?: string) => {
     const evSeeds = resolveSeeds(turn);
+    const cited = citedEvidenceIds(turn.answer ?? '');
     // 高亮请求：证据种子 + 足迹触及的实体/概念（nodeIds）也一起高亮为"答题路径"
     const reqIds = [...evSeeds];
     for (const nid of turn.nodeIds ?? []) {
@@ -531,10 +535,10 @@ export default function AgentChat() {
     }
     if (evSeeds.length === 0) {
       // 纯闲聊无引用：空态即可
-      setProv({ open: true, turnId: turn.id, seeds: reqIds, data: null, loading: false, highlight: [], failed: false });
+      setProv({ open: true, turnId: turn.id, seeds: reqIds, cited, data: null, loading: false, highlight: [], failed: false });
       return;
     }
-    setProv({ open: true, turnId: turn.id, seeds: reqIds, data: null, loading: true, highlight: [], scrollTo: null, failed: false });
+    setProv({ open: true, turnId: turn.id, seeds: reqIds, cited, data: null, loading: true, highlight: [], scrollTo: null, failed: false });
     getGraphProvenance(reqIds, 1)
       .then((res) => {
         setProv((p) => {
@@ -571,6 +575,10 @@ export default function AgentChat() {
     }
     for (const [sec, ids] of bySec) provGroups.push({ sec, ids });
   }
+  // 引用 vs 检索足迹：details 覆盖两者，只有正文里出现过的才算引用
+  const detailCount = prov?.data ? Object.keys(prov.data.details).length : 0;
+  const resolvedCited = prov?.cited.filter((id) => prov.data?.details[id]) ?? [];
+  const footprintCount = Math.max(0, detailCount - resolvedCited.length);
 
   return (
     <div style={{ margin: -24, height: 'calc(100vh - 64px)' }}>
@@ -710,10 +718,13 @@ export default function AgentChat() {
           <Space>
             <NodeIndexOutlined style={{ color: '#fa8c16' }} />
             答题溯源
-            {prov?.data && Object.keys(prov.data.details).length > 0 && (
+            {prov?.data && resolvedCited.length > 0 && (
               <Tag color="orange" style={{ marginInlineEnd: 0 }}>
-                {Object.keys(prov.data.details).length} 处引用
+                {resolvedCited.length} 处引用
               </Tag>
+            )}
+            {prov?.data && footprintCount > 0 && (
+              <Tag style={{ marginInlineEnd: 0 }}>{footprintCount} 条检索足迹</Tag>
             )}
           </Space>
         }
@@ -768,7 +779,7 @@ export default function AgentChat() {
 
             <div className="prov-section-label">
               <FileTextOutlined style={{ marginRight: 6, color: '#fa8c16' }} />
-              引用证据原文
+              证据原文（引用 / 检索足迹）
               <Text type="secondary" style={{ fontSize: 12, fontWeight: 400, marginLeft: 8 }}>
                 点击卡片可在上方图谱定位
               </Text>
@@ -819,6 +830,13 @@ export default function AgentChat() {
                             <Text strong style={{ fontSize: 13 }}>
                               {d.name || id}
                             </Text>
+                            {prov?.cited.includes(id) ? (
+                              <Tag color="orange" style={{ marginInlineEnd: 0 }}>
+                                引用
+                              </Tag>
+                            ) : (
+                              <Tag style={{ marginInlineEnd: 0 }}>足迹</Tag>
+                            )}
                           </Space>
                           {d.section_path && <Tag style={{ marginInlineEnd: 0 }}>{d.section_path}</Tag>}
                         </div>
