@@ -1,0 +1,135 @@
+{
+  "schema_version": "1.0",
+  "built_at": "2026-11-02T06:13:12+00:00",
+  "doc_id": "Hello-Agents_0",
+  "doc_hashes": {
+    "Hello-Agents_0": "4340d6ee2d39aae16f880d5a9cba3df4f4a59544"
+  },
+  "section_hashes": {
+    "1": "b4e301ecd1a6a96fffd093a380f9afb78dc5379c",
+    "1.1": "954e053fea6e7fe66b0982cd7ea1ea4d9f9df1e1",
+    "1.1.1": "ac0f405db755406f96cd4c1a75164b30f9b0be2e",
+    "1.1.2": "9ba4972a1313c32f9a93a0b073333aa34d59e5ac",
+    "1.1.3": "a8675953994db82ac29ad8bed03bfdc382914405",
+    "1.2.1": "c5e97366ae6a0dfadb286eb317941d06179956f0",
+    "1.2.2": "0bc0e72f3251127683dfbea9b75a71d1fbc43f7c",
+    "1.2.3": "e0a2ded79820f2d58381d0c1c06111c76160c963",
+    "1.3": "e8a66e282ad7cb5c722b517bbf1d02879e5e26fb",
+    "1.3.1": "56ad2b4c113d6d3dfe8ec5de27cb9a82fc7df6a9",
+    "1.3.2": "2f1ae0858c7ce8ba3659073ff0cb009fe110725e",
+    "1.3.3": "6a86e782b49b3f8f2c94293c3cfa65ca1697be8e",
+    "1.3.4": "98af05f8b017d8a6bd2f5a952c6b2e747a2ec56e",
+    "path_e77fe0a5": "4073ce04da7c1a575d165f1b86f70a0774dea4c5",
+    "1.4.1": "3c7c7ae3fe95f8205e0c54f1c00a71e87f74d805",
+    "1.4.2": "a8c49711c21c6831f74fd0f5953176b47928c46d",
+    "1.4.3": "8010c37ddf002ab0b06b788a84ad701a527a5234",
+    "path_e1800c29": "9f4617ca058997c09386f79c9ff5d29afe5dd45f",
+    "2": "cc195d716bea2db09f948cd22e39f4af44c70242",
+    "2.1": "1f103e0e44c1ac4426a7220b1ba5d66c29ab3345",
+    "2.1.1": "4c3de556f05ac49d5748f10c157006caa06df876",
+    "2.1.2": "eb764b2b7a9e8931fe68f2c42390596a0c5b9983",
+    "2.1.3": "3665b2a3c7cb59bbb492e5042b7333de4f4553bf",
+    "2.1.4": "b487b8608ea8b9969ae8429f7598c347f1a24652",
+    "2.2": "708bf9b25810c3201f37954300d83d398bb1fd53",
+    "2.2.1": "50d5ebe7f51357204ef35d37408cf61d041fd7c0",
+    "2.2.2": "9efbc28f9b2d9dc07294e55a0fc1a8f5ed8e86e8",
+    "2.2.3": "72912583fb58c96ee5ff66242df17f75a998e3c7",
+    "2.3": "7fb15efbbcdedfbf7f288a057d1b13ba2091be42",
+    "2.3.1": "3502c720b23c6883462ce062971298d8293ce370",
+    "2.3.2": "bf88bf0c939c9ba717f35d29ebc3150d67ce170f",
+    "2.3.3": "5ebf4e88613baa0c779623ada3d3f484c2ecb34b",
+    "2.4": "fbb228875a8a493098f600508fbe9dfbae711e60",
+    "2.4.1": "4d1674a3d40e4668d68291481596e768a88267b4",
+    "2.4.2": "7cf64ea15949f0b39bd81262007daf7d83c6d2b5",
+    "2.4.3": "1f91d39abbf04d73ae91bd04f7b0316dbdf7e9e6",
+    "2.4.4": "601ed4de9ff23d0a4a68ae4dbf93512a643dd1e5",
+    "2.4.5": "1ba7574e00cf519e23b6a206fcfad7220410d55e",
+    "2.5": "cac6efdfdc0f9f4551efdeaab163b0d0bd28d2dc",
+    "3": "97135e2e97bde7bbf918fba9dbc2886e2058e1bd",
+    "3.1.1": "303d64b04ee13c8c5554d58baf5d495ed6ddf94a",
+    "3.1.2": "a31dc1cf4fc42365d78da2907028748bf97f6112"
+  },
+  "config_hashes": {
+    "schema.yaml": "7ef850a04b4a302321393276122aa523e966c0b3",
+    "extraction.yaml": "2c9a1cf09d527451c8d9cfcf292422d00d6b9052",
+    "conv.yaml": "d66913c6b394bc8bcae64f4bfccd23395665b0af",
+    "aggr.yaml": "4763a29531dc417fb05574117a18775942b85ef6",
+    "layer_overrides.yaml": "f2d50bc7c4e8a8d041e439612eba8482a2a47db3",
+    "emb.yaml": "1bad64f20eaf76cee3964d903dfa21a0f3628d70",
+    "dedup.yaml": "bd66a460d45043b404975902f722990d281de1be",
+    "pred.yaml": "b33b65beb576c96780e0c47c2663b400b9cced85"
+  },
+  "prompt_versions": {
+    "extraction": "extraction.v1",
+    "conv": "conv.v1",
+    "aggr": "aggr.v1",
+    "dedup": "dedup.v1",
+    "pred": "pred.v1"
+  },
+  "model_ids": {
+    "llm": "deepseek-v4.1-flash",
+    "embedding": "bge-m3"
+  },
+  "final_kg_sha1": "55c715b4f1868cbc326ea82ac5cbfcf0acbd9b39",
+  "counts": {
+    "L1_concepts": 478,
+    "L2_entities": 148,
+    "L3_evidences": 44,
+    "edges": 2347,
+    "edges_by_type": {
+      "appears_in": 892,
+      "described_by": 478,
+      "related": 332,
+      "part_of": 212,
+      "applies_to": 158,
+      "instance_of": 152,
+      "example_of": 63,
+      "contrasts_with": 43,
+      "synonym": 9,
+      "prerequisite": 8
+    }
+  },
+  "skipped": [],
+  "validation": {
+    "ok": true,
+    "errors": 0,
+    "warnings": 0
+  },
+  "layer_stats": {
+    "total": 659,
+    "by_source": {
+      "rule": 638,
+      "llm": 20,
+      "cache": 0,
+      "heuristic": 0,
+      "human": 0,
+      "excluded": 1
+    },
+    "by_rule": {
+      "heading_or_definition": 406,
+      "proper_instance": 149,
+      "defined_and_reused": 43,
+      "reused": 40,
+      "default": 20,
+      "unresolved": 1
+    },
+    "fallback_rate": 0.0304,
+    "unresolved_rate": 0.0015,
+    "llm_calls": 20,
+    "registry_hits": 0,
+    "overrides": 0,
+    "layer_flips": 0,
+    "excluded_changes": 0,
+    "layer_flips_detail": []
+  },
+  "layer_registry": {
+    "version": "1.0",
+    "path": "/home/ubuntu/开源项目/HierKG-Agent/src/KGBuild/output/layer_registry.json",
+    "enabled": true,
+    "policy_hash": "01f6c93987e8708dbc4339d31c7cd1cbeb53f4cb",
+    "prompt_version": "aggr.v1",
+    "model_id": "deepseek-v4.1-flash",
+    "decisions": 659,
+    "reused": 0
+  }
+}

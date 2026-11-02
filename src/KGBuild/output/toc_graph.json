@@ -1,553 +1,896 @@
 {
+  "schema_version": "1.0",
+  "doc_id": "Hello-Agents_0",
   "nodes": [
     {
+      "id": "path_6a07a7a6",
+      "name": "前言",
+      "title": "前言",
+      "numbering": "",
+      "level": 1,
+      "section_level": "unknown",
+      "path": "前言",
+      "parent_id": "",
+      "char_start": 0,
+      "char_end": 1542,
+      "block_count": 23
+    },
+    {
+      "id": "1",
       "name": "初识智能体",
       "title": "初识智能体",
-      "level": "level1",
-      "description": "1章"
+      "numbering": "1",
+      "level": 1,
+      "section_level": "chapter",
+      "path": "初识智能体",
+      "parent_id": "",
+      "char_start": 1543,
+      "char_end": 22718,
+      "block_count": 7
     },
     {
+      "id": "1.1",
       "name": "什么是智能体?",
       "title": "什么是智能体?",
-      "level": "level2",
-      "description": "1.1"
+      "numbering": "1.1",
+      "level": 2,
+      "section_level": "section",
+      "path": "初识智能体 > 什么是智能体?",
+      "parent_id": "1",
+      "char_start": 1827,
+      "char_end": 8413,
+      "block_count": 4
     },
     {
+      "id": "1.1.1",
       "name": "传统视角下的智能体",
       "title": "传统视角下的智能体",
-      "level": "level3",
-      "description": "1.1.1"
+      "numbering": "1.1.1",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "初识智能体 > 什么是智能体? > 传统视角下的智能体",
+      "parent_id": "1.1",
+      "char_start": 2384,
+      "char_end": 4133,
+      "block_count": 16
     },
     {
+      "id": "1.1.2",
       "name": "大语言模型驱动的新范式",
       "title": "大语言模型驱动的新范式",
-      "level": "level3",
-      "description": "1.1.2"
+      "numbering": "1.1.2",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "初识智能体 > 什么是智能体? > 大语言模型驱动的新范式",
+      "parent_id": "1.1",
+      "char_start": 4134,
+      "char_end": 5280,
+      "block_count": 11
     },
     {
+      "id": "1.1.3",
       "name": "智能体的类型",
       "title": "智能体的类型",
-      "level": "level3",
-      "description": "1.1.3"
+      "numbering": "1.1.3",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "初识智能体 > 什么是智能体? > 智能体的类型",
+      "parent_id": "1.1",
+      "char_start": 5281,
+      "char_end": 8413,
+      "block_count": 38
     },
     {
+      "id": "1.2",
       "name": "智能体的构成与运行原理",
       "title": "智能体的构成与运行原理",
-      "level": "level2",
-      "description": "1.2"
+      "numbering": "1.2",
+      "level": 2,
+      "section_level": "section",
+      "path": "初识智能体 > 智能体的构成与运行原理",
+      "parent_id": "1",
+      "char_start": 8414,
+      "char_end": 11046,
+      "block_count": 0
     },
     {
+      "id": "1.2.1",
       "name": "任务环境定义",
       "title": "任务环境定义",
-      "level": "level3",
-      "description": "1.2.1"
+      "numbering": "1.2.1",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "初识智能体 > 智能体的构成与运行原理 > 任务环境定义",
+      "parent_id": "1.2",
+      "char_start": 8442,
+      "char_end": 9397,
+      "block_count": 8
     },
     {
+      "id": "1.2.2",
       "name": "智能体的运行机制",
       "title": "智能体的运行机制",
-      "level": "level3",
-      "description": "1.2.2"
+      "numbering": "1.2.2",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "初识智能体 > 智能体的构成与运行原理 > 智能体的运行机制",
+      "parent_id": "1.2",
+      "char_start": 9398,
+      "char_end": 10264,
+      "block_count": 9
     },
     {
+      "id": "1.2.3",
       "name": "智能体的感知与行动",
       "title": "智能体的感知与行动",
-      "level": "level3",
-      "description": "1.2.3"
+      "numbering": "1.2.3",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "初识智能体 > 智能体的构成与运行原理 > 智能体的感知与行动",
+      "parent_id": "1.2",
+      "char_start": 10265,
+      "char_end": 11046,
+      "block_count": 12
     },
     {
+      "id": "1.3",
       "name": "动手体验：5分钟实现第一个智能体",
       "title": "动手体验：5分钟实现第一个智能体",
-      "level": "level2",
-      "description": "1.3"
+      "numbering": "1.3",
+      "level": 2,
+      "section_level": "section",
+      "path": "初识智能体 > 动手体验：5分钟实现第一个智能体",
+      "parent_id": "1",
+      "char_start": 11047,
+      "char_end": 17258,
+      "block_count": 2
     },
     {
+      "id": "1.3.1",
       "name": "准备工作",
       "title": "准备工作",
-      "level": "level3",
-      "description": "1.3.1"
+      "numbering": "1.3.1",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "初识智能体 > 动手体验：5分钟实现第一个智能体 > 准备工作",
+      "parent_id": "1.3",
+      "char_start": 11437,
+      "char_end": 13656,
+      "block_count": 101
     },
     {
+      "id": "1.3.2",
       "name": "接入大语言模型",
       "title": "接入大语言模型",
-      "level": "level3",
-      "description": "1.3.2"
+      "numbering": "1.3.2",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "初识智能体 > 动手体验：5分钟实现第一个智能体 > 接入大语言模型",
+      "parent_id": "1.3",
+      "char_start": 13657,
+      "char_end": 14734,
+      "block_count": 28
     },
     {
+      "id": "1.3.3",
       "name": "执行行动循环",
       "title": "执行行动循环",
-      "level": "level3",
-      "description": "1.3.3"
+      "numbering": "1.3.3",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "初识智能体 > 动手体验：5分钟实现第一个智能体 > 执行行动循环",
+      "parent_id": "1.3",
+      "char_start": 14735,
+      "char_end": 16336,
+      "block_count": 3
     },
     {
+      "id": "1.3.4",
       "name": "运行案例分析",
       "title": "运行案例分析",
-      "level": "level3",
-      "description": "1.3.4"
+      "numbering": "1.3.4",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "初识智能体 > 动手体验：5分钟实现第一个智能体 > 运行案例分析",
+      "parent_id": "1.3",
+      "char_start": 16337,
+      "char_end": 17258,
+      "block_count": 4
     },
     {
+      "id": "path_e77fe0a5",
       "name": "智能体应用的协作模式",
       "title": "智能体应用的协作模式",
-      "level": "level2",
-      "description": "1.4"
+      "numbering": "1.4",
+      "level": 2,
+      "section_level": "section",
+      "path": "初识智能体 > 智能体应用的协作模式",
+      "parent_id": "1",
+      "char_start": 17259,
+      "char_end": 20509,
+      "block_count": 1
     },
     {
+      "id": "1.4.1",
       "name": "作为开发者工具的智能体",
       "title": "作为开发者工具的智能体",
-      "level": "level3",
-      "description": "1.4.1"
+      "numbering": "1.4.1",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "初识智能体 > 智能体应用的协作模式 > 作为开发者工具的智能体",
+      "parent_id": "path_e77fe0a5",
+      "char_start": 17436,
+      "char_end": 18441,
+      "block_count": 8
     },
     {
+      "id": "1.4.2",
       "name": "作为自主协作者的智能体",
       "title": "作为自主协作者的智能体",
-      "level": "level3",
-      "description": "1.4.2"
+      "numbering": "1.4.2",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "初识智能体 > 智能体应用的协作模式 > 作为自主协作者的智能体",
+      "parent_id": "path_e77fe0a5",
+      "char_start": 18442,
+      "char_end": 19447,
+      "block_count": 8
     },
     {
-      "name": "Workflow和Agent的差异",
-      "title": "Workflow和Agent的差异",
-      "level": "level3",
-      "description": "1.4.3"
+      "id": "1.4.3",
+      "name": "Workflow 和Agent 的差异",
+      "title": "Workflow 和Agent 的差异",
+      "numbering": "1.4.3",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "初识智能体 > 智能体应用的协作模式 > Workflow 和Agent 的差异",
+      "parent_id": "path_e77fe0a5",
+      "char_start": 19448,
+      "char_end": 20509,
+      "block_count": 10
     },
     {
-      "name": "智能体发展史",
-      "title": "智能体发展史",
-      "level": "level1",
-      "description": "2章"
-    },
-    {
-      "name": "基于符号与逻辑的早期智能体",
-      "title": "基于符号与逻辑的早期智能体",
-      "level": "level2",
-      "description": "2.1"
-    },
-    {
-      "name": "物理符号系统假说",
-      "title": "物理符号系统假说",
-      "level": "level3",
-      "description": "2.1.1"
-    },
-    {
-      "name": "专家系统",
-      "title": "专家系统",
-      "level": "level3",
-      "description": "2.1.2"
-    },
-    {
-      "name": "SHRDLU",
-      "title": "SHRDLU",
-      "level": "level3",
-      "description": "2.1.3"
-    },
-    {
-      "name": "符号主义面临的根本性挑战",
-      "title": "符号主义面临的根本性挑战",
-      "level": "level3",
-      "description": "2.1.4"
-    },
-    {
-      "name": "构建基于规则的聊天机器人",
-      "title": "构建基于规则的聊天机器人",
-      "level": "level2",
-      "description": "2.2"
-    },
-    {
-      "name": "ELIZA的设计思想",
-      "title": "ELIZA的设计思想",
-      "level": "level3",
-      "description": "2.2.1"
-    },
-    {
-      "name": "模式匹配与文本替换",
-      "title": "模式匹配与文本替换",
-      "level": "level3",
-      "description": "2.2.2"
-    },
-    {
-      "name": "核心逻辑的实现",
-      "title": "核心逻辑的实现",
-      "level": "level3",
-      "description": "2.2.3"
-    },
-    {
-      "name": "马文·明斯基的心智社会",
-      "title": "马文·明斯基的心智社会",
-      "level": "level2",
-      "description": "2.3"
-    },
-    {
-      "name": "对单一整体智能模型的反思",
-      "title": "对单一整体智能模型的反思",
-      "level": "level3",
-      "description": "2.3.1"
-    },
-    {
-      "name": "作为协作体的智能",
-      "title": "作为协作体的智能",
-      "level": "level3",
-      "description": "2.3.2"
-    },
-    {
-      "name": "对多智能体系统的理论启发",
-      "title": "对多智能体系统的理论启发",
-      "level": "level3",
-      "description": "2.3.3"
-    },
-    {
-      "name": "学习范式的演进与现代智能体",
-      "title": "学习范式的演进与现代智能体",
-      "level": "level2",
-      "description": "2.4"
-    },
-    {
-      "name": "从符号到联结",
-      "title": "从符号到联结",
-      "level": "level3",
-      "description": "2.4.1"
-    },
-    {
-      "name": "基于强化学习的智能体",
-      "title": "基于强化学习的智能体",
-      "level": "level3",
-      "description": "2.4.2"
-    },
-    {
-      "name": "基于大规模数据的预训练",
-      "title": "基于大规模数据的预训练",
-      "level": "level3",
-      "description": "2.4.3"
-    },
-    {
-      "name": "基于大语言模型的智能体",
-      "title": "基于大语言模型的智能体",
-      "level": "level3",
-      "description": "2.4.4"
-    },
-    {
-      "name": "智能体发展关键节点概览",
-      "title": "智能体发展关键节点概览",
-      "level": "level3",
-      "description": "2.4.5"
-    },
-    {
+      "id": "path_e1800c29",
       "name": "本章小结",
       "title": "本章小结",
-      "level": "level2",
-      "description": "2.5"
+      "numbering": "1.4",
+      "level": 2,
+      "section_level": "section",
+      "path": "初识智能体 > 本章小结",
+      "parent_id": "1",
+      "char_start": 20510,
+      "char_end": 22718,
+      "block_count": 48
     },
     {
+      "id": "2",
+      "name": "智能体发展史",
+      "title": "智能体发展史",
+      "numbering": "2",
+      "level": 1,
+      "section_level": "chapter",
+      "path": "智能体发展史",
+      "parent_id": "",
+      "char_start": 22719,
+      "char_end": 47432,
+      "block_count": 17
+    },
+    {
+      "id": "2.1",
+      "name": "基于符号与逻辑的早期智能体",
+      "title": "基于符号与逻辑的早期智能体",
+      "numbering": "2.1",
+      "level": 2,
+      "section_level": "section",
+      "path": "智能体发展史 > 基于符号与逻辑的早期智能体",
+      "parent_id": "2",
+      "char_start": 23262,
+      "char_end": 28025,
+      "block_count": 2
+    },
+    {
+      "id": "2.1.1",
+      "name": "物理符号系统假说",
+      "title": "物理符号系统假说",
+      "numbering": "2.1.1",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "智能体发展史 > 基于符号与逻辑的早期智能体 > 物理符号系统假说",
+      "parent_id": "2.1",
+      "char_start": 23577,
+      "char_end": 24247,
+      "block_count": 17
+    },
+    {
+      "id": "2.1.2",
+      "name": "专家系统",
+      "title": "专家系统",
+      "numbering": "2.1.2",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "智能体发展史 > 基于符号与逻辑的早期智能体 > 专家系统",
+      "parent_id": "2.1",
+      "char_start": 24248,
+      "char_end": 25775,
+      "block_count": 18
+    },
+    {
+      "id": "2.1.3",
+      "name": "SHRDLU",
+      "title": "SHRDLU",
+      "numbering": "2.1.3",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "智能体发展史 > 基于符号与逻辑的早期智能体 > SHRDLU",
+      "parent_id": "2.1",
+      "char_start": 25776,
+      "char_end": 27176,
+      "block_count": 16
+    },
+    {
+      "id": "2.1.4",
+      "name": "符号主义面临的根本性挑战",
+      "title": "符号主义面临的根本性挑战",
+      "numbering": "2.1.4",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "智能体发展史 > 基于符号与逻辑的早期智能体 > 符号主义面临的根本性挑战",
+      "parent_id": "2.1",
+      "char_start": 27177,
+      "char_end": 28025,
+      "block_count": 9
+    },
+    {
+      "id": "2.2",
+      "name": "构建基于规则的聊天机器人",
+      "title": "构建基于规则的聊天机器人",
+      "numbering": "2.2",
+      "level": 2,
+      "section_level": "section",
+      "path": "智能体发展史 > 构建基于规则的聊天机器人",
+      "parent_id": "2",
+      "char_start": 28026,
+      "char_end": 32598,
+      "block_count": 1
+    },
+    {
+      "id": "2.2.1",
+      "name": "ELIZA 的设计思想",
+      "title": "ELIZA 的设计思想",
+      "numbering": "2.2.1",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "智能体发展史 > 构建基于规则的聊天机器人 > ELIZA 的设计思想",
+      "parent_id": "2.2",
+      "char_start": 28147,
+      "char_end": 28693,
+      "block_count": 4
+    },
+    {
+      "id": "2.2.2",
+      "name": "模式匹配与文本替换",
+      "title": "模式匹配与文本替换",
+      "numbering": "2.2.2",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "智能体发展史 > 构建基于规则的聊天机器人 > 模式匹配与文本替换",
+      "parent_id": "2.2",
+      "char_start": 28694,
+      "char_end": 29303,
+      "block_count": 11
+    },
+    {
+      "id": "2.2.3",
+      "name": "核心逻辑的实现",
+      "title": "核心逻辑的实现",
+      "numbering": "2.2.3",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "智能体发展史 > 构建基于规则的聊天机器人 > 核心逻辑的实现",
+      "parent_id": "2.2",
+      "char_start": 29304,
+      "char_end": 32598,
+      "block_count": 109
+    },
+    {
+      "id": "2.3",
+      "name": "马文 · 明斯基的心智社会",
+      "title": "马文 · 明斯基的心智社会",
+      "numbering": "2.3",
+      "level": 2,
+      "section_level": "section",
+      "path": "智能体发展史 > 马文 · 明斯基的心智社会",
+      "parent_id": "2",
+      "char_start": 32599,
+      "char_end": 35521,
+      "block_count": 3
+    },
+    {
+      "id": "2.3.1",
+      "name": "对单一整体智能模型的反思",
+      "title": "对单一整体智能模型的反思",
+      "numbering": "2.3.1",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "智能体发展史 > 马文 · 明斯基的心智社会 > 对单一整体智能模型的反思",
+      "parent_id": "2.3",
+      "char_start": 33040,
+      "char_end": 33751,
+      "block_count": 7
+    },
+    {
+      "id": "2.3.2",
+      "name": "作为协作体的智能",
+      "title": "作为协作体的智能",
+      "numbering": "2.3.2",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "智能体发展史 > 马文 · 明斯基的心智社会 > 作为协作体的智能",
+      "parent_id": "2.3",
+      "char_start": 33752,
+      "char_end": 34726,
+      "block_count": 16
+    },
+    {
+      "id": "2.3.3",
+      "name": "对多智能体系统的理论启发",
+      "title": "对多智能体系统的理论启发",
+      "numbering": "2.3.3",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "智能体发展史 > 马文 · 明斯基的心智社会 > 对多智能体系统的理论启发",
+      "parent_id": "2.3",
+      "char_start": 34727,
+      "char_end": 35521,
+      "block_count": 8
+    },
+    {
+      "id": "2.4",
+      "name": "学习范式的演进与现代智能体",
+      "title": "学习范式的演进与现代智能体",
+      "numbering": "2.4",
+      "level": 2,
+      "section_level": "section",
+      "path": "智能体发展史 > 学习范式的演进与现代智能体",
+      "parent_id": "2",
+      "char_start": 35522,
+      "char_end": 43846,
+      "block_count": 3
+    },
+    {
+      "id": "2.4.1",
+      "name": "从符号到联结",
+      "title": "从符号到联结",
+      "numbering": "2.4.1",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "智能体发展史 > 学习范式的演进与现代智能体 > 从符号到联结",
+      "parent_id": "2.4",
+      "char_start": 35820,
+      "char_end": 36547,
+      "block_count": 10
+    },
+    {
+      "id": "2.4.2",
+      "name": "基于强化学习的智能体",
+      "title": "基于强化学习的智能体",
+      "numbering": "2.4.2",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "智能体发展史 > 学习范式的演进与现代智能体 > 基于强化学习的智能体",
+      "parent_id": "2.4",
+      "char_start": 36548,
+      "char_end": 37891,
+      "block_count": 20
+    },
+    {
+      "id": "2.4.3",
+      "name": "基于大规模数据的预训练",
+      "title": "基于大规模数据的预训练",
+      "numbering": "2.4.3",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "智能体发展史 > 学习范式的演进与现代智能体 > 基于大规模数据的预训练",
+      "parent_id": "2.4",
+      "char_start": 37892,
+      "char_end": 39283,
+      "block_count": 15
+    },
+    {
+      "id": "2.4.4",
+      "name": "基于大语言模型的智能体",
+      "title": "基于大语言模型的智能体",
+      "numbering": "2.4.4",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "智能体发展史 > 学习范式的演进与现代智能体 > 基于大语言模型的智能体",
+      "parent_id": "2.4",
+      "char_start": 39284,
+      "char_end": 40413,
+      "block_count": 13
+    },
+    {
+      "id": "2.4.5",
+      "name": "智能体发展关键节点概览",
+      "title": "智能体发展关键节点概览",
+      "numbering": "2.4.5",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "智能体发展史 > 学习范式的演进与现代智能体 > 智能体发展关键节点概览",
+      "parent_id": "2.4",
+      "char_start": 40414,
+      "char_end": 43846,
+      "block_count": 28
+    },
+    {
+      "id": "2.5",
+      "name": "本章小结",
+      "title": "本章小结",
+      "numbering": "2.5",
+      "level": 2,
+      "section_level": "section",
+      "path": "智能体发展史 > 本章小结",
+      "parent_id": "2",
+      "char_start": 43847,
+      "char_end": 47432,
+      "block_count": 57
+    },
+    {
+      "id": "3",
       "name": "大语言模型基础",
       "title": "大语言模型基础",
-      "level": "level1",
-      "description": "3章"
+      "numbering": "3",
+      "level": 1,
+      "section_level": "chapter",
+      "path": "大语言模型基础",
+      "parent_id": "",
+      "char_start": 47433,
+      "char_end": 55911,
+      "block_count": 1
     },
     {
-      "name": "语言模型与Transformer架构",
-      "title": "语言模型与Transformer架构",
-      "level": "level2",
-      "description": "3.1"
+      "id": "3.1",
+      "name": "语言模型与Transformer 架构",
+      "title": "语言模型与Transformer 架构",
+      "numbering": "3.1",
+      "level": 2,
+      "section_level": "section",
+      "path": "大语言模型基础 > 语言模型与Transformer 架构",
+      "parent_id": "3",
+      "char_start": 47561,
+      "char_end": 55911,
+      "block_count": 0
     },
     {
-      "name": "从N-gram到RNN",
-      "title": "从N-gram到RNN",
-      "level": "level3",
-      "description": "3.1.1"
+      "id": "3.1.1",
+      "name": "从 N-gram 到 RNN",
+      "title": "从 N-gram 到 RNN",
+      "numbering": "3.1.1",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "大语言模型基础 > 语言模型与Transformer 架构 > 从 N-gram 到 RNN",
+      "parent_id": "3.1",
+      "char_start": 47585,
+      "char_end": 52617,
+      "block_count": 60
     },
     {
-      "name": "Transformer架构解析",
-      "title": "Transformer架构解析",
-      "level": "level3",
-      "description": "3.1.2"
+      "id": "3.1.2",
+      "name": "Transformer 架构解析",
+      "title": "Transformer 架构解析",
+      "numbering": "3.1.2",
+      "level": 3,
+      "section_level": "subsection",
+      "path": "大语言模型基础 > 语言模型与Transformer 架构 > Transformer 架构解析",
+      "parent_id": "3.1",
+      "char_start": 52618,
+      "char_end": 55911,
+      "block_count": 30
     }
   ],
   "edges": [
     {
-      "source": "初识智能体",
-      "target": "什么是智能体?",
-      "relationship": "child_of",
-      "description": "初识智能体 -> 什么是智能体?",
-      "type": "chapter->section"
+      "source": "1.1",
+      "target": "1",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "1.1 属于 1"
     },
     {
-      "source": "什么是智能体?",
-      "target": "传统视角下的智能体",
-      "relationship": "child_of",
-      "description": "什么是智能体? -> 传统视角下的智能体",
-      "type": "section->subsection"
+      "source": "1.1.1",
+      "target": "1.1",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "1.1.1 属于 1.1"
     },
     {
-      "source": "什么是智能体?",
-      "target": "大语言模型驱动的新范式",
-      "relationship": "child_of",
-      "description": "什么是智能体? -> 大语言模型驱动的新范式",
-      "type": "section->subsection"
+      "source": "1.1.2",
+      "target": "1.1",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "1.1.2 属于 1.1"
     },
     {
-      "source": "什么是智能体?",
-      "target": "智能体的类型",
-      "relationship": "child_of",
-      "description": "什么是智能体? -> 智能体的类型",
-      "type": "section->subsection"
+      "source": "1.1.3",
+      "target": "1.1",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "1.1.3 属于 1.1"
     },
     {
-      "source": "初识智能体",
-      "target": "智能体的构成与运行原理",
-      "relationship": "child_of",
-      "description": "初识智能体 -> 智能体的构成与运行原理",
-      "type": "chapter->section"
+      "source": "1.2",
+      "target": "1",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "1.2 属于 1"
     },
     {
-      "source": "智能体的构成与运行原理",
-      "target": "任务环境定义",
-      "relationship": "child_of",
-      "description": "智能体的构成与运行原理 -> 任务环境定义",
-      "type": "section->subsection"
+      "source": "1.2.1",
+      "target": "1.2",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "1.2.1 属于 1.2"
     },
     {
-      "source": "智能体的构成与运行原理",
-      "target": "智能体的运行机制",
-      "relationship": "child_of",
-      "description": "智能体的构成与运行原理 -> 智能体的运行机制",
-      "type": "section->subsection"
+      "source": "1.2.2",
+      "target": "1.2",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "1.2.2 属于 1.2"
     },
     {
-      "source": "智能体的构成与运行原理",
-      "target": "智能体的感知与行动",
-      "relationship": "child_of",
-      "description": "智能体的构成与运行原理 -> 智能体的感知与行动",
-      "type": "section->subsection"
+      "source": "1.2.3",
+      "target": "1.2",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "1.2.3 属于 1.2"
     },
     {
-      "source": "初识智能体",
-      "target": "动手体验：5分钟实现第一个智能体",
-      "relationship": "child_of",
-      "description": "初识智能体 -> 动手体验：5分钟实现第一个智能体",
-      "type": "chapter->section"
+      "source": "1.3",
+      "target": "1",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "1.3 属于 1"
     },
     {
-      "source": "动手体验：5分钟实现第一个智能体",
-      "target": "准备工作",
-      "relationship": "child_of",
-      "description": "动手体验：5分钟实现第一个智能体 -> 准备工作",
-      "type": "section->subsection"
+      "source": "1.3.1",
+      "target": "1.3",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "1.3.1 属于 1.3"
     },
     {
-      "source": "动手体验：5分钟实现第一个智能体",
-      "target": "接入大语言模型",
-      "relationship": "child_of",
-      "description": "动手体验：5分钟实现第一个智能体 -> 接入大语言模型",
-      "type": "section->subsection"
+      "source": "1.3.2",
+      "target": "1.3",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "1.3.2 属于 1.3"
     },
     {
-      "source": "动手体验：5分钟实现第一个智能体",
-      "target": "执行行动循环",
-      "relationship": "child_of",
-      "description": "动手体验：5分钟实现第一个智能体 -> 执行行动循环",
-      "type": "section->subsection"
+      "source": "1.3.3",
+      "target": "1.3",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "1.3.3 属于 1.3"
     },
     {
-      "source": "动手体验：5分钟实现第一个智能体",
-      "target": "运行案例分析",
-      "relationship": "child_of",
-      "description": "动手体验：5分钟实现第一个智能体 -> 运行案例分析",
-      "type": "section->subsection"
+      "source": "1.3.4",
+      "target": "1.3",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "1.3.4 属于 1.3"
     },
     {
-      "source": "初识智能体",
-      "target": "智能体应用的协作模式",
-      "relationship": "child_of",
-      "description": "初识智能体 -> 智能体应用的协作模式",
-      "type": "chapter->section"
+      "source": "path_e77fe0a5",
+      "target": "1",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "path_e77fe0a5 属于 1"
     },
     {
-      "source": "智能体应用的协作模式",
-      "target": "作为开发者工具的智能体",
-      "relationship": "child_of",
-      "description": "智能体应用的协作模式 -> 作为开发者工具的智能体",
-      "type": "section->subsection"
+      "source": "1.4.1",
+      "target": "path_e77fe0a5",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "1.4.1 属于 path_e77fe0a5"
     },
     {
-      "source": "智能体应用的协作模式",
-      "target": "作为自主协作者的智能体",
-      "relationship": "child_of",
-      "description": "智能体应用的协作模式 -> 作为自主协作者的智能体",
-      "type": "section->subsection"
+      "source": "1.4.2",
+      "target": "path_e77fe0a5",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "1.4.2 属于 path_e77fe0a5"
     },
     {
-      "source": "智能体应用的协作模式",
-      "target": "Workflow和Agent的差异",
-      "relationship": "child_of",
-      "description": "智能体应用的协作模式 -> Workflow和Agent的差异",
-      "type": "section->subsection"
+      "source": "1.4.3",
+      "target": "path_e77fe0a5",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "1.4.3 属于 path_e77fe0a5"
     },
     {
-      "source": "初识智能体",
-      "target": "智能体应用的协作模式",
-      "relationship": "child_of",
-      "description": "初识智能体 -> 智能体应用的协作模式",
-      "type": "chapter->section"
+      "source": "path_e1800c29",
+      "target": "1",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "path_e1800c29 属于 1"
     },
     {
-      "source": "智能体发展史",
-      "target": "基于符号与逻辑的早期智能体",
-      "relationship": "child_of",
-      "description": "智能体发展史 -> 基于符号与逻辑的早期智能体",
-      "type": "chapter->section"
+      "source": "2.1",
+      "target": "2",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.1 属于 2"
     },
     {
-      "source": "基于符号与逻辑的早期智能体",
-      "target": "物理符号系统假说",
-      "relationship": "child_of",
-      "description": "基于符号与逻辑的早期智能体 -> 物理符号系统假说",
-      "type": "section->subsection"
+      "source": "2.1.1",
+      "target": "2.1",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.1.1 属于 2.1"
     },
     {
-      "source": "基于符号与逻辑的早期智能体",
-      "target": "专家系统",
-      "relationship": "child_of",
-      "description": "基于符号与逻辑的早期智能体 -> 专家系统",
-      "type": "section->subsection"
+      "source": "2.1.2",
+      "target": "2.1",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.1.2 属于 2.1"
     },
     {
-      "source": "基于符号与逻辑的早期智能体",
-      "target": "SHRDLU",
-      "relationship": "child_of",
-      "description": "基于符号与逻辑的早期智能体 -> SHRDLU",
-      "type": "section->subsection"
+      "source": "2.1.3",
+      "target": "2.1",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.1.3 属于 2.1"
     },
     {
-      "source": "基于符号与逻辑的早期智能体",
-      "target": "符号主义面临的根本性挑战",
-      "relationship": "child_of",
-      "description": "基于符号与逻辑的早期智能体 -> 符号主义面临的根本性挑战",
-      "type": "section->subsection"
+      "source": "2.1.4",
+      "target": "2.1",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.1.4 属于 2.1"
     },
     {
-      "source": "智能体发展史",
-      "target": "构建基于规则的聊天机器人",
-      "relationship": "child_of",
-      "description": "智能体发展史 -> 构建基于规则的聊天机器人",
-      "type": "chapter->section"
+      "source": "2.2",
+      "target": "2",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.2 属于 2"
     },
     {
-      "source": "构建基于规则的聊天机器人",
-      "target": "ELIZA的设计思想",
-      "relationship": "child_of",
-      "description": "构建基于规则的聊天机器人 -> ELIZA的设计思想",
-      "type": "section->subsection"
+      "source": "2.2.1",
+      "target": "2.2",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.2.1 属于 2.2"
     },
     {
-      "source": "构建基于规则的聊天机器人",
-      "target": "模式匹配与文本替换",
-      "relationship": "child_of",
-      "description": "构建基于规则的聊天机器人 -> 模式匹配与文本替换",
-      "type": "section->subsection"
+      "source": "2.2.2",
+      "target": "2.2",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.2.2 属于 2.2"
     },
     {
-      "source": "构建基于规则的聊天机器人",
-      "target": "核心逻辑的实现",
-      "relationship": "child_of",
-      "description": "构建基于规则的聊天机器人 -> 核心逻辑的实现",
-      "type": "section->subsection"
+      "source": "2.2.3",
+      "target": "2.2",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.2.3 属于 2.2"
     },
     {
-      "source": "智能体发展史",
-      "target": "马文·明斯基的心智社会",
-      "relationship": "child_of",
-      "description": "智能体发展史 -> 马文·明斯基的心智社会",
-      "type": "chapter->section"
+      "source": "2.3",
+      "target": "2",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.3 属于 2"
     },
     {
-      "source": "马文·明斯基的心智社会",
-      "target": "对单一整体智能模型的反思",
-      "relationship": "child_of",
-      "description": "马文·明斯基的心智社会 -> 对单一整体智能模型的反思",
-      "type": "section->subsection"
+      "source": "2.3.1",
+      "target": "2.3",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.3.1 属于 2.3"
     },
     {
-      "source": "马文·明斯基的心智社会",
-      "target": "作为协作体的智能",
-      "relationship": "child_of",
-      "description": "马文·明斯基的心智社会 -> 作为协作体的智能",
-      "type": "section->subsection"
+      "source": "2.3.2",
+      "target": "2.3",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.3.2 属于 2.3"
     },
     {
-      "source": "马文·明斯基的心智社会",
-      "target": "对多智能体系统的理论启发",
-      "relationship": "child_of",
-      "description": "马文·明斯基的心智社会 -> 对多智能体系统的理论启发",
-      "type": "section->subsection"
+      "source": "2.3.3",
+      "target": "2.3",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.3.3 属于 2.3"
     },
     {
-      "source": "智能体发展史",
-      "target": "学习范式的演进与现代智能体",
-      "relationship": "child_of",
-      "description": "智能体发展史 -> 学习范式的演进与现代智能体",
-      "type": "chapter->section"
+      "source": "2.4",
+      "target": "2",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.4 属于 2"
     },
     {
-      "source": "学习范式的演进与现代智能体",
-      "target": "从符号到联结",
-      "relationship": "child_of",
-      "description": "学习范式的演进与现代智能体 -> 从符号到联结",
-      "type": "section->subsection"
+      "source": "2.4.1",
+      "target": "2.4",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.4.1 属于 2.4"
     },
     {
-      "source": "学习范式的演进与现代智能体",
-      "target": "基于强化学习的智能体",
-      "relationship": "child_of",
-      "description": "学习范式的演进与现代智能体 -> 基于强化学习的智能体",
-      "type": "section->subsection"
+      "source": "2.4.2",
+      "target": "2.4",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.4.2 属于 2.4"
     },
     {
-      "source": "学习范式的演进与现代智能体",
-      "target": "基于大规模数据的预训练",
-      "relationship": "child_of",
-      "description": "学习范式的演进与现代智能体 -> 基于大规模数据的预训练",
-      "type": "section->subsection"
+      "source": "2.4.3",
+      "target": "2.4",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.4.3 属于 2.4"
     },
     {
-      "source": "学习范式的演进与现代智能体",
-      "target": "基于大语言模型的智能体",
-      "relationship": "child_of",
-      "description": "学习范式的演进与现代智能体 -> 基于大语言模型的智能体",
-      "type": "section->subsection"
+      "source": "2.4.4",
+      "target": "2.4",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.4.4 属于 2.4"
     },
     {
-      "source": "学习范式的演进与现代智能体",
-      "target": "智能体发展关键节点概览",
-      "relationship": "child_of",
-      "description": "学习范式的演进与现代智能体 -> 智能体发展关键节点概览",
-      "type": "section->subsection"
+      "source": "2.4.5",
+      "target": "2.4",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.4.5 属于 2.4"
     },
     {
-      "source": "智能体发展史",
-      "target": "本章小结",
-      "relationship": "child_of",
-      "description": "智能体发展史 -> 本章小结",
-      "type": "chapter->section"
+      "source": "2.5",
+      "target": "2",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "2.5 属于 2"
     },
     {
-      "source": "大语言模型基础",
-      "target": "语言模型与Transformer架构",
-      "relationship": "child_of",
-      "description": "大语言模型基础 -> 语言模型与Transformer架构",
-      "type": "chapter->section"
+      "source": "3.1",
+      "target": "3",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "3.1 属于 3"
     },
     {
-      "source": "语言模型与Transformer架构",
-      "target": "从N-gram到RNN",
-      "relationship": "child_of",
-      "description": "语言模型与Transformer架构 -> 从N-gram到RNN",
-      "type": "section->subsection"
+      "source": "3.1.1",
+      "target": "3.1",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "3.1.1 属于 3.1"
     },
     {
-      "source": "语言模型与Transformer架构",
-      "target": "Transformer架构解析",
-      "relationship": "child_of",
-      "description": "语言模型与Transformer架构 -> Transformer架构解析",
-      "type": "section->subsection"
+      "source": "3.1.2",
+      "target": "3.1",
+      "type": "part_of",
+      "layer": "structure",
+      "description": "3.1.2 属于 3.1"
     }
   ],
-  "entity_count": 43,
-  "relation_count": 41
+  "stats": {
+    "nodes": 45,
+    "edges": 41,
+    "by_level": {
+      "1": 4,
+      "2": 11,
+      "3": 30
+    },
+    "by_section_level": {
+      "chapter": 3,
+      "section": 11,
+      "subsection": 30,
+      "unknown": 1
+    },
+    "roots": 4
+  }
 }
