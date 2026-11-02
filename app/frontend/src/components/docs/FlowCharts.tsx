@@ -135,6 +135,167 @@ export function FlowLegend({ variant = 'build' }: { variant?: 'build' | 'query' 
 }
 
 // ---------------------------------------------------------------------------
+// 端到端总览
+// ---------------------------------------------------------------------------
+
+const E2E_BUILD = [
+  { x: 180, w: 100, color: '#8c8c8c', title: 'docx', sub: '结构化文档' },
+  { x: 306, w: 130, color: '#722ed1', title: '解析抽取', sub: '文本分割 / 抽取' },
+  { x: 462, w: 130, color: '#2f6fed', title: '结构与分层', sub: '章节树 · 证据 · 分层' },
+  { x: 618, w: 130, color: '#00b578', title: '向量与精修', sub: '向量 · 去重 · 补边' },
+  { x: 774, w: 130, color: '#eb2f96', title: '四层装配', sub: '校验 · 证据边 · 清单' },
+  { x: 944, w: 160, color: '#eb2f96', title: 'final_kg.json', sub: 'L0–L3 + 全部边' },
+];
+
+const E2E_STORES = [
+  { x: 300, w: 230, color: '#8c8c8c', title: 'final_kg.json', sub: '构建产物 · 事实源' },
+  { x: 560, w: 230, color: '#2f6fed', title: 'Neo4j', sub: '图遍历 · 关系查询' },
+  { x: 820, w: 230, color: '#00b578', title: 'Chroma', sub: 'L1/L2 向量召回' },
+];
+
+const E2E_QUERY = [
+  { x: 190, w: 150, color: '#722ed1', title: '提问', sub: '用户问题' },
+  { x: 362, w: 150, color: '#2f6fed', title: '定位入口', sub: 'semantic_search' },
+  { x: 534, w: 150, color: '#00b578', title: '图内扩展', sub: 'get_relations · 多跳' },
+  { x: 706, w: 150, color: '#fa8c16', title: '回取证据', sub: 'get_evidences_of_node' },
+  { x: 878, w: 150, color: '#eb2f96', title: '带引用回答', sub: 'assemble_context' },
+];
+
+interface E2EBoxProps {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  color: string;
+  title: string;
+  sub: string;
+}
+
+function E2EBox({ x, y, w, h, color, title, sub }: E2EBoxProps) {
+  return (
+    <g>
+      <rect x={x} y={y} width={w} height={h} rx={10} fill="#ffffff" stroke="#e3e8f0" />
+      <rect x={x} y={y} width={4} height={h} rx={2} fill={color} />
+      <text x={x + 14} y={y + 22} fontSize={13} fontWeight={600} fill="#1f2329">
+        {title}
+      </text>
+      <text x={x + 14} y={y + 40} fontSize={10} fill="#8c8c8c">
+        {sub}
+      </text>
+    </g>
+  );
+}
+
+function E2EArrows({ nodes, y }: { nodes: { x: number; w: number }[]; y: number }) {
+  return (
+    <>
+      {nodes.slice(0, -1).map((node, index) => {
+        const next = nodes[index + 1];
+        return (
+          <line
+            key={`${node.x}-${next.x}`}
+            x1={node.x + node.w + 3}
+            y1={y}
+            x2={next.x - 3}
+            y2={y}
+            stroke="#b0b8c6"
+            strokeWidth={1.5}
+            markerEnd="url(#docs-e2e-arrow)"
+          />
+        );
+      })}
+    </>
+  );
+}
+
+export function EndToEndOverview() {
+  return (
+    <div className="docs-chart-scroll">
+      <svg
+        className="docs-chart docs-e2e-chart"
+        viewBox="0 0 1180 490"
+        role="img"
+        aria-labelledby="e2e-chart-title e2e-chart-desc"
+      >
+        <title id="e2e-chart-title">从文档到回答的端到端链路</title>
+        <desc id="e2e-chart-desc">
+          离线构图把 docx 装配成 final_kg.json，导入 Neo4j 与 ChromaDB；
+          在线检索先定位入口，再沿图扩展、回取 L3 证据，最终生成带引用的回答。
+        </desc>
+        <ArrowDefs id="docs-e2e-arrow" />
+
+        {/* 离线构图 */}
+        <rect x={30} y={30} width={1120} height={130} rx={14} fill="#f8faff" stroke="#e3e8f0" />
+        <rect x={30} y={44} width={4} height={102} rx={2} fill="#2f6fed" />
+        <text x={52} y={54} fontSize={14} fontWeight={700} fill="#2f6fed">
+          离线构图 · Build
+        </text>
+        <text x={52} y={74} fontSize={10.5} fill="#8c8c8c">
+          docx → 10 步 → final_kg.json
+        </text>
+        {E2E_BUILD.map((node) => (
+          <E2EBox key={node.title} {...node} y={92} h={56} />
+        ))}
+        <E2EArrows nodes={E2E_BUILD} y={120} />
+
+        {/* 存储与索引 */}
+        <rect x={30} y={196} width={1120} height={104} rx={14} fill="#f6fbf8" stroke="#d7f0e4" />
+        <rect x={30} y={210} width={4} height={76} rx={2} fill="#00b578" />
+        <text x={52} y={220} fontSize={14} fontWeight={700} fill="#00b578">
+          存储与索引 · Store
+        </text>
+        <text x={52} y={240} fontSize={10.5} fill="#8c8c8c">
+          final_kg.json 是事实源；Neo4j 与 Chroma 各司其职
+        </text>
+        {E2E_STORES.map((node) => (
+          <E2EBox key={node.title} {...node} y={250} h={46} />
+        ))}
+        <path
+          d="M1024 148 V178 H416 V246"
+          fill="none"
+          stroke="#c3cad6"
+          strokeWidth={1.5}
+          markerEnd="url(#docs-e2e-arrow)"
+        />
+        <text x={430} y={190} fontSize={10} fill="#9aa3b2">
+          导入
+        </text>
+
+        {/* 在线检索 */}
+        <rect x={30} y={328} width={1120} height={124} rx={14} fill="#fff8f2" stroke="#ffe0c2" />
+        <rect x={30} y={342} width={4} height={96} rx={2} fill="#eb2f96" />
+        <text x={52} y={352} fontSize={14} fontWeight={700} fill="#eb2f96">
+          在线检索 · Retrieve
+        </text>
+        <text x={52} y={372} fontSize={10.5} fill="#8c8c8c">
+          只读图谱：定位 → 扩展 → 取证据 → 回答
+        </text>
+        {E2E_QUERY.map((node) => (
+          <E2EBox key={node.title} {...node} y={390} h={50} />
+        ))}
+        <E2EArrows nodes={E2E_QUERY} y={415} />
+        <line
+          x1={805}
+          y1={300}
+          x2={805}
+          y2={324}
+          stroke="#b0b8c6"
+          strokeWidth={1.5}
+          markerEnd="url(#docs-e2e-arrow)"
+        />
+        <text x={815} y={320} fontSize={10} fill="#9aa3b2">
+          读取
+        </text>
+
+        <text x={590} y={474} textAnchor="middle" fontSize={10.5} fill="#9aa3b2">
+          构图只写离线产物；查询只读图谱，不触发重建
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 构图流程
 // ---------------------------------------------------------------------------
 
@@ -198,7 +359,7 @@ export function BuildFlowChart() {
           );
         })}
 
-        <FlowNode x={ROW2_X[0]} y={ROW2_Y} no="05" title="实体归并" sub="别名 / 覆盖度信号" kind="rule" />
+        <FlowNode x={ROW2_X[0]} y={ROW2_Y} no="05" title="实体归并" sub="别名 / 信号 / 定义补全" kind="rule" />
         <FlowNode x={ROW2_X[1]} y={ROW2_Y} no="06" title="分层归属" sub="规则 → L1/L2 → LLM" kind="rule" />
         <FlowNode x={ROW2_X[2]} y={ROW2_Y} no="07" title="向量嵌入" sub="bge-m3" kind="vector" />
         <FlowNode x={ROW2_X[3]} y={ROW2_Y} no="08" title="同层去重" sub="向量 + LLM 复核" kind="llm" />

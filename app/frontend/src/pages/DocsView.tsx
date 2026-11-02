@@ -6,7 +6,13 @@ import {
   FileSearchOutlined,
   SafetyCertificateOutlined,
 } from '@ant-design/icons';
-import { BuildFlowChart, FlowLegend, LayerStackDiagram, QueryFlowChart } from '../components/docs/FlowCharts';
+import {
+  BuildFlowChart,
+  EndToEndOverview,
+  FlowLegend,
+  LayerStackDiagram,
+  QueryFlowChart,
+} from '../components/docs/FlowCharts';
 
 // ---------------------------------------------------------------------------
 // 数据
@@ -50,9 +56,45 @@ const LAYERS: Layer[] = [
     id: 'L3',
     name: '证据层',
     color: '#fa8c16',
-    desc: '可定位的原文小节 / 段落片段，回答溯源的终点',
+    desc: '可定位的原文小节 / 段落片段，既是抽取单元，也是检索与引用的基本 chunk',
     example: 'ev_Hello-Agents_0:1.1.1',
     storage: 'final_kg.json · L3_evidences',
+  },
+];
+
+type Store = {
+  id: string;
+  name: string;
+  color: string;
+  desc: string;
+  content: string;
+  file: string;
+};
+
+const STORES: Store[] = [
+  {
+    id: 'JSON',
+    name: '构建产物',
+    color: '#8c8c8c',
+    desc: '四层节点、全部边与构建清单；重新导入时以它为准',
+    content: 'final_kg.json · build_manifest.json',
+    file: 'src/KGBuild/output/',
+  },
+  {
+    id: 'NEO4J',
+    name: '图数据库',
+    color: '#2f6fed',
+    desc: '存图结构与证据原文，负责多跳遍历、关系查询',
+    content: 'L0–L3 节点 + 全部边',
+    file: 'python -m src.KGRetrieve.db_backend import',
+  },
+  {
+    id: 'CHROMA',
+    name: '向量索引',
+    color: '#00b578',
+    desc: '存 L1/L2 归一化向量（bge-m3），负责语义召回',
+    content: 'concept_* / ent_* embeddings',
+    file: 'chroma_db/',
   },
 ];
 
@@ -134,7 +176,7 @@ const BUILD_PHASES: BuildPhase[] = [
         no: '05',
         name: 'conv',
         label: '实体归并',
-        desc: '同名与别名归并，保留全部出现位置，计算覆盖度、定义性措辞等分层信号',
+        desc: '同名与别名归并，保留全部出现位置；计算覆盖度、定义性措辞等分层信号，并为缺定义的实体做证据化补全（LLM）',
         input: 'toc_with_entities_and_relations.json',
         output: 'conv_entities.json',
       },
@@ -219,7 +261,7 @@ const QUERY_STEPS: QueryStep[] = [
   },
   {
     title: '定位入口',
-    desc: 'semantic_search 与 search_* 先找到概念、实体或证据候选。',
+    desc: 'Agent 先把问题拆成若干检索角度，再用 semantic_search 与 search_* 找到概念、实体或证据候选。',
     icon: <SearchOutlined />,
     color: '#2f6fed',
   },
@@ -273,7 +315,7 @@ const TOOL_GROUPS = [
     hint: '把线索变成可引用上下文',
     color: '#fa8c16',
     tools: [
-      ['rank_results', 'cross-encoder 精排候选节点'],
+      ['rank_results', '显式重排候选；检索工具已内置精排，通常无需单独调用'],
       ['assemble_context', '把节点与证据拼成带溯源标注的上下文块'],
     ],
   },
@@ -300,6 +342,18 @@ export default function DocsView() {
           <span className="docs-chip">规则优先 + 人工覆写</span>
         </div>
       </header>
+
+      {/* ── 端到端总览 ───────────────────────────────────────────── */}
+      <section className="docs-section">
+        <div className="docs-section-head">
+          <span className="docs-section-kicker">End to End</span>
+          <h2 className="docs-section-title">从文档到回答</h2>
+          <p className="docs-section-desc">
+            先看全局：离线构图把文档装配成四层图谱，在线检索只读图谱、沿边取证据。
+          </p>
+        </div>
+        <EndToEndOverview />
+      </section>
 
       {/* ── 四层模型 ─────────────────────────────────────────────── */}
       <section className="docs-section">
@@ -415,6 +469,34 @@ export default function DocsView() {
             是后续增量构建与变更审计的依据。
           </span>
         </div>
+
+        <div className="docs-chart-block docs-store-block">
+          <div className="docs-chart-head">
+            <strong>存储与导入</strong>
+            <span>两个库各司其职；final_kg.json 始终是事实源</span>
+          </div>
+          <div className="docs-store-grid">
+            {STORES.map((store) => (
+              <article
+                key={store.id}
+                className="docs-layer-card"
+                style={{ '--layer-color': store.color } as CSSProperties}
+              >
+                <div className="docs-layer-top">
+                  <span className="docs-layer-badge">{store.id}</span>
+                  <span className="docs-layer-name">{store.name}</span>
+                </div>
+                <p className="docs-layer-desc">{store.desc}</p>
+                <div className="docs-layer-example">{store.content}</div>
+                <div className="docs-layer-file">{store.file}</div>
+              </article>
+            ))}
+          </div>
+          <p className="docs-store-note">
+            导入前会清空 Neo4j 并重建 Chroma collection；<code>build_manifest.json</code>{' '}
+            记录文档 / 配置哈希、版本与校验结果，是增量构建和审计依据。
+          </p>
+        </div>
       </section>
 
       {/* ── 查询流程 ─────────────────────────────────────────────── */}
@@ -514,6 +596,22 @@ export default function DocsView() {
               </span>
             </div>
           </div>
+        </div>
+
+        <div className="docs-seq-block">
+          <div className="docs-seq-head">assemble_context 组装出的上下文（示意）</div>
+          <pre className="docs-context">{`### [概念] 强化学习 (concept_xxx)
+- 描述: 智能体通过与环境交互、根据反馈调整策略来学习……
+- 相关证据: [ev_Hello-Agents_0:1.1.1] (1.1.1) 传统视角下的智能体
+
+### 相关证据原文
+[ev_Hello-Agents_0:1.1.1] (第1章 > 1.1 > 1.1.1) 传统视角下的智能体
+  强化学习是……`}</pre>
+        </div>
+        <div className="docs-query-note">
+          <span className="docs-query-note-dot" />
+          <code>assemble_context</code> 只做格式化：节点卡、证据引用和原文片段，不做语义取舍；
+          证据原文默认最多 12 条，超出按上限截断。
         </div>
       </section>
     </div>

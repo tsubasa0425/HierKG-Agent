@@ -650,6 +650,35 @@ body {
   font-size: 10.5px;
   color: #9aa3b2;
 }
+
+/* 存储布局 */
+.docs-store-block {
+  margin-top: 18px;
+}
+.docs-store-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.docs-store-note {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.75;
+  color: #5b6472;
+}
+.docs-store-note code {
+  font-family: 'Cascadia Code', Consolas, 'Courier New', monospace;
+  font-size: 0.92em;
+  background: #f1f4f9;
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: #2f6fed;
+}
+
+/* 端到端总览 */
+.docs-e2e-chart {
+  min-width: 1000px;
+}
 .docs-edge-legend {
   display: flex;
   flex-wrap: wrap;
@@ -1033,11 +1062,26 @@ body {
 .docs-seq-cite {
   color: #ffd591;
 }
+.docs-context {
+  margin: 0;
+  padding: 13px 18px;
+  background: #0f1420;
+  color: #d6e2f0;
+  font-family: 'Cascadia Code', Consolas, 'Courier New', monospace;
+  font-size: 11.5px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: auto;
+}
 
 /* 响应式 */
 @media (max-width: 960px) {
   .docs-layer-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .docs-store-grid {
+    grid-template-columns: 1fr;
   }
   .docs-tool-grid {
     grid-template-columns: 1fr;
