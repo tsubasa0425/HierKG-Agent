@@ -2,7 +2,7 @@
 """GoldenResolver：从 final_kg.json 把名称解析成 node_id，镜像导入时的证据去重。
 
 纯函数，不碰 Neo4j/ChromaDB。出题约定：数据集里概念/实体写【名称】，ID 由 resolver 生成，
-防手打错别；证据 ID 使用 v2 稳定格式 `ev_{doc_id}:{section_id}[:{block_id}]`。
+防手打错别；证据 ID 使用稳定格式 `ev_{doc_id}:{section_id}[:{block_id}]`。
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ _DEFAULT_KG = Path(__file__).resolve().parents[2] / "src" / "KGBuild" / "output"
 def _dedupe_evidence_ids(evidences: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """镜像 src/KGRetrieve/db_backend.py::_dedupe_evidence_ids —— 保证 golden ID 与 Neo4j/ChromaDB 一致。
 
-    同 ID 出现多个条目时（v2 证据 ID 正常唯一），第一个保持不变，后续改成 `...#2`。
+    同 ID 出现多个条目时（证据 ID 正常唯一），第一个保持不变，后续改成 `...#2`。
     """
     seen: Dict[str, int] = {}
     out: List[Dict[str, Any]] = []

@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Embedding v2 —— 用 Ollama 为 L1/L2 节点生成向量（node_embeddings.pkl）。
+"""Embedding —— 用 Ollama 为 L1/L2 节点生成向量（node_embeddings.pkl）。
 
-输入：aggr_entities.json（v2：{entities:[{id,name,aliases,type,definition,...}]}）
+输入：aggr_entities.json（{entities:[{id,name,aliases,type,definition,...}]}）
 输出：pickle {node_id: np.ndarray[float32]}，向量已 L2 归一化。
 
 嵌入文本 = 规范名 + 别名 + 类型 + 定义。定义来自原文/证据化补全，
-不再使用 v1 的“邻居描述扩写”，避免把邻域噪声写进向量。
+不使用“邻居描述扩写”，避免把邻域噪声写进向量。
 
 模型与地址默认复用 src/KGRetrieve/config/storage.yaml 的 ChromaConfig；
 emb.yaml 的 OLLAMA_HOST / EMBEDDING_MODEL 留空即沿用，显式填写则覆盖。
@@ -94,7 +94,7 @@ def load_entities(file_path: str) -> List[dict]:
     elif isinstance(data, list):
         entities = data
     else:
-        raise ValueError("输入不是 v2 aggr 产物（需要 {entities:[...]}）")
+        raise ValueError("输入不是 aggr 产物（需要 {entities:[...]}）")
     print(f"📘 已加载实体 {len(entities)} 个：{Path(file_path).name}")
     return entities
 
@@ -163,7 +163,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     output_path = OUT_DIR / str(cfg["OUTPUT_NAME"])
     host, model = resolve_ollama(cfg)
 
-    parser = argparse.ArgumentParser(description="用 Ollama 为 v2 节点生成向量")
+    parser = argparse.ArgumentParser(description="用 Ollama 为节点生成向量")
     parser.add_argument("--infile", type=str, default=str(input_path))
     parser.add_argument("--outfile", type=str, default=str(output_path))
     parser.add_argument("--batch_size", type=int, default=int(cfg.get("BATCH_SIZE", 16)))

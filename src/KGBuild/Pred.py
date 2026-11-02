@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Pred v2 —— 在去重后的图上补边（拓扑候选 + 向量相似 + LLM 复核）。
+"""Pred —— 在去重后的图上补边（拓扑候选 + 向量相似 + LLM 复核）。
 
 原则：
   * 不重复已有边（同一对节点只保留最强的一条语义关系）
@@ -12,7 +12,7 @@
 输入：dedup_result.json + node_embeddings.pkl
 输出：pred_result.json
 {
-  "schema_version": "2.0", "doc_id": "...",
+  "schema_version": "1.0", "doc_id": "...",
   "predictions": [
     {"source","target","source_name","target_name","type","layer",
      "confidence","method","description","keywords","section_ids","provenance"}
@@ -71,7 +71,7 @@ DEFAULTS: Dict[str, Any] = {
     "DRY_RUN": False,
     "TEMPERATURE": 0.2,
     "MAX_TOKENS": 300,
-    "PROMPT_VERSION": "pred.v2",
+    "PROMPT_VERSION": "pred.v1",
     "PROMPT_SYSTEM": "",
     "PROMPT_USER_TEMPLATE": "",
 }
@@ -359,7 +359,7 @@ def run(dedup_path: Optional[Path] = None, emb_path: Optional[Path] = None,
     with dedup_path.open("r", encoding="utf-8") as f:
         dedup = json.load(f)
     if isinstance(dedup, list) or "entities" not in dedup:
-        raise ValueError("输入不是 v2 dedup 产物（需要 {entities:[...]}）")
+        raise ValueError("输入不是 dedup 产物（需要 {entities:[...]}）")
     entities = dedup["entities"]
     embeddings = _load_embeddings(emb_path)
     by_id = {str(e["id"]): e for e in entities}
@@ -447,8 +447,8 @@ def run(dedup_path: Optional[Path] = None, emb_path: Optional[Path] = None,
             "keywords": pred.get("keywords") or [],
             "section_ids": secs,
             "provenance": [{
-                "section_id": sid, "extractor": f"pred.v2:{method}",
-                "prompt_version": CFG.get("PROMPT_VERSION", "pred.v2"),
+                "section_id": sid, "extractor": f"pred.v1:{method}",
+                "prompt_version": CFG.get("PROMPT_VERSION", "pred.v1"),
             } for sid in secs],
         })
         if len(predictions) >= int(CFG["MAX_TOTAL"]):
@@ -480,7 +480,7 @@ def run(dedup_path: Optional[Path] = None, emb_path: Optional[Path] = None,
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description="v2 关系补全")
+    ap = argparse.ArgumentParser(description="关系补全")
     ap.add_argument("--dedup", default=None)
     ap.add_argument("--emb", default=None)
     ap.add_argument("--out", default=None)

@@ -13,7 +13,7 @@ AggrConfig:
   # —— LLM 调用参数（step 专属）—— #
   TEMPERATURE: 0.0
   MAX_TOKENS: 300
-  PROMPT_VERSION: "aggr.v2"
+  PROMPT_VERSION: "aggr.v1"
 
   # —— 决策登记表 / 人工覆写 / 质量告警 —— #
   # 规则每次重新求值；只有 LLM 决策会在 policy/prompt/model 三项指纹一致时复用

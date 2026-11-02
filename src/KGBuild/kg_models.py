@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""v2 构建产物数据模型。
+"""构建产物数据模型。
 
-这些 dataclass 是各阶段之间传递数据的统一形状；序列化后的字段必须满足
-schema.v2.yaml 的 Records 契约。边是证据归属的权威来源，节点上的
+这些 dataclass 是各阶段之间传递数据的统一形状，也是字段契约的事实源
+（schema.yaml 不再声明 Records）。边是证据归属的权威来源，节点上的
 evidence_ids 只是投影缓存（由 FinalKG 从跨层边回填）。
 """
 from __future__ import annotations

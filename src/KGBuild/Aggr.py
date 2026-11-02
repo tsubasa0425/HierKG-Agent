@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Aggr v2 —— 分层（L1/L2）+ 稳定 ID + L2 概念归属。
+"""Aggr —— 分层（L1/L2）+ 稳定 ID + L2 概念归属。
 
 层级不再由 LLM 拍板，而是 LayerPolicy 规则优先：
   1. 待定类型 → excluded（不入图，保留在待清洗池）
@@ -18,7 +18,7 @@ L2 的父概念（instance_of）由共现、已有关系和类型偏好共同打
 输入：conv_entities.json
 输出：aggr_entities.json
 {
-  "schema_version": "2.0",
+  "schema_version": "1.0",
   "doc_id": "...",
   "entities": [{id,name,aliases,type,layer,parent_id,definition,confidence,
                 signals,occurrences,neighbors,provenance,layer_decision}],
@@ -89,7 +89,7 @@ DEFAULTS: Dict[str, Any] = {
     "WORKERS": 8,
     "TEMPERATURE": 0.0,
     "MAX_TOKENS": 300,
-    "PROMPT_VERSION": "aggr.v2",
+    "PROMPT_VERSION": "aggr.v1",
     "PROPER_INSTANCE_TYPES": ["工具", "人工物", "人物", "组织", "事件"],
     "PARENT_TYPE_PREFERENCE": {
         "工具": ["人工物", "概念", "方法", "算法"],
@@ -573,7 +573,7 @@ def assign_parents(entities: List[Dict[str, Any]],
             "description": f"{child['name']} 归属于 {best['name']}",
             "keywords": ["归属"],
             "confidence": round(conf, 2),
-            "provenance": [{"section_id": o["section_id"], "extractor": "aggr.v2"}
+            "provenance": [{"section_id": o["section_id"], "extractor": "aggr.v1"}
                            for o in child.get("occurrences") or []][:5],
             "derived": True,
         })
@@ -593,7 +593,7 @@ def run(in_path: Optional[Path] = None, out_path: Optional[Path] = None,
     with in_path.open("r", encoding="utf-8") as f:
         conv = json.load(f)
     if isinstance(conv, list) or "entities" not in conv:
-        raise ValueError("输入不是 v2 conv 产物（需要 {entities:[...]}）")
+        raise ValueError("输入不是 conv 产物（需要 {entities:[...]}）")
 
     if dry_run:
         CFG["DRY_RUN"] = True
@@ -714,7 +714,7 @@ def run(in_path: Optional[Path] = None, out_path: Optional[Path] = None,
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description="v2 分层与概念归属")
+    ap = argparse.ArgumentParser(description="分层与概念归属")
     ap.add_argument("--input", default=None)
     ap.add_argument("--output", default=None)
     ap.add_argument("--dry-run", action="store_true")

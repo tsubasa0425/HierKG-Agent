@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""v2 图谱产物校验器 —— 构建完成后、导入 Neo4j 之前必须通过。
+"""图谱产物校验器 —— 构建完成后、导入 Neo4j 之前必须通过。
 
 用法：
-    python -m src.KGBuild.validate_kg_v2 --kg src/KGBuild/output/final_kg.json
-    python -m src.KGBuild.validate_kg_v2 --kg ... --json report.json
+    python -m src.KGBuild.validate_kg --kg src/KGBuild/output/final_kg.json
+    python -m src.KGBuild.validate_kg --kg ... --json report.json
 
-校验内容对应 schema.v2.yaml 的 ValidationRules：
+校验规则固定在本模块中（契约已从 schema.yaml 移出，代码是唯一事实源）：
   * 节点：类型在闭集内、layer 合法、ID 唯一且前缀/哈希一致、待定节点不得入图、
     L1/L2 必须有证据、confidence / salience 范围
   * 边：端点在图中、关系名规范、端点层约束、对称边方向规范、无重复边、
@@ -356,9 +356,9 @@ def validate_file(kg_path: str, schema_path: Optional[str] = None) -> Dict[str, 
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description="校验 v2 final_kg.json")
+    ap = argparse.ArgumentParser(description="校验 final_kg.json")
     ap.add_argument("--kg", default="src/KGBuild/output/final_kg.json")
-    ap.add_argument("--schema", default=None, help="自定义 schema 路径（默认 config/schema.v2.yaml）")
+    ap.add_argument("--schema", default=None, help="自定义 schema 路径（默认 config/schema.yaml）")
     ap.add_argument("--json", default=None, help="把完整报告写到指定 JSON 文件")
     ap.add_argument("--max-print", type=int, default=50)
     args = ap.parse_args(argv)

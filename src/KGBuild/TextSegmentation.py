@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""TextSegmentation v2 —— docx → 结构化章节树 + 块级正文 + 字符偏移。
+"""TextSegmentation —— docx → 结构化章节树 + 块级正文 + 字符偏移。
 
-与 v1 的区别：
+设计说明：
   * 层级不再硬编码 1..4：标题深度来自编号本身（1 / 1.2 / 1.2.3）或样式，
     用栈做容错挂载；父编号对不上只告警，不丢标题。
   * 同时支持样式（Heading / 标题 / outlineLvl）与正则兜底；目录页自动跳过。
@@ -756,7 +756,7 @@ def save_warnings(warnings: List[str], warn_path: Path) -> None:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="解析 Word 目录结构（v2：任意层级 + 块级正文）")
+    parser = argparse.ArgumentParser(description="解析 Word 目录结构（任意层级 + 块级正文）")
     parser.add_argument("--docx", default=str(SCRIPT_DIR / "doc" / TextSegConfig["DOCX_NAME"]))
     parser.add_argument("--out", default=str(SCRIPT_DIR / "output" / TextSegConfig["TOC_NAME"]))
     parser.add_argument("--warn", default=str(SCRIPT_DIR / "output" / TextSegConfig["WARN_NAME"]))

@@ -3,7 +3,7 @@
     "source": "Hello-Agents 教材四层知识图谱（src/KGBuild/output/final_kg.json）",
     "created_at": "2026-08-12",
     "categories": ["definition", "single_hop", "multi_hop", "instance", "comparison"],
-    "note": "概念/实体按名称引用，由 eval.datasets.resolver 解析为 node_id；golden_evidence_ids 使用 v2 格式 ev_{doc_id}:{section_id}（doc_id=Hello-Agents_0）。"
+    "note": "概念/实体按名称引用，由 eval.datasets.resolver 解析为 node_id；golden_evidence_ids 使用稳定格式 ev_{doc_id}:{section_id}（doc_id=Hello-Agents_0）。"
   },
   "questions": [
     {

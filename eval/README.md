@@ -66,8 +66,8 @@ DeepSeek（temp 0，OpenAI 兼容），一次评四维（faithfulness/completene
 25 题，5 类各 5 题：`definition / single_hop / multi_hop / instance / comparison`。
 
 出题规则：
-- **写名不写 ID**：概念/实体只写节点名称，ID 由 `GoldenResolver` 从 `final_kg.json` 解析（防手打错别）；证据 ID 使用 v2 稳定格式 `ev_{doc_id}:{section_id}[:{block_id}]`，直接写
-- `golden_evidence_ids` 来自 golden 节点的 `evidence_ids`，必须用**去重后** ID（v2 证据 ID 正常唯一，`resolver.py::_dedupe_evidence_ids` 只做兜底）
+- **写名不写 ID**：概念/实体只写节点名称，ID 由 `GoldenResolver` 从 `final_kg.json` 解析（防手打错别）；证据 ID 使用稳定格式 `ev_{doc_id}:{section_id}[:{block_id}]`，直接写
+- `golden_evidence_ids` 来自 golden 节点的 `evidence_ids`，必须用**去重后** ID（证据 ID 正常唯一，`resolver.py::_dedupe_evidence_ids` 只做兜底）
 - multi-hop 题额外给 `golden_src_name / golden_tgt_name`（路径探针用）
 
 数据校验：`python -m eval.datasets.resolver --validate` 检查全部名称可解析、ID 存在且格式合法。

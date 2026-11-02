@@ -17,7 +17,7 @@ TextSegConfig:
   WARNINGS_PRINT_TOP: 10            # 控制台最多打印的告警条数
   SAVE_WARNINGS_FILE: true          # 是否写入告警文件
 
-  # —— v2 新选项 —— #
+  # —— 可选选项 —— #
   SKIP_TOC: true                    # 自动跳过文档开头的目录页（TOC 样式 / 点线+页码）
   MIN_TOC_LINES: 3                  # 连续多少行目录样式才判定为目录页
   MAX_TITLE_LEN: 80                 # 标题最大长度，超长视为正文

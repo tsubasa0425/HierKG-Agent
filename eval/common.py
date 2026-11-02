@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, List, Optional, Set
 
-# 证据 ID 允许 `.`、`:`、中文、`#`（v2：ev_{doc_id}:{section_id}[:{block_id}]），
+# 证据 ID 允许 `.`、`:`、中文、`#`（ev_{doc_id}:{section_id}[:{block_id}]），
 # `\w` 覆盖不了这些字符。
 _EVIDENCE_CHARS = r"0-9A-Za-z_.#:\-一-鿿"
 EVIDENCE_ID_RE = re.compile(rf"^ev_[{_EVIDENCE_CHARS}]+$")

@@ -1,5 +1,4 @@
 import { Fragment, type CSSProperties, type ReactNode } from 'react';
-import { Tag } from 'antd';
 import {
   QuestionCircleOutlined,
   SearchOutlined,
@@ -7,6 +6,7 @@ import {
   FileSearchOutlined,
   SafetyCertificateOutlined,
 } from '@ant-design/icons';
+import { BuildFlowChart, FlowLegend, LayerStackDiagram, QueryFlowChart } from '../components/docs/FlowCharts';
 
 // ---------------------------------------------------------------------------
 // 数据
@@ -28,7 +28,7 @@ const LAYERS: Layer[] = [
     color: '#722ed1',
     desc: '节点类型、关系类型、分层规则与证据结构',
     example: '概念 / 方法 / 工具 · instance_of',
-    storage: 'schema.v2.yaml',
+    storage: 'schema.yaml',
   },
   {
     id: 'L1',
@@ -279,25 +279,6 @@ const TOOL_GROUPS = [
   },
 ];
 
-const CONVENTIONS = [
-  {
-    title: '证据以边为权威',
-    desc: '节点上的 evidence_ids 只是跨层边的投影；derived 证据只做图导航，不进入检索投影。',
-  },
-  {
-    title: '逆关系不落库',
-    desc: '只存 part_of / example_of 一个方向，has_part / has_example 在序列化时派生，避免同义双边。',
-  },
-  {
-    title: '稳定 ID',
-    desc: 'concept_ / ent_ 由规范名哈希生成；证据 ID 为 ev_{doc_id}:{section_id}[:{block_id}]。',
-  },
-  {
-    title: '分层可审计',
-    desc: '规则优先 + 人工覆写 + LLM 决策登记表；每次构建统计兜底率与 L1/L2 翻转。',
-  },
-];
-
 // ---------------------------------------------------------------------------
 // 页面
 // ---------------------------------------------------------------------------
@@ -349,16 +330,26 @@ export default function DocsView() {
           ))}
         </div>
 
-        <div className="docs-edge-legend">
-          <span className="docs-edge-item">
-            <span className="docs-edge-line is-semantic" /> 语义关系（part_of / prerequisite / applies_to…）
-          </span>
-          <span className="docs-edge-item">
-            <span className="docs-edge-line is-instance" /> 归属关系（instance_of / example_of）
-          </span>
-          <span className="docs-edge-item">
-            <span className="docs-edge-line is-evidence" /> 证据引用（described_by / appears_in）
-          </span>
+        <div className="docs-chart-block">
+          <div className="docs-chart-head">
+            <strong>四层怎么叠、层间怎么连</strong>
+            <span>L0 定义并约束全部层；L2 归属 L1；L1 / L2 引用 L3</span>
+          </div>
+          <LayerStackDiagram />
+          <div className="docs-edge-legend">
+            <span className="docs-edge-item">
+              <span className="docs-edge-line is-semantic" /> 语义关系（part_of / prerequisite / applies_to…）
+            </span>
+            <span className="docs-edge-item">
+              <span className="docs-edge-line is-instance" /> 归属关系（instance_of / example_of）
+            </span>
+            <span className="docs-edge-item">
+              <span className="docs-edge-line is-evidence" /> 证据引用（described_by：L1→L3；appears_in：L1/L2→L3）
+            </span>
+            <span className="docs-edge-item">
+              <span className="docs-edge-line is-govern" /> 本体约束（L0 → 各层）
+            </span>
+          </div>
         </div>
       </section>
 
@@ -371,6 +362,15 @@ export default function DocsView() {
             固定 10 步串行执行，每步读取上一步的产物。任一步失败即停止，可用{' '}
             <code>--start</code> / <code>--only</code> 断点续跑；Web 端「图谱构建」页走同一套流程。
           </p>
+        </div>
+
+        <div className="docs-chart-block">
+          <div className="docs-chart-head">
+            <strong>构图流程图</strong>
+            <span>箭头表示产物传递；节点左侧色条表示执行方式</span>
+          </div>
+          <BuildFlowChart />
+          <FlowLegend />
         </div>
 
         <div className="docs-build-flow">
@@ -426,6 +426,15 @@ export default function DocsView() {
             查询侧只读图谱，不触发构图。Agent 对任何问题都遵循同一链路：
             <strong>先定位入口节点，再进图沿边取证据</strong>。随问题复杂度变化的只是遍历深度。
           </p>
+        </div>
+
+        <div className="docs-chart-block">
+          <div className="docs-chart-head">
+            <strong>查询流程图</strong>
+            <span>先定位入口，再沿图取证据，最后组装带引用的回答</span>
+          </div>
+          <QueryFlowChart />
+          <FlowLegend variant="query" />
         </div>
 
         <div className="docs-query-flow">
@@ -505,27 +514,6 @@ export default function DocsView() {
               </span>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* ── 关键约定 ─────────────────────────────────────────────── */}
-      <section className="docs-section">
-        <div className="docs-section-head">
-          <span className="docs-section-kicker">Conventions</span>
-          <h2 className="docs-section-title">读图前需要知道的约定</h2>
-        </div>
-        <div className="docs-conventions">
-          {CONVENTIONS.map((item) => (
-            <article key={item.title} className="docs-convention">
-              <div className="docs-convention-title">{item.title}</div>
-              <p className="docs-convention-desc">{item.desc}</p>
-            </article>
-          ))}
-        </div>
-        <div className="docs-footer-note">
-          <Tag color="blue" bordered={false}>提示</Tag>
-          图谱构建与查询共用同一份 <code>schema.v2.yaml</code>。改本体后需重新构建并导入，
-          检索侧不会自动感知类型或关系变化。
         </div>
       </section>
     </div>

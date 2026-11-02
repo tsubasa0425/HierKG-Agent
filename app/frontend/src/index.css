@@ -577,8 +577,7 @@ body {
 }
 .docs-section-desc code,
 .docs-callout code,
-.docs-query-note code,
-.docs-footer-note code {
+.docs-query-note code {
   font-family: 'Cascadia Code', Consolas, 'Courier New', monospace;
   font-size: 0.92em;
   background: #f1f4f9;
@@ -681,6 +680,10 @@ body {
 .docs-edge-line.is-evidence {
   border-top-style: dashed;
   border-top-color: #fa8c16;
+}
+.docs-edge-line.is-govern {
+  border-top-style: dashed;
+  border-top-color: #722ed1;
 }
 
 /* 构图流程 */
@@ -1031,36 +1034,6 @@ body {
   color: #ffd591;
 }
 
-/* 关键约定 */
-.docs-conventions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-.docs-convention {
-  padding: 13px 15px;
-  border: 1px solid #eef1f6;
-  border-radius: 10px;
-  background: #fafbfc;
-}
-.docs-convention-title {
-  font-size: 12.5px;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-.docs-convention-desc {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.7;
-  color: #5b6472;
-}
-.docs-footer-note {
-  margin-top: 14px;
-  font-size: 12.5px;
-  line-height: 1.8;
-  color: #5b6472;
-}
-
 /* 响应式 */
 @media (max-width: 960px) {
   .docs-layer-grid {
@@ -1085,8 +1058,7 @@ body {
   .docs-hero-title {
     font-size: 25px;
   }
-  .docs-layer-grid,
-  .docs-conventions {
+  .docs-layer-grid {
     grid-template-columns: 1fr;
   }
   .docs-phase-steps {
@@ -1101,4 +1073,69 @@ body {
   .docs-query-flow {
     flex-direction: column;
   }
+}
+
+/* 文档页流程图 */
+.docs-chart-block {
+  margin-bottom: 18px;
+  padding: 14px 16px 12px;
+  border: 1px solid #e8ecf2;
+  border-radius: 12px;
+  background: #fcfdff;
+}
+.docs-chart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.docs-chart-head strong {
+  font-size: 13px;
+}
+.docs-chart-head span {
+  font-size: 11.5px;
+  color: #9aa3b2;
+}
+.docs-chart-scroll {
+  overflow-x: auto;
+}
+.docs-chart {
+  display: block;
+  width: 100%;
+  min-width: 900px;
+  height: auto;
+}
+.docs-chart text {
+  font-family: inherit;
+}
+.docs-flow-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #eef1f6;
+}
+.docs-flow-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #5b6472;
+}
+.docs-flow-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 8px;
+  border-radius: 2px;
+}
+.docs-chart-block .docs-edge-legend {
+  margin-top: 8px;
+  padding: 8px 0 0;
+  border: none;
+  border-top: 1px dashed #eef1f6;
+  border-radius: 0;
+  background: transparent;
 }

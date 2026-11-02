@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""FinalKG v2 —— 按 schema.v2 装配四层图谱（final_kg.json）。
+"""FinalKG —— 按 schema 装配四层图谱（final_kg.json）。
 
 输入：
   * dedup_result.json    去重后的 L1/L2 节点 + 语义关系
@@ -33,13 +33,23 @@ import yaml
 
 try:
     from .kg_models import Evidence, KnowledgeGraph, Node, Provenance, Relation, Salience
-    from .schema_loader import Schema, get_schema
-    from .validate_kg_v2 import validate
+    from .schema_loader import (
+        EVIDENCE_BLOCK_TYPES,
+        EVIDENCE_SECTION_LEVELS,
+        Schema,
+        get_schema,
+    )
+    from .validate_kg import validate
 except ImportError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from KGBuild.kg_models import Evidence, KnowledgeGraph, Node, Provenance, Relation, Salience
-    from KGBuild.schema_loader import Schema, get_schema
-    from KGBuild.validate_kg_v2 import validate
+    from KGBuild.schema_loader import (
+        EVIDENCE_BLOCK_TYPES,
+        EVIDENCE_SECTION_LEVELS,
+        Schema,
+        get_schema,
+    )
+    from KGBuild.validate_kg import validate
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 CONFIG_DIR = SCRIPT_DIR / "config"
@@ -145,7 +155,10 @@ def _l0(schema: Schema) -> Dict[str, Any]:
         "node_types": schema.raw.get("NodeTypes") or {},
         "relation_types": schema.raw.get("RelationTypes") or {},
         "layer_policy": schema.raw.get("LayerPolicy") or {},
-        "evidence_schema": schema.raw.get("EvidenceSchema") or {},
+        "evidence_schema": {
+            "section_level": {"enum": list(EVIDENCE_SECTION_LEVELS)},
+            "block_type": {"enum": list(EVIDENCE_BLOCK_TYPES)},
+        },
     }
 
 
@@ -190,9 +203,9 @@ def assemble(dedup_path: Optional[Path] = None, pred_path: Optional[Path] = None
     pred = _read_json(pred_path, required=False) or {}
     ev_doc = _read_json(evidence_path)
     if isinstance(dedup, list) or "entities" not in dedup:
-        raise ValueError("dedup_result.json 不是 v2 产物")
+        raise ValueError("dedup_result.json 不是有效产物")
     if isinstance(ev_doc, list) or "evidences" not in ev_doc:
-        raise ValueError("evidence.json 不是 v2 产物")
+        raise ValueError("evidence.json 不是有效产物")
 
     doc_id = str(dedup.get("doc_id") or ev_doc.get("doc_id") or "doc")
     merge_map = {str(k): str(v) for k, v in (dedup.get("merge_map") or {}).items()}
@@ -309,7 +322,7 @@ def assemble(dedup_path: Optional[Path] = None, pred_path: Optional[Path] = None
                   f"{node.layer}-L3", confidence,
                   "", [], [evid],
                   [Provenance(doc_id=doc_id, section_id=section_id,
-                              extractor="final.v2")])
+                              extractor="final.v1")])
 
     for node in nodes_by_id.values():
         e = entities[node.id]
@@ -390,7 +403,7 @@ def assemble(dedup_path: Optional[Path] = None, pred_path: Optional[Path] = None
             continue
         section_hashes.setdefault(ev.section_id, _sha1_bytes(ev.text.encode("utf-8")))
     config_hashes = {}
-    for name in ("schema.v2.yaml", "extraction.yaml", "conv.yaml", "aggr.yaml",
+    for name in ("schema.yaml", "extraction.yaml", "conv.yaml", "aggr.yaml",
                  "layer_overrides.yaml", "emb.yaml", "dedup.yaml", "pred.yaml"):
         p = CONFIG_DIR / name
         if p.exists():
@@ -432,11 +445,11 @@ def assemble(dedup_path: Optional[Path] = None, pred_path: Optional[Path] = None
         "section_hashes": section_hashes,
         "config_hashes": config_hashes,
         "prompt_versions": {
-            "extraction": "extraction.v2",
-            "conv": "conv.v2",
-            "aggr": "aggr.v2",
-            "dedup": "dedup.v2",
-            "pred": "pred.v2",
+            "extraction": "extraction.v1",
+            "conv": "conv.v1",
+            "aggr": "aggr.v1",
+            "dedup": "dedup.v1",
+            "pred": "pred.v1",
         },
         "model_ids": {
             "llm": str(api.get("MODEL_NAME") or ""),
@@ -480,7 +493,7 @@ def assemble(dedup_path: Optional[Path] = None, pred_path: Optional[Path] = None
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description="装配 v2 四层知识图谱")
+    ap = argparse.ArgumentParser(description="装配四层知识图谱")
     ap.add_argument("--dedup", default=None)
     ap.add_argument("--pred", default=None)
     ap.add_argument("--evidence", default=None)

@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-"""L0 Schema v2 加载器 —— 构建流水线的单一事实来源。
+"""L0 Schema 加载器 —— 构建流水线的单一事实来源。
 
 职责：
-  * 读取 config/schema.v2.yaml，索引节点类型、关系类型、分层规则、别名
+  * 读取 config/schema.yaml，索引节点类型、关系类型、分层规则、别名
   * 提供类型/关系校验、关系名归一化、对称边规范化、逆关系派生
   * 提供 LayerPolicy 的规则求值（规则优先，必要时交回调用方走 LLM）
   * 提供稳定 ID 生成
 
-不做任何 v1 兼容。v2 从头构建，旧 schema.yaml 不再被本模块读取。
+只读取 config/schema.yaml。
 """
 from __future__ import annotations
 
@@ -20,10 +20,20 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import yaml
 
-SCHEMA_PATH = Path(__file__).resolve().parent / "config" / "schema.v2.yaml"
+SCHEMA_PATH = Path(__file__).resolve().parent / "config" / "schema.yaml"
 
 VALID_LAYERS = ("L1", "L2", "L3")
 EDGE_LAYERS = ("L1-L1", "L2-L2", "L1-L2", "L2-L1", "L1-L3", "L2-L3")
+
+# 数据契约常量 —— schema.yaml 不再声明，代码是唯一事实源。
+# 校验器（validate_kg）与解析器共用这里的定义。
+NODE_ID_PATTERN = r"^(concept|ent)_[0-9a-f]{8,}$"
+EVIDENCE_SECTION_LEVELS = (
+    "chapter", "section", "subsection", "subsubsection", "block", "unknown",
+)
+EVIDENCE_BLOCK_TYPES = (
+    "paragraph", "table", "figure", "formula", "code", "list", "unknown",
+)
 
 
 @dataclass(frozen=True)
@@ -112,9 +122,9 @@ class Schema:
         self.relation_aliases: Dict[str, Dict[str, Any]] = {}
         self.layer_rules: List[LayerRule] = []
         self.layer_signal_names: Tuple[str, ...] = ()
-        self.evidence_section_levels: Tuple[str, ...] = ()
-        self.evidence_block_types: Tuple[str, ...] = ()
-        self.node_id_pattern = ""
+        self.evidence_section_levels: Tuple[str, ...] = EVIDENCE_SECTION_LEVELS
+        self.evidence_block_types: Tuple[str, ...] = EVIDENCE_BLOCK_TYPES
+        self.node_id_pattern = NODE_ID_PATTERN
         self._index()
 
     # ------------------------------------------------------------------
@@ -176,16 +186,6 @@ class Schema:
             for rule in (raw.get("LayerPolicy", {}).get("rules") or [])
         ]
         self.layer_signal_names = tuple((raw.get("LayerPolicy", {}).get("signals") or {}).keys())
-
-        ev = raw.get("EvidenceSchema") or {}
-        self.evidence_section_levels = tuple((ev.get("section_level") or {}).get("enum") or ())
-        self.evidence_block_types = tuple((ev.get("block_type") or {}).get("enum") or ())
-
-        node_pattern = (
-            raw.get("Records", {}).get("Node", {}).get("fields", {})
-            .get("id", {}).get("pattern")
-        )
-        self.node_id_pattern = str(node_pattern or "")
 
     # ------------------------------------------------------------------
     # 类型 / 关系查询
@@ -352,7 +352,7 @@ class Schema:
             errs.append("LayerPolicy 规则 id 重复")
 
         if "subsubsection" not in self.evidence_section_levels:
-            errs.append("EvidenceSchema.section_level 缺少 subsubsection")
+            errs.append("EVIDENCE_SECTION_LEVELS 常量缺少 subsubsection")
         return errs
 
 

@@ -5,9 +5,9 @@ import { BuildOutlined, CommentOutlined, NodeIndexOutlined, ReadOutlined } from 
 const { Sider, Content, Header } = Layout;
 
 const menuItems = [
-  { key: '/chat', icon: <CommentOutlined />, label: 'Agent 对话' },
-  { key: '/graph', icon: <NodeIndexOutlined />, label: '知识图谱' },
   { key: '/build', icon: <BuildOutlined />, label: '图谱构建' },
+  { key: '/graph', icon: <NodeIndexOutlined />, label: '知识图谱' },
+  { key: '/chat', icon: <CommentOutlined />, label: 'Agent 对话' },
   { key: '/docs', icon: <ReadOutlined />, label: '文档说明' },
 ];
 

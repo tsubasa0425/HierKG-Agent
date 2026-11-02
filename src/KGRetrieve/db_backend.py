@@ -641,7 +641,7 @@ class KGDBMemory:
 def _dedupe_evidence_ids(evidences: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """证据 ID 撞名时给后出现的条目追加序号，保证 Neo4j / ChromaDB 内唯一。
 
-    v2 的 ID（`ev_{doc_id}:{section_id}[:{block_id}]`）正常情况下不会撞名；
+    证据 ID（`ev_{doc_id}:{section_id}[:{block_id}]`）正常情况下不会撞名；
     这里保留兜底：第一个保持原 ID，后续变成 `...#2`。其他节点/边里引用的
     原 ID 始终指向第一个条目，语义不变。
     """
@@ -661,8 +661,8 @@ def _dedupe_evidence_ids(evidences: List[Dict[str, Any]]) -> List[Dict[str, Any]
 def _parent_map(edges: List[Dict[str, Any]]) -> Dict[str, str]:
     """L2 → L1 归属：从 instance_of 边推导；example_of 的 L2→L1 方向也认。
 
-    v2 的 L2 节点本身不存 concept_id，导入时用它补齐，保证检索层
-    `Node.concept_id` 语义与 v1 一致。
+    L2 节点本身不存 concept_id，导入时用它补齐，保证检索层
+    `Node.concept_id` 语义保持一致。
     """
     parents: Dict[str, str] = {}
     for e in edges:
@@ -774,9 +774,9 @@ def import_kg(kg_path: Optional[str] = None, *, check_only: bool = False) -> boo
     evidences = kg.get("L3_evidences", [])
     edges = kg.get("edges", [])
 
-    # —— v2 契约检查（旧版 final_kg.json 必须重新构建）—— #
+    # —— 契约检查（旧版 final_kg.json 必须重新构建）—— #
     bad = []
-    if str(kg.get("schema_version") or "") != "2.0":
+    if str(kg.get("schema_version") or "") != "1.0":
         bad.append(f"schema_version={kg.get('schema_version')!r}")
     for label, items in (("L1_concepts", concepts), ("L2_entities", entities),
                          ("L3_evidences", evidences)):
@@ -786,7 +786,7 @@ def import_kg(kg_path: Optional[str] = None, *, check_only: bool = False) -> boo
            for x in edges):
         bad.append("edges 缺少 source/target")
     if bad:
-        msg = "final_kg.json 不是 v2 产物：" + "；".join(bad) + "。请用 v2 流水线重新构建。"
+        msg = "final_kg.json 不是当前版本产物：" + "；".join(bad) + "。请用当前流水线重新构建。"
         print(f"❌ {msg}")
         _emit("import_error", code="kg_invalid", message=msg, path=str(path))
         return False

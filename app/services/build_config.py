@@ -4,7 +4,7 @@
 两类文件：
   * form 模式 —— config.yaml（APIConfig）/ storage.yaml（Neo4j + Ollama），
     结构化字段，密钥只写不回显；
-  * yaml 模式 —— text/extraction/conv/aggr/dedup/pred/emb 与 schema.v2.yaml，
+  * yaml 模式 —— text/extraction/conv/aggr/dedup/pred/emb 与 schema.yaml，
     保存原始文本（保留注释与顺序），服务端做结构校验后原子写入。
 
 所有路径都按注册表白名单解析，绝不接受任意 file_id 之外的路径。
@@ -75,7 +75,7 @@ CONFIG_FILES: Dict[str, Dict[str, Any]] = {
         "top": "EmbConfig", "rebuild_from": "embedding",
     },
     "schema": {
-        "label": "L0 本体", "path": CFG_DIR / "schema.v2.yaml", "mode": "yaml",
+        "label": "L0 本体", "path": CFG_DIR / "schema.yaml", "mode": "yaml",
         "top": None, "rebuild_from": "textseg", "critical": True,
     },
 }
@@ -853,7 +853,7 @@ def write_config_file(file_id: str, content: str) -> Dict[str, Any]:
     if not check["ok"]:
         return check  # 调用方按 400 处理
 
-    # schema.v2.yaml 不参与 include 合并，其余 stage 写完再校验整条流水线配置。
+    # schema.yaml 不参与 include 合并，其余 stage 写完再校验整条流水线配置。
     path = meta["path"]
     with write_lock:
         backup = _backup(path, file_id)

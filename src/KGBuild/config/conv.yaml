@@ -19,7 +19,7 @@ ConvConfig:
   TEMPERATURE: 0.2
   MAX_TOKENS: 500
   DRY_RUN: false
-  PROMPT_VERSION: "conv.v2"
+  PROMPT_VERSION: "conv.v1"
 
   # —— 提示词模板 —— #
   # 占位符（string.Template 语法）：

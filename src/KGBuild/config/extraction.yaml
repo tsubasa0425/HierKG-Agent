@@ -7,7 +7,7 @@ ExtractionConfig:
   # —— LLM 调用参数（step 专属）—— #
   TEMPERATURE: 0.3
 
-  # —— v2 抽取行为 —— #
+  # —— 抽取行为 —— #
   MAX_CHARS: 6000                   # 单次送入 LLM 的最大字符数，超长小节自动分块
   MAX_NAME_LEN: 40                  # 实体名最大长度
   MAX_DEFINITION_LEN: 300           # 定义句最大长度
@@ -15,13 +15,13 @@ ExtractionConfig:
   SKIP_BLOCK_TYPES: [code, formula] # 不参与抽取的块类型
   SKIP_UNKNOWN_SECTIONS: true       # 跳过 section_level=unknown 的前置内容
   RELATION_CONFIDENCE: 0.5          # LLM 关系的默认置信度
-  PROMPT_VERSION: "extraction.v2"   # 写进 provenance，prompt 改动时递增
+  PROMPT_VERSION: "extraction.v1"   # 写进 provenance，prompt 改动时递增
   FAIL_FAST: false                  # true = 任一 chunk 失败即中止整条流水线
 
   # —— 提示词模板 —— #
   # 占位符说明（$Template 语法，避免 JSON 示例里的大括号冲突）：
-  #   ${entity_types_with_desc}   → 从 schema.v2.yaml 的 NodeTypes 动态渲染
-  #   ${relation_types_with_desc} → 从 schema.v2.yaml 的 RelationTypes 动态渲染
+  #   ${entity_types_with_desc}   → 从 schema.yaml 的 NodeTypes 动态渲染
+  #   ${relation_types_with_desc} → 从 schema.yaml 的 RelationTypes 动态渲染
   #   ${section_text}             → 当前 chunk 的原文
   #   ${entity_list}              → 当前 chunk 已识别实体名
   ENTITY_PROMPT: |

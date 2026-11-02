@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 
 def _flatten_packs(section: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
-    """schema.v2 的 NodeTypes / RelationTypes 分组 → 拍平成 {名称: 定义}。
+    """schema 的 NodeTypes / RelationTypes 分组 → 拍平成 {名称: 定义}。
 
     结构兼容两种分组：
       * `core: {概念: {...}}` / `cross_layer: {instance_of: {...}}`

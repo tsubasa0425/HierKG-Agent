@@ -75,7 +75,6 @@ dist/
 
 # ChromaDB 持久化缓存
 chroma_db/
-chroma_db_v2/
 
 # 评测运行产物（runs 下每轮时间戳目录，含 report.md）
 eval/runs/

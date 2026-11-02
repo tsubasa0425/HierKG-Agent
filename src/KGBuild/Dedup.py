@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Dedup v2 —— 同层同类型节点去重（别名快速通道 + 向量近邻 + LLM 复核）。
+"""Dedup —— 同层同类型节点去重（别名快速通道 + 向量近邻 + LLM 复核）。
 
 约束：
   * 只在同一 layer（L1/L2）内合并，绝不把 L1 概念并进 L2 实例
@@ -11,7 +11,7 @@
 输入：aggr_entities.json + node_embeddings.pkl（{node_id: vector}）
 输出：dedup_result.json
 {
-  "schema_version": "2.0", "doc_id": "...",
+  "schema_version": "1.0", "doc_id": "...",
   "entities": [...], "relations": [...],
   "clusters": [...], "merge_map": {...}, "id_map": {...},
   "decisions": [...], "stats": {...}
@@ -80,7 +80,7 @@ DEFAULTS: Dict[str, Any] = {
     "DRY_RUN": False,
     "TEMPERATURE": 0.0,
     "MAX_TOKENS": 200,
-    "PROMPT_VERSION": "dedup.v2",
+    "PROMPT_VERSION": "dedup.v1",
     "LOG_DECISIONS_MAX": 5000,
     "LLM_SYSTEM_PROMPT": "",
     "LLM_USER_PROMPT": "",
@@ -434,7 +434,7 @@ def run(in_path: Optional[Path] = None, emb_path: Optional[Path] = None,
     with in_path.open("r", encoding="utf-8") as f:
         aggr = json.load(f)
     if isinstance(aggr, list) or "entities" not in aggr:
-        raise ValueError("输入不是 v2 aggr 产物（需要 {entities:[...]}）")
+        raise ValueError("输入不是 aggr 产物（需要 {entities:[...]}）")
     entities = [dict(e) for e in aggr["entities"]]
     embeddings = _load_embeddings(emb_path)
 
@@ -645,7 +645,7 @@ def run(in_path: Optional[Path] = None, emb_path: Optional[Path] = None,
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description="v2 同层实体去重")
+    ap = argparse.ArgumentParser(description="同层实体去重")
     ap.add_argument("--entities", default=None)
     ap.add_argument("--emb", default=None)
     ap.add_argument("--out", default=None)

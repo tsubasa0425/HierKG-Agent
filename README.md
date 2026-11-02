@@ -57,7 +57,7 @@ source .venv/Scripts/activate    # Windows bash
 cp src/KGBuild/config/config.yaml.example src/KGBuild/config/config.yaml
 ```
 
-编辑 `config.yaml` 填写 LLM API 密钥。流水线各阶段配置（`extraction` / `text` / `conv` / `aggr` / `dedup` / `pred` / `emb`）通过 `include_files` 自动合并；`schema.v2.yaml`（L0 本体）由各阶段直接读取。
+编辑 `config.yaml` 填写 LLM API 密钥。流水线各阶段配置（`extraction` / `text` / `conv` / `aggr` / `dedup` / `pred` / `emb`）通过 `include_files` 自动合并；`schema.yaml`（L0 本体）由各阶段直接读取。
 
 ### 4. 构建知识图谱
 
@@ -72,7 +72,7 @@ python src/KGBuild/pipeline.py --check  # 只预检各步骤输入文件，不�
 
 输出：`src/KGBuild/output/final_kg.json`
 
-以上步骤也可在 Web 端「图谱构建」（`/build`）完成：上传或选择 docx、在线编辑 LLM/存储配置与各阶段 YAML（含 `schema.v2.yaml`）、实时查看 10 步进度与日志、取消/续跑，并在二次确认后导入 Neo4j。若还没有 `config.yaml`，可直接在该页「编辑配置」中填写，无需手动复制模板。
+以上步骤也可在 Web 端「图谱构建」（`/build`）完成：上传或选择 docx、在线编辑 LLM/存储配置与各阶段 YAML（含 `schema.yaml`）、实时查看 10 步进度与日志、取消/续跑，并在二次确认后导入 Neo4j。若还没有 `config.yaml`，可直接在该页「编辑配置」中填写，无需手动复制模板。
 
 ### 5. 启动 Web UI
 
@@ -96,7 +96,7 @@ npm run dev
 
 | 层 | 名称 | 内容 | 来源 |
 |----|------|------|------|
-| L0 | 本体层 | 节点类型、关系类型、LayerPolicy 分层规则 | `src/KGBuild/config/schema.v2.yaml` |
+| L0 | 本体层 | 节点类型、关系类型、LayerPolicy 分层规则 | `src/KGBuild/config/schema.yaml` |
 | L1 | 概念层 | 抽象领域术语（如"强化学习""效用函数"），跨文档可合并 | `Aggr.py` 分层判定 + `Dedup.py` 去重 |
 | L2 | 实体层 | 具体实例（如"AlphaGo"），带属性和别名 | `Extraction.py` 抽取 + `Aggr.py` 分层 |
 | L3 | 证据层 | 原文小节片段，支撑 L1/L2 节点的溯源 | `TextSegmentation.py` 解析 + `evidence_builder.py` 构建 |
@@ -107,7 +107,7 @@ npm run dev
 
 L1/L2 判定按固定优先级执行：**硬约束（待定 → excluded）> 人工覆写 > 规则 > LLM/登记表**。
 
-- **规则每次重新求值**：改 `schema.v2.yaml` 的 `LayerPolicy` / `SignalDetectors` 后，下一次构建立即生效
+- **规则每次重新求值**：改 `schema.yaml` 的 `LayerPolicy` / `SignalDetectors` 后，下一次构建立即生效
 - **LLM 决策复用**：灰区判定写入 `src/KGBuild/output/layer_registry.json`，只有 `policy_hash` / `prompt_version` / `model_id` 三项指纹一致时才复用；换模型、改提示词或改分层规则都会让旧 LLM 决策失效（规则决策不缓存）
 - **人工覆写**：`src/KGBuild/config/layer_overrides.yaml`（进 git、可评审），按规范名（可选 `type`）钉死 L1/L2；「待定」类型不能靠覆写强行入图
 - **变更可见**：每次构建产出 `layer_stats`（兜底率、各规则命中数、LLM 调用数、缓存命中数），并检测 L1↔L2 翻转——翻转会改变节点 ID 前缀，写入 `build_manifest.json` 并打印告警
@@ -133,7 +133,7 @@ L1/L2 判定按固定优先级执行：**硬约束（待定 → excluded）> 人
 
 ```json
 {
-  "schema_version": "2.0",
+  "schema_version": "1.0",
   "L0_schema": {
     "node_types": { "core": { ... }, "domain_packs": { ... } },
     "relation_types": { "core": { ... }, "cross_layer": { ... } },
@@ -156,7 +156,7 @@ L1/L2 判定按固定优先级执行：**硬约束（待定 → excluded）> 人
 }
 ```
 
-v2 重新构建后，数据规模以 `build_manifest.json` 的 `counts` 为准。
+重新构建后，数据规模以 `build_manifest.json` 的 `counts` 为准。
 
 
 ### 混合查询链路：向量定位入口，图内继续查询
@@ -222,7 +222,7 @@ HierKG-Agent/
 │   │   ├── evidence_builder.py      # L3 证据构建
 │   │   ├── dedup/                   # 去重子包（knn / llm / name_similarity）
 │   │   ├── doc/                     # 输入文件（.docx 教材原文）
-│   │   ├── config/                  # 流水线各阶段 YAML 配置 + schema.v2.yaml
+│   │   ├── config/                  # 流水线各阶段 YAML 配置 + schema.yaml
 │   │   ├── output/                  # 构建产物（final_kg.json 等）
 │   │   └── logs/                    # 运行日志
 │   ├── KGRetrieve/             # 检索层 —— 15 个 Agent 原子工具
@@ -231,7 +231,7 @@ HierKG-Agent/
 │   │   ├── db_backend.py            # KGDBMemory（Neo4j + ChromaDB 后端）+ 导入脚本
 │   │   ├── mcp_server.py            # MCP server（Pi Agent / Claude 直连）
 │   │   └── TOOLS.md                 # 工具文档
-│   └── (schema.v2.yaml 已移入 KGBuild/config/)
+│   └── (schema.yaml 已移入 KGBuild/config/)
 ├── app/                         # Web UI：FastAPI 后端 + React 前端
 │   ├── main.py                       # FastAPI 入口（默认 :8000）
 │   ├── config.py                     # LLM 配置加载（复用 KGBuild config.yaml）
@@ -254,7 +254,7 @@ HierKG-Agent/
 |------|------|
 | **Agent 对话**（`/chat`） | 与检索 Agent 多轮对话；实时展示可折叠的**思考片段**与**工具调用轨迹**（推理/工具名/耗时/参数/结果），回答 Markdown 流式输出并引用 `[ev_xxx]` 证据；支持中途停止、清空、历史回顾 |
 | **知识图谱**（`/graph`） | L1 概念（蓝）/ L2 实体（绿）/ L3 证据（橙）分层配色的力导向图；挂载即加载全图采样，支持层级筛选、名称搜索、双击展开 2 跳邻域、单击查看节点/关系详情 |
-| **图谱构建**（`/build`） | 在线编辑 LLM / Neo4j / Ollama 配置与各阶段 YAML（含 L0 `schema.v2.yaml`，服务端校验后原子写入）；选择或上传 docx，带心跳的 SSE 实时进度与日志；取消、从失败步骤重试；导入前强制确认（会清空 Neo4j 并重建 Chroma collection，预检失败不会执行任何破坏性操作） |
+| **图谱构建**（`/build`） | 在线编辑 LLM / Neo4j / Ollama 配置与各阶段 YAML（含 L0 `schema.yaml`，服务端校验后原子写入）；选择或上传 docx，带心跳的 SSE 实时进度与日志；取消、从失败步骤重试；导入前强制确认（会清空 Neo4j 并重建 Chroma collection，预检失败不会执行任何破坏性操作） |
 
 ### 技术栈
 

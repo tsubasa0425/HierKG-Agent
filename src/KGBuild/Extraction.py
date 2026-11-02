@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Extraction v2 —— 小节正文 → 实体 / 语义关系（LLM，分块并发）。
+"""Extraction —— 小节正文 → 实体 / 语义关系（LLM，分块并发）。
 
-输入 toc_structure.json（v2 对象），逐小节处理其 blocks：
+输入 toc_structure.json（结构化对象），逐小节处理其 blocks：
   * 按 MAX_CHARS 分块，代码 / 公式块默认跳过
-  * 实体类型必须落在 schema.v2 的闭集内；无法归类返回「待定」，不再无脑塞「概念」
+  * 实体类型必须落在 schema 的闭集内；无法归类返回「待定」，不再无脑塞「概念」
   * 实体名必须能在原文中找到（名称或别名），否则丢弃（DROP_UNGROUNDED）
   * 定义优先用原文定义句；LLM 给的 definition 仅在含实体名时采用
   * 关系只抽同层语义关系（part_of / prerequisite / applies_to / example_of /
@@ -71,7 +71,7 @@ EXTRACTION_DEFAULTS: Dict[str, Any] = {
     "SKIP_BLOCK_TYPES": ["code", "formula"],
     "SKIP_UNKNOWN_SECTIONS": True,
     "RELATION_CONFIDENCE": 0.5,
-    "PROMPT_VERSION": "extraction.v2",
+    "PROMPT_VERSION": "extraction.v1",
     "FAIL_FAST": False,
     "ENTITY_PROMPT": "",
     "RELATION_PROMPT": "",
@@ -220,7 +220,7 @@ def chat_with_retry(prompt: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Prompt 渲染（从 schema v2）
+# Prompt 渲染（从 schema）
 # ---------------------------------------------------------------------------
 
 def render_entity_types(schema: Schema) -> str:
@@ -663,7 +663,7 @@ def load_toc(path: Path) -> Dict[str, Any]:
     with path.open("r", encoding="utf-8") as f:
         data = json.load(f)
     if isinstance(data, list):
-        raise ValueError("输入是 v1 的裸数组；请先用 v2 TextSegmentation 重新生成 toc_structure.json")
+        raise ValueError("输入格式不合法；请先用 TextSegmentation 重新生成 toc_structure.json")
     if "sections" not in data:
         raise ValueError("toc_structure.json 缺少 sections 字段")
     return data
@@ -754,7 +754,7 @@ class CounterLike:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description="v2 实体与关系抽取（分块并发）")
+    ap = argparse.ArgumentParser(description="实体与关系抽取（分块并发）")
     ap.add_argument("--workers", type=int, default=int(API.get("WORKERS") or 4))
     ap.add_argument("--limit", type=int, default=None, help="只处理前 N 个小节（调试）")
     ap.add_argument("--section-id", default=None, help="只处理指定 section_id")

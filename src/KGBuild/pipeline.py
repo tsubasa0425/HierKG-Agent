@@ -22,7 +22,8 @@
   - 各步骤的输入/输出文件名从 config.yaml + 各 stage yaml 读取（不 import
     任何 KGBuild 模块，避免 import 副作用）。config.yaml 缺失时报错提示
     cp config.yaml.example。
-  - --check 预检在真正开跑（可能烧 API/占 GPU）前先验证输入文件齐全。
+  - --check 预检在真正开跑（可能烧 API/占 GPU）前先验证输入可满足：
+    文件要么已在磁盘上，要么由前序选中步骤生成。
   - 任一步骤返回码非 0 即判定失败；默认停止，--keep-going 时继续。
 """
 
@@ -258,20 +259,37 @@ def select_steps(steps: List[Step], args) -> List[Step]:
 # ---------------------------------------------------------------------------
 
 def preflight(steps: List[Step], events_enabled: bool = False) -> bool:
-    """检查每个步骤的输入文件是否存在。返回是否有缺失。"""
+    """检查每个步骤的输入文件是否存在。
+
+    全量重建时，下游步骤的输入由前序步骤生成，不应要求它们事先存在；
+    只有「既不在磁盘上、也不会被前面选中步骤产出」的输入才算缺失。
+    """
     ok = True
     checked: List[dict] = []
     missing: List[dict] = []
+    produced: set = set()
     print("\n== 预检各步骤输入 ==")
     for s in steps:
         for p in s.inputs:
             exists = p.exists()
-            checked.append({"step": s.name, "path": str(p), "exists": exists})
-            if not exists:
+            will_be_produced = (not exists) and (p in produced)
+            checked.append({
+                "step": s.name,
+                "path": str(p),
+                "exists": exists,
+                "will_be_produced": will_be_produced,
+            })
+            if not exists and not will_be_produced:
                 ok = False
                 missing.append({"step": s.name, "path": str(p)})
-            mark = "✔" if exists else "✘ 缺失"
+            if exists:
+                mark = "✔"
+            elif will_be_produced:
+                mark = "↻ 由前序步骤生成"
+            else:
+                mark = "✘ 缺失"
             print(f"  [{mark}] {s.name:<10} {p}")
+        produced.update(s.outputs)
     if not ok:
         print("⚠  存在缺失输入，检查后重试（或加 --start 跳过已完成的步骤）。")
     emit(events_enabled, "preflight", ok=ok, checked=checked, missing=missing)

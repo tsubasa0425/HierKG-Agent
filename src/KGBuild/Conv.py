@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Conv v2 —— 实体归并 + 证据化定义补全 + 邻域/关系汇总。
+"""Conv —— 实体归并 + 证据化定义补全 + 邻域/关系汇总。
 
 职责（不做“用邻域编故事”的 LLM 扩写）：
   1. 把各小节抽取到的同名/别名实体归并为一个节点，保留全部 occurrences
@@ -12,7 +12,7 @@
 输入：toc_with_entities_and_relations.json
 输出：conv_entities.json
 {
-  "schema_version": "2.0",
+  "schema_version": "1.0",
   "doc_id": "...",
   "entities": [
     {"name","aliases","type","definition","confidence",
@@ -78,7 +78,7 @@ CONV_DEFAULTS: Dict[str, Any] = {
     "TEMPERATURE": 0.2,
     "MAX_TOKENS": 500,
     "DRY_RUN": False,
-    "PROMPT_VERSION": "conv.v2",
+    "PROMPT_VERSION": "conv.v1",
     "PROMPT_SYSTEM": "",
     "PROMPT_USER_TEMPLATE": "",
 }
@@ -548,7 +548,7 @@ def run(in_path: Optional[Path] = None, out_path: Optional[Path] = None,
     with in_path.open("r", encoding="utf-8") as f:
         toc_doc = json.load(f)
     if isinstance(toc_doc, list):
-        raise ValueError("输入是 v1 裸数组；请先用 v2 流水线重新生成")
+        raise ValueError("输入格式不合法；请先重新生成")
 
     docs = list(_walk(toc_doc.get("sections") or []))
     section_by_id = {s.get("section_id") or s.get("id"): s for s in docs}
@@ -592,7 +592,7 @@ def run(in_path: Optional[Path] = None, out_path: Optional[Path] = None,
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description="v2 实体归并与定义补全")
+    ap = argparse.ArgumentParser(description="实体归并与定义补全")
     ap.add_argument("--input", default=None)
     ap.add_argument("--output", default=None)
     ap.add_argument("--dry-run", action="store_true", help="不调用 LLM，只做归并")

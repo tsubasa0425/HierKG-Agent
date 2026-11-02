@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""toc_graph v2 —— 章节结构图（toc_graph.json）。
+"""toc_graph —— 章节结构图（toc_graph.json）。
 
 这是一个中间产物，不进入最终四层 KG，用于：
   * 检查章节树是否合理（层级、父子、跨度）
@@ -91,7 +91,7 @@ def _count(nodes: List[Dict[str, Any]], key: str) -> Dict[str, int]:
 
 def main(argv: Optional[List[str]] = None) -> int:
     import argparse
-    ap = argparse.ArgumentParser(description="构建 v2 章节结构图")
+    ap = argparse.ArgumentParser(description="构建章节结构图")
     ap.add_argument("--in", dest="in_path",
                     default=str(OUT_DIR / "toc_with_entities_and_relations.json"))
     ap.add_argument("--out", default=str(OUT_DIR / "toc_graph.json"))
@@ -103,7 +103,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     with in_path.open("r", encoding="utf-8") as f:
         toc_doc = json.load(f)
     if isinstance(toc_doc, list):
-        raise ValueError("输入是 v1 裸数组；请先用 v2 流水线重新生成")
+        raise ValueError("输入格式不合法；请先重新生成")
 
     graph = build_toc_graph(toc_doc)
     out_path = Path(args.out)

@@ -19,7 +19,7 @@ PredConfig:
   DRY_RUN: false
   TEMPERATURE: 0.2
   MAX_TOKENS: 300
-  PROMPT_VERSION: "pred.v2"
+  PROMPT_VERSION: "pred.v1"
 
   # —— 提示词模板 —— #
   # 占位符：{name_a} {type_a} {layer_a} {desc_a}

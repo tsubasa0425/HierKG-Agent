@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""evidence_builder v2 —— 从章节树构建 L3 证据层。
+"""evidence_builder —— 从章节树构建 L3 证据层。
 
 两种粒度：
   * section（默认）：每个有正文的小节一条证据，覆盖该节全部 block
@@ -8,12 +8,12 @@
   * both：两种都生成（ID 分别为 ev_doc:sec 与 ev_doc:sec:block）
 
 小节的 section_id 在 TextSegmentation 阶段已保证唯一，因此证据 ID 天然唯一，
-不再使用 v1 的 `#2` 后缀。容器小节（只有子标题、没有正文）生成 derived 证据，
+不再使用 `#2` 后缀。容器小节（只有子标题、没有正文）生成 derived 证据，
 仅用于图导航，不进入检索投影。
 
 输出：evidence.json
 {
-  "schema_version": "2.0",
+  "schema_version": "1.0",
   "doc_id": "...",
   "doc_text_path": "...",
   "evidences": [ ... ],
@@ -193,7 +193,7 @@ def _count(rows: List[Dict[str, Any]], key: str) -> Dict[str, int]:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description="构建 v2 L3 证据层")
+    ap = argparse.ArgumentParser(description="构建 L3 证据层")
     ap.add_argument("--input", default=str(OUT_DIR / "toc_with_entities_and_relations.json"))
     ap.add_argument("--output", default=str(OUT_DIR / "evidence.json"))
     ap.add_argument("--doc-id", default=None)
@@ -209,7 +209,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     with in_path.open("r", encoding="utf-8") as f:
         toc_doc = json.load(f)
     if isinstance(toc_doc, list):
-        raise ValueError("输入是 v1 裸数组；请先用 v2 流水线重新生成")
+        raise ValueError("输入格式不合法；请先重新生成")
 
     result = build_evidence(toc_doc, doc_id=args.doc_id, level=args.level,
                             include_unknown=args.include_unknown,
